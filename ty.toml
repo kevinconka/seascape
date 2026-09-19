@@ -2,4 +2,4 @@
 python-version = "3.13"
 
 [src]
-include = ["src", "tests"]
+include = ["seascape", "tests"]
