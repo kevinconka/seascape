@@ -1,0 +1,43 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "seascape"
+version = "0.1.0"
+description = "Maritime scene generator for sensor validation."
+readme = "README.md"
+license = "MIT"
+license-files = ["LICENSE"]
+# bpy publishes 3.13-only wheels and the lockfile has to resolve on every
+# interpreter the project claims, so 3.13 is the whole range.
+requires-python = "==3.13.*"
+authors = [{ name = "Kevin Serrano" }]
+keywords = ["blender", "maritime", "synthetic-data", "lwir", "computer-vision"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Multimedia :: Graphics :: 3D Rendering",
+    "Topic :: Scientific/Engineering :: Image Recognition",
+    "Typing :: Typed",
+]
+dependencies = []
+
+[project.urls]
+Homepage = "https://github.com/kevinconka/seascape"
+Repository = "https://github.com/kevinconka/seascape"
+Issues = "https://github.com/kevinconka/seascape/issues"
+
+[dependency-groups]
+dev = ["pytest>=9.0", "pytest-cov>=7.0", "ruff>=0.16", "ty>=0.0.82"]
+# Blender is the renderer, so this group installs by default. Skip the wheel
+# with `uv sync --no-group blender` to work on the NumPy-only parts.
+blender = ["bpy>=5.2,<5.3"]
+
+[tool.uv]
+default-groups = ["dev", "blender"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
