@@ -96,6 +96,15 @@ def test_optical_constants_vary_smoothly() -> None:
         assert off_by.max() < 0.10
 
 
+@pytest.mark.parametrize("bad", [-1.0, 0.0, float("nan")])
+def test_planck_rejects_impossible_temperatures(bad: float) -> None:
+    """A negative kelvin returned a negative radiance and propagated in silence."""
+    with pytest.raises(ValueError, match="positive"):
+        lwir.planck(1e-5, bad)
+    with pytest.raises(ValueError, match="positive"):
+        lwir.band_radiance(bad)
+
+
 def test_band_holds_a_plausible_share_of_total_emission() -> None:
     """The band is a fraction of a 288 K body's total emission.
 

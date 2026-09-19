@@ -114,7 +114,16 @@ def optical_constants() -> tuple[FloatArray, FloatArray, FloatArray]:
 
 
 def planck(lam_m: npt.ArrayLike, t_k: float) -> FloatArray:
-    """Spectral radiance of a blackbody, W m^-2 sr^-1 m^-1."""
+    """Spectral radiance of a blackbody, W m^-2 sr^-1 m^-1.
+
+    Guarded here because every temperature in this module reaches Planck eventually,
+    and a negative one returns a negative radiance rather than failing. Written as
+    `not > 0` so that nan raises too.
+    """
+    if not t_k > 0.0:
+        raise ValueError(
+            f"temperature must be a positive number of kelvin, got {t_k!r}"
+        )
     lam = np.asarray(lam_m, dtype=np.float64)
     numerator = 2 * PLANCK_H * LIGHT_C**2 / lam**5
     return numerator / (np.exp(PLANCK_H * LIGHT_C / (lam * BOLTZMANN_K * t_k)) - 1.0)
