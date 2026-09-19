@@ -27,31 +27,71 @@ import numpy.typing as npt
 
 type FloatArray = npt.NDArray[np.float64]
 
-# Downing & Williams 1975, Table 1: water at 27 C on a regular 10 cm^-1 grid, so the
-# grid is generated rather than typed out a third time.
-WAVENUMBERS_CM1 = np.arange(1250, 705, -10)
-
-# n and k are laboratory measurements. There is no formula for them: a Lorentz
-# oscillator fit would trade 110 measured numbers for ~16 fitted ones plus fit
-# error, and would still need these to validate against.
-WATER_N = (
-    1.291, 1.288, 1.286, 1.285, 1.283, 1.281, 1.279, 1.276, 1.274, 1.271, 1.269,
-    1.267, 1.264, 1.261, 1.259, 1.256, 1.253, 1.249, 1.246, 1.242, 1.238, 1.234,
-    1.230, 1.224, 1.220, 1.214, 1.208, 1.202, 1.194, 1.189, 1.181, 1.174, 1.168,
-    1.162, 1.156, 1.149, 1.143, 1.139, 1.135, 1.132, 1.132, 1.131, 1.132, 1.130,
-    1.130, 1.134, 1.138, 1.142, 1.157, 1.171, 1.182, 1.189, 1.201, 1.213, 1.223,
-)  # fmt: skip
-
+# Downing & Williams 1975, Table 1 -- water at 27 C. Rows are (wavenumber cm^-1, n, k)
+# so each one can be read across against the paper. n and k are measurements; there is
+# no formula for them. The wavenumber repeats a regular 10 cm^-1 grid on purpose: it is
+# what makes a row checkable, and a test asserts the grid is unbroken, which catches a
+# mistyped, dropped or transposed row.
+#
 # Three OCR artifacts in the source PDF were corrected against neighbouring rows:
 # k(1010) 0.515->0.0515, k(930) 0.O828->0.0828, k(900) _0.107->0.107.
-WATER_K = (
-    0.0351, 0.0352, 0.0356, 0.0359, 0.0361, 0.0362, 0.0366, 0.0370, 0.0374, 0.0378,
-    0.0383, 0.0387, 0.0392, 0.0398, 0.0405, 0.0411, 0.0417, 0.0424, 0.0434, 0.0443,
-    0.0453, 0.0467, 0.0481, 0.0497, 0.0515, 0.0534, 0.0557, 0.0589, 0.0622, 0.0661,
-    0.0707, 0.0764, 0.0828, 0.0898, 0.0973, 0.1070, 0.1180, 0.1300, 0.1440, 0.1590,
-    0.1760, 0.1920, 0.2080, 0.2260, 0.2430, 0.2600, 0.2770, 0.2920, 0.3050, 0.3170,
-    0.3280, 0.3380, 0.3470, 0.3560, 0.3650,
-)  # fmt: skip
+WATER_NK = (
+    (1250, 1.291, 0.0351),
+    (1240, 1.288, 0.0352),
+    (1230, 1.286, 0.0356),
+    (1220, 1.285, 0.0359),
+    (1210, 1.283, 0.0361),
+    (1200, 1.281, 0.0362),
+    (1190, 1.279, 0.0366),
+    (1180, 1.276, 0.0370),
+    (1170, 1.274, 0.0374),
+    (1160, 1.271, 0.0378),
+    (1150, 1.269, 0.0383),
+    (1140, 1.267, 0.0387),
+    (1130, 1.264, 0.0392),
+    (1120, 1.261, 0.0398),
+    (1110, 1.259, 0.0405),
+    (1100, 1.256, 0.0411),
+    (1090, 1.253, 0.0417),
+    (1080, 1.249, 0.0424),
+    (1070, 1.246, 0.0434),
+    (1060, 1.242, 0.0443),
+    (1050, 1.238, 0.0453),
+    (1040, 1.234, 0.0467),
+    (1030, 1.230, 0.0481),
+    (1020, 1.224, 0.0497),
+    (1010, 1.220, 0.0515),
+    (1000, 1.214, 0.0534),
+    (990, 1.208, 0.0557),
+    (980, 1.202, 0.0589),
+    (970, 1.194, 0.0622),
+    (960, 1.189, 0.0661),
+    (950, 1.181, 0.0707),
+    (940, 1.174, 0.0764),
+    (930, 1.168, 0.0828),
+    (920, 1.162, 0.0898),
+    (910, 1.156, 0.0973),
+    (900, 1.149, 0.1070),
+    (890, 1.143, 0.1180),
+    (880, 1.139, 0.1300),
+    (870, 1.135, 0.1440),
+    (860, 1.132, 0.1590),
+    (850, 1.132, 0.1760),
+    (840, 1.131, 0.1920),
+    (830, 1.132, 0.2080),
+    (820, 1.130, 0.2260),
+    (810, 1.130, 0.2430),
+    (800, 1.134, 0.2600),
+    (790, 1.138, 0.2770),
+    (780, 1.142, 0.2920),
+    (770, 1.157, 0.3050),
+    (760, 1.171, 0.3170),
+    (750, 1.182, 0.3280),
+    (740, 1.189, 0.3380),
+    (730, 1.201, 0.3470),
+    (720, 1.213, 0.3560),
+    (710, 1.223, 0.3650),
+)
 
 BAND_M = (8.0e-6, 14.0e-6)
 
@@ -65,9 +105,8 @@ T_SEA_K = 288.0
 
 def optical_constants() -> tuple[FloatArray, FloatArray, FloatArray]:
     """Wavelength (m), n, k across the band, ascending in wavelength."""
-    n = np.array(WATER_N, dtype=np.float64)
-    k = np.array(WATER_K, dtype=np.float64)
-    lam = 1e-2 / WAVENUMBERS_CM1  # cm^-1 -> m
+    wn, n, k = np.array(WATER_NK, dtype=np.float64).T
+    lam = 1e-2 / wn  # cm^-1 -> m
     order = np.argsort(lam)
     lam, n, k = lam[order], n[order], k[order]
     inside = (lam >= BAND_M[0]) & (lam <= BAND_M[1])

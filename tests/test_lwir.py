@@ -68,13 +68,15 @@ def test_stefan_boltzmann_matches_its_published_value() -> None:
     assert sigma == pytest.approx(5.670374419e-8, rel=1e-9)
 
 
-def test_the_three_columns_line_up() -> None:
-    """A dropped value would silently pair every n and k with the wrong wavelength.
+def test_the_wavenumber_grid_is_unbroken() -> None:
+    """The wavenumber column is a per-row checksum, so check it.
 
-    The grid is generated and the columns are typed, so nothing else enforces this.
+    Downing & Williams sampled every 10 cm^-1 from 1250 to 710 with no gaps. Asserting
+    that catches a mistyped wavenumber, a dropped row, a duplicate and a transposition
+    -- none of which a spot-check or a length count would notice.
     """
-    assert len(lwir.WATER_N) == len(lwir.WAVENUMBERS_CM1)
-    assert len(lwir.WATER_K) == len(lwir.WAVENUMBERS_CM1)
+    wavenumbers = np.array([row[0] for row in lwir.WATER_NK])
+    assert np.array_equal(wavenumbers, np.arange(1250, 705, -10))
 
 
 def test_optical_constants_vary_smoothly() -> None:
