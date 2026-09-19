@@ -25,11 +25,11 @@ opens it. The dependency between them is a file, not an import — so there is n
 hot-reload and no module cache to defeat.
 
 Do not add `sys.path` entries, `.pth` files, `importlib.reload`, symlinks into Blender's
-script directories, or an add-on wrapper to get around this. Each of those exists to make
-Blender host your code, which is the problem rather than the solution.
+script directories, or an add-on wrapper to get around this. Every one of them exists to let
+Blender host your code, which is the thing to avoid.
 
-The loop is `seascape build`, then reload in Blender. Building a scene is cheap; the cost of a
-cycle is process startup, not the work.
+The loop is `seascape build`, then reload in Blender. Building a scene is cheap; process
+startup dominates a cycle.
 
 To reload without losing where the user had the viewport, via MCP:
 
@@ -43,6 +43,7 @@ def _view3d():
             if a.type == "VIEW_3D":
                 return next(s.region_3d for s in a.spaces if s.type == "VIEW_3D")
 
+path = bpy.data.filepath            # or the .blend seascape just wrote
 rv = _view3d()
 view = Matrix(rv.view_matrix), rv.view_distance, rv.view_location.copy()
 bpy.ops.wm.open_mainfile(filepath=path)
@@ -107,11 +108,38 @@ uv run pytest
 The render-drift check needs a GPU and skips without one, which is also why CI never runs it.
 Run it locally before touching anything in the shader chain.
 
+## Writing
+
+Applies to comments, docstrings, commit messages, PR descriptions and docs.
+
+**Comments earn their place or go.** Good code needs few: a better name beats a comment
+explaining a worse one. Write one when the *why* cannot be recovered from the code — a
+non-obvious constraint, a unit, a workaround for a specific bug, a reference to a spec.
+
+```python
+angle = -bearing        # bad: negate the bearing
+angle = -bearing        # good: Blender's +Z rotation turns to port
+```
+
+Docstrings say what a function is for and what a caller must know. Not how it works — the
+code says that, and the docstring will drift from it.
+
+**Avoid the machine cadence.** These read as generated, and most are padding:
+
+- `X, not just Y` and `it's not X, it's Y` used for emphasis. Naming a real alternative
+  someone would pick is useful ("the Ocean modifier, not a hand-rolled noise shader").
+  Inventing one to sound balanced is not.
+- Lists of exactly three where two or five would be truer.
+- Every sentence the same length. Vary it, or the prose flattens.
+- A long word doing a short word's job.
+- Hedges: "it's worth noting", "essentially", "in order to".
+- A closing paragraph that restates what was just said.
+
+Prefer the specific. A number, a file name or a flag beats an adjective.
+
 ## Working here
 
 - **Commits:** Conventional Commits (`feat:`, `fix:`, `chore:`, `ci:`).
 - **Branches:** matching prefixes (`feat/...`, `fix/...`).
-- **Be concise.** PR descriptions and commit messages state the fact, not the journey. No
-  debugging narration, no restating the diff.
 - **Make PRs scannable.** A table, a before/after, or a rendered frame beats a paragraph.
 - Renders are cheap and settle arguments. If a change affects what the camera sees, show it.

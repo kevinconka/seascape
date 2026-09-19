@@ -25,8 +25,8 @@ and tells you exactly where everything was.
 - **Ground truth you can trust.** Rigs are built from code, so camera extrinsics and intrinsics
   are known by construction rather than estimated. Every target comes back with its true range,
   bearing and pixel extent.
-- **Thermal, not just visible.** LWIR renders use real seawater emissivity, angle-dependent sky
-  reflection and atmospheric attenuation over the 8–14 µm band.
+- **LWIR as well as EO.** Thermal renders use real seawater emissivity, angle-dependent sky
+  reflection and atmospheric attenuation across the 8–14 µm band.
 - **Multi-sensor rigs.** Several cameras, each with its own resolution, optics and modality,
   in one scene with known relative geometry.
 
@@ -73,7 +73,7 @@ CLI never touches it — skip this unless you want the interactive workflow.
 
 1. **Add the connector.** In Claude Desktop: **Customize → Connectors**, search *Blender*,
    click **Add**. It's first-party, so there's no config file and no `.mcpb`.
-2. **Install the Blender add-on.** Open the [MCP server page](https://www.blender.org/lab/mcp-server/)
+2. **Install the Blender add-on.** Open the [add-on install page](https://www.blender.org/lab/mcp-server/#add-on)
    next to Blender and drag the install link onto the Blender window — **twice**. The first
    drop allows the Blender Lab extension repository, the second installs the add-on.
 3. **Start it.** In Blender: **Edit → Preferences → Add-ons**, find *BlenderMCP*, enable
@@ -116,8 +116,7 @@ Not yet: multi-frame sequences, vessel motion, COCO labels.
 
 ## Contributing
 
-`AGENTS.md` covers the conventions and the Blender-specific traps worth knowing before you
-change anything.
+`AGENTS.md` covers the conventions and the Blender traps to know before changing anything.
 
 ## Licence
 
