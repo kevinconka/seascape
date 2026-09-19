@@ -41,7 +41,8 @@ uv sync
 ```
 
 Only touching the radiometry or the scenario config? `uv sync --no-group blender` skips the
-~400 MB Blender wheel. Those parts are plain NumPy and run without it.
+Blender wheel — 245 MB on Apple silicon, 402 MB on Linux. Those parts are plain NumPy and run
+without it.
 
 ## Quickstart
 
