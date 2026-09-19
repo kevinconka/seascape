@@ -107,13 +107,8 @@ uvx ty check
 uv run pytest
 ```
 
-ruff and ty run through `uvx` on purpose — they are not project dependencies, and the latest
-release is the one that counts. Do not add them to a dependency group or pin a version anywhere,
-including `.pre-commit-config.yaml`. pytest uses `uv run` because it has to import `seascape`.
-
-`uvx pre-commit install` automates the two ruff lines; `ty` and `pytest` stay manual. Note that
-`ruff format` also formats Python fenced in Markdown, so snippets in this file are held to the
-same shape as source.
+ruff and ty go through `uvx` deliberately: never add them to a dependency group and never pin
+them, `.pre-commit-config.yaml` included. `uvx pre-commit install` automates the ruff lines.
 
 The render-drift check needs a GPU and skips without one, which is also why CI never runs it.
 Run it locally before touching anything in the shader chain.

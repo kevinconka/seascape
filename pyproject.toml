@@ -9,8 +9,7 @@ description = "Maritime scene generator for sensor validation."
 readme = "README.md"
 license = "MIT"
 license-files = ["LICENSE"]
-# bpy publishes 3.13-only wheels and the lockfile has to resolve on every
-# interpreter the project claims, so 3.13 is the whole range.
+# bpy ships 3.13-only wheels, and the lock must resolve on every version claimed.
 requires-python = "==3.13.*"
 authors = [{ name = "Kevin Serrano" }]
 keywords = ["blender", "maritime", "synthetic-data", "lwir", "computer-vision"]
@@ -21,7 +20,6 @@ classifiers = [
     "Programming Language :: Python :: 3.13",
     "Topic :: Multimedia :: Graphics :: 3D Rendering",
     "Topic :: Scientific/Engineering :: Image Recognition",
-    "Typing :: Typed",
 ]
 dependencies = []
 
@@ -31,12 +29,7 @@ Repository = "https://github.com/kevinconka/seascape"
 Issues = "https://github.com/kevinconka/seascape/issues"
 
 [dependency-groups]
-# ruff and ty are deliberately absent: they run through uvx, which tracks the
-# latest release. Only tools that must see the project's own environment, as
-# pytest does to import seascape, belong here.
 dev = ["pytest>=9.0", "pytest-cov>=7.0"]
-# Blender is the renderer, so this group installs by default. Skip the wheel
-# with `uv sync --no-group blender` to work on the NumPy-only parts.
 blender = ["bpy>=5.2"]
 
 [tool.uv]
