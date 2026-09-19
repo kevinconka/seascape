@@ -68,6 +68,15 @@ def test_stefan_boltzmann_matches_its_published_value() -> None:
     assert sigma == pytest.approx(5.670374419e-8, rel=1e-9)
 
 
+def test_the_three_columns_line_up() -> None:
+    """A dropped value would silently pair every n and k with the wrong wavelength.
+
+    The grid is generated and the columns are typed, so nothing else enforces this.
+    """
+    assert len(lwir.WATER_N) == len(lwir.WAVENUMBERS_CM1)
+    assert len(lwir.WATER_K) == len(lwir.WAVENUMBERS_CM1)
+
+
 def test_optical_constants_vary_smoothly() -> None:
     """Catch a mistyped digit anywhere in the table, not just at the one spot-check.
 
