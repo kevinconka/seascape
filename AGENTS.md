@@ -37,17 +37,19 @@ To reload without losing where the user had the viewport, via MCP:
 import bpy
 from mathutils import Matrix
 
+
 def _view3d():
     for w in bpy.context.window_manager.windows:
         for a in w.screen.areas:
             if a.type == "VIEW_3D":
                 return next(s.region_3d for s in a.spaces if s.type == "VIEW_3D")
 
-path = bpy.data.filepath            # or the .blend seascape just wrote
+
+path = bpy.data.filepath  # or the .blend seascape just wrote
 rv = _view3d()
 view = Matrix(rv.view_matrix), rv.view_distance, rv.view_location.copy()
 bpy.ops.wm.open_mainfile(filepath=path)
-rv = _view3d()                      # regions are rebuilt by open_mainfile
+rv = _view3d()  # regions are rebuilt by open_mainfile
 rv.view_matrix, rv.view_distance, rv.view_location = view
 rv.update()
 ```
@@ -104,6 +106,10 @@ uv run ruff format --check .
 uv run ty check
 uv run pytest
 ```
+
+`uvx pre-commit install` automates the two ruff lines; `ty` and `pytest` stay manual. Note that
+`ruff format` also formats Python fenced in Markdown, so snippets in this file are held to the
+same shape as source.
 
 The render-drift check needs a GPU and skips without one, which is also why CI never runs it.
 Run it locally before touching anything in the shader chain.
