@@ -21,7 +21,9 @@ classifiers = [
     "Topic :: Multimedia :: Graphics :: 3D Rendering",
     "Topic :: Scientific/Engineering :: Image Recognition",
 ]
-dependencies = []
+dependencies = [
+    "numpy>=2.0",
+]
 
 [project.urls]
 Homepage = "https://github.com/kevinconka/seascape"

@@ -106,8 +106,8 @@ lsof -nP -iTCP:9876 -sTCP:LISTEN
 
 | Area | State |
 |---|---|
-| Scaffolding and CI | in progress |
-| LWIR radiometry | porting |
+| Scaffolding and CI | done |
+| LWIR radiometry | done |
 | Scenario config and schema | porting |
 | Scene build and rendering | porting |
 | Multi-frame sequences | planned |
