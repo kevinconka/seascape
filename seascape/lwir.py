@@ -7,10 +7,35 @@ lookup. Band-integrating costs nothing, because the sensor does it anyway.
 
 Angles are radians throughout; this module sits well inside the degrees boundary.
 
-Optical constants: Downing & Williams, "Optical Constants of Water in the Infrared",
-J. Geophys. Res. 80(12), 1975, Table 1. Water at 27 C.
-Caveat: pure water, not seawater. Salinity shifts k slightly in this band; Friedman
-(1969) is the seawater source if that correction is ever needed.
+Where the numbers come from
+---------------------------
+Two kinds of number live here and they are not interchangeable. Measured values carry a
+source; the rest are chosen to look right and are marked as such below and at their
+definition. Only the first kind can back a claim.
+
+*Measured.* The optical constants are Downing & Williams, "Optical Constants of Water in
+the Infrared", J. Geophys. Res. 80(12), 1975, Table 1 -- water at 27 C, 1250-710 cm^-1.
+Pure water, not seawater: salinity shifts k slightly in this band, and Friedman (1969)
+is the seawater source if that correction is ever needed. The physical constants are the
+SI defining constants, exact by definition since the 2019 redefinition.
+
+*Derived.* Planck's law and Fresnel for an absorbing medium are textbook. Two
+assumptions ride on them and are easier to forget than to spot:
+
+- Kirchhoff's law, eps = 1 - R, which holds because water is opaque across this band
+  well inside any depth the sensor resolves. No transmitted term.
+
+- Band emissivity is the Planck-weighted mean of the spectral emissivity. This is exact
+  only for a sensor whose spectral response is flat across 8-14 um. A real
+  microbolometer is not, so a specific sensor wants its own response curve here.
+
+*Chosen.* Everything in the sky and atmosphere model: SKY_EPS_ZENITH, BETA_PER_KM, and
+the 1/sin(elevation) airmass, which further assumes a plane-parallel atmosphere and so
+overstates the path near the horizon. These reproduce the shape of a thermal horizon
+rather than its radiometry. Replacing them with MODTRAN or an equivalent is the work
+required before any figure from this module backs a claim.
+
+The band itself is the atmospheric window an uncooled microbolometer sees.
 """
 
 import numpy as np
@@ -46,11 +71,13 @@ WATER_NK = [
 
 BAND_M = (8.0e-6, 14.0e-6)
 
+# SI defining constants, exact.
 PLANCK_H = 6.62607015e-34  # J s
 LIGHT_C = 2.99792458e8  # m s^-1
 BOLTZMANN_K = 1.380649e-23  # J K^-1
 
-# Coarse but physically shaped, for a plausible look rather than radiometry.
+# Chosen, not measured. See "Where the numbers come from" above before quoting anything
+# downstream of these three.
 T_AIR_K = 288.0
 SKY_EPS_ZENITH = 0.30  # in-band zenith emissivity, clear dry sky
 BETA_PER_KM = 0.20  # LWIR extinction, maritime boundary layer
@@ -121,6 +148,9 @@ def sky_radiance(
     Sky emissivity grows toward the horizon as the slant path lengthens, so the sky
     warms from a cold zenith to ambient at the horizon. That convergence is what
     makes a thermal horizon read correctly.
+
+    Shape, not radiometry — the zenith emissivity and the 1/sin airmass are chosen
+    values. See "Where the numbers come from".
     """
     s = np.clip(np.sin(np.asarray(elevation_rad, dtype=np.float64)), 1e-3, 1.0)
     return (1.0 - (1.0 - eps_zenith) ** (1.0 / s)) * band_radiance(t_air_k)

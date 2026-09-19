@@ -1,7 +1,11 @@
 """Physics assertions for the LWIR band.
 
-Published values, no GPU, no Blender. These are the check that the radiometry is
-right; a render only shows that it is plausible.
+No GPU, no Blender. These are the check that the radiometry is right; a render only
+shows that it is plausible.
+
+Each assertion names what it is measured against. Nothing here tests the sky or
+atmosphere model: those constants are chosen rather than measured, so a test would only
+pin a guess. See "Where the numbers come from" in seascape/lwir.py.
 """
 
 import numpy as np
@@ -23,7 +27,11 @@ def eps_at(curve: tuple[np.ndarray, np.ndarray], deg: float) -> float:
 
 
 def test_normal_incidence_emissivity_is_about_0_99(curve) -> None:
-    """Water looks almost black in the LWIR when viewed straight down."""
+    """Water looks almost black in the LWIR when viewed straight down.
+
+    0.98-0.99 is the standard handbook emissivity for water in this band, and the one
+    every IR thermometer ships as its water preset.
+    """
     assert 0.98 <= eps_at(curve, 0.0) <= 0.995
 
 
@@ -37,7 +45,11 @@ def test_grazing_emissivity_collapses(curve) -> None:
 
 
 def test_optical_constants_match_downing_williams_at_10um() -> None:
-    """Spot-check the transcribed table against its source at 1000 cm^-1."""
+    """Spot-check the transcribed table against Downing & Williams 1975, Table 1.
+
+    The table was transcribed from a PDF with three OCR artifacts corrected by hand, so
+    this guards the transcription, not the physics.
+    """
     lam, n, k = lwir.optical_constants()
     j = int(np.argmin(np.abs(lam - 10e-6)))
     assert n[j] == pytest.approx(1.214, abs=1e-3)
@@ -45,7 +57,12 @@ def test_optical_constants_match_downing_williams_at_10um() -> None:
 
 
 def test_band_holds_a_plausible_share_of_total_emission() -> None:
-    """Stefan-Boltzmann sanity: 8-14 um is a fraction of a 288 K body's output."""
+    """The band is a fraction of a 288 K body's total emission.
+
+    Stefan-Boltzmann gives the total exactly; the 35-50% window is a chosen tolerance
+    around the ~36% this integration produces, wide enough to survive a change of
+    integration scheme and narrow enough to catch a unit error in Planck.
+    """
     total = STEFAN_BOLTZMANN * 288.0**4 / np.pi
     assert 0.35 <= lwir.band_radiance(288.0) / total <= 0.50
 
