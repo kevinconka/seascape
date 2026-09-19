@@ -40,6 +40,12 @@ def test_normal_incidence_emissivity_is_about_0_99(curve) -> None:
 
 
 def test_emissivity_falls_with_angle(curve) -> None:
+    """The shape between the endpoints, which checking 0° and 89° alone would miss.
+
+    Fresnel reflectance rises monotonically with incidence for an absorbing medium, so
+    emissivity has to fall monotonically. A wobble means the complex sqrt took a wrong
+    branch or the band integration is picking up sign errors.
+    """
     assert eps_at(curve, 60.0) > eps_at(curve, 80.0) > eps_at(curve, 89.0)
 
 
@@ -48,16 +54,19 @@ def test_grazing_emissivity_collapses(curve) -> None:
     assert eps_at(curve, 89.0) < 0.6
 
 
-def test_optical_constants_match_downing_williams_at_10um() -> None:
-    """Spot-check the transcribed table against Downing & Williams 1975, Table 1.
+def test_table_reproduces_downing_williams_at_their_own_temperature() -> None:
+    """End-to-end check of the shipped table against a value published in 1975.
 
-    The table was transcribed from a PDF with three OCR artifacts corrected by hand, so
-    this guards the transcription, not the physics.
+    The table is Downing & Williams extended across temperature by Nalli et al. Asked
+    for 300 K -- the 27 C those original measurements were made at -- it has to give
+    back what they printed: n=1.214, k=0.0534 at 10 um. That exercises the file, the
+    reader and the interpolation in one assertion, against a number none of them
+    produced.
     """
-    lam, n, k = lwir.optical_constants()
+    lam, n, k = lwir.optical_constants(300.0)
     j = int(np.argmin(np.abs(lam - 10e-6)))
     assert n[j] == pytest.approx(1.214, abs=1e-3)
-    assert k[j] == pytest.approx(0.0534, abs=1e-4)
+    assert k[j] == pytest.approx(0.0534, abs=5e-4)
 
 
 def test_stefan_boltzmann_matches_its_published_value() -> None:
@@ -68,32 +77,60 @@ def test_stefan_boltzmann_matches_its_published_value() -> None:
     assert sigma == pytest.approx(5.670374419e-8, rel=1e-9)
 
 
-def test_the_wavenumber_grid_is_unbroken() -> None:
-    """The wavenumber column is a per-row checksum, so check it.
+def test_the_shipped_grid_is_unbroken() -> None:
+    """A hole in either axis would silently pair values with the wrong coordinate.
 
-    Downing & Williams sampled every 10 cm^-1 from 1250 to 710 with no gaps. Asserting
-    that catches a mistyped wavenumber, a dropped row, a duplicate and a transposition
-    -- none of which a spot-check or a length count would notice.
+    `_table` already raises on a missing cell; this pins the grid it expects, so a
+    regenerated file with a different span or step fails loudly rather than quietly
+    changing the physics.
     """
-    wavenumbers = np.array([row[0] for row in lwir.WATER_NK])
-    assert np.array_equal(wavenumbers, np.arange(1250, 705, -10))
+    wavenumbers, temperatures, _ = lwir._table()
+    assert np.array_equal(wavenumbers, np.arange(700.0, 1261.0, 20.0))
+    assert np.array_equal(temperatures, np.arange(271.0, 312.0, 4.0))
 
 
 def test_optical_constants_vary_smoothly() -> None:
-    """Catch a mistyped digit anywhere in the table, not just at the one spot-check.
+    """Catch a corrupted value anywhere in the band, not just at the one spot-check.
 
     n and k change gradually with wavelength, so every value should sit near the
-    midpoint of its two neighbours. The k column around 1010 cm^-1 reads 0.0497,
-    0.0515, 0.0534: the middle one is 0.1% off that midpoint, and the worst row in
-    the table is 1.1% off. The table was transcribed from a PDF with three OCR
-    artifacts fixed by hand; restoring the worst, k(1010) as 0.515, puts that row
-    90% off. Hence the 10% bar.
+    midpoint of its two neighbours. A slipped decimal in the shipped file, or a
+    transposed column in the reader, breaks that immediately: the real data stays
+    within a few percent, so the 10% bar has a wide margin either side.
     """
     _, n, k = lwir.optical_constants()
     for values in (n, k):
         midpoint_of_neighbours = (values[:-2] + values[2:]) / 2
         off_by = np.abs(values[1:-1] - midpoint_of_neighbours) / values[1:-1]
         assert off_by.max() < 0.10
+
+
+def test_emissivity_rises_with_sea_temperature_but_barely() -> None:
+    """Both halves matter: the trend is real, and it is small.
+
+    Warmer water is slightly less reflective in this band, so emissivity climbs with
+    temperature. Across 271-311 K -- colder and warmer than any sea -- it moves 0.016
+    at most: 0.003 looking straight down, peaking at 80 degrees where the curve is
+    steepest. Small, but it peaks exactly where the horizon and the distant targets
+    are, which is why it is worth carrying rather than freezing at one temperature.
+
+    The epsilon absorbs 1e-17 wobble at 90 degrees, where emissivity is exactly zero.
+    """
+    cold = lwir.emissivity_curve(t_sea_k=271.0)[1]
+    warm = lwir.emissivity_curve(t_sea_k=311.0)[1]
+    assert np.all(warm >= cold - 1e-12)
+    assert np.abs(warm - cold).max() < 0.02
+
+
+def test_temperature_is_clamped_to_the_measured_range() -> None:
+    """Outside 271-311 K the table has nothing, so hold the endpoint.
+
+    Extrapolating optical constants past the measurements would invent data. Only the
+    lookup clamps: Planck still uses the temperature it was given, which is why the
+    curves are close rather than identical.
+    """
+    below = lwir.optical_constants(200.0)
+    at_edge = lwir.optical_constants(271.0)
+    assert all(np.array_equal(a, b) for a, b in zip(below, at_edge, strict=True))
 
 
 @pytest.mark.parametrize("bad", [-1.0, 0.0, float("nan")])

@@ -8,9 +8,12 @@ someone brings a real model. Angles are radians.
 
 Sources
 -------
-Optical constants: Downing & Williams, "Optical Constants of Water in the Infrared",
-J. Geophys. Res. 80(12), 1975, Table 1 -- water at 27 C, 1250-710 cm^-1. Pure water, not
-seawater; Friedman (1969) is the seawater source if that correction is ever needed.
+Optical constants: Nalli et al., "Temperature-dependent optical constants of water in
+the thermal infrared derived from data archaeology", Optics Continuum 1(4) 738, 2022
+(doi:10.1364/OPTCON.450833); data doi:10.6084/m9.figshare.19341533, CC BY 4.0. That is
+Downing & Williams 1975 extended across 271-311 K using Pinkley et al. 1977. The table
+ships as data/water_nk.csv, which carries the same citation.
+
 h, c and k_B are the SI defining constants, exact since the 2019 redefinition.
 
 Planck's law and Fresnel for an absorbing medium are textbook, but carry two assumptions
@@ -22,76 +25,15 @@ that fail silently:
   a flat sensor response; a specific microbolometer wants its own curve here.
 """
 
+import functools
+from pathlib import Path
+
 import numpy as np
 import numpy.typing as npt
 
 type FloatArray = npt.NDArray[np.float64]
 
-# Downing & Williams 1975, Table 1 -- water at 27 C. Rows are (wavenumber cm^-1, n, k)
-# so each one can be read across against the paper. n and k are measurements; there is
-# no formula for them. The wavenumber repeats a regular 10 cm^-1 grid on purpose: it is
-# what makes a row checkable, and a test asserts the grid is unbroken, which catches a
-# mistyped, dropped or transposed row.
-#
-# Three OCR artifacts in the source PDF were corrected against neighbouring rows:
-# k(1010) 0.515->0.0515, k(930) 0.O828->0.0828, k(900) _0.107->0.107.
-WATER_NK = (
-    (1250, 1.291, 0.0351),
-    (1240, 1.288, 0.0352),
-    (1230, 1.286, 0.0356),
-    (1220, 1.285, 0.0359),
-    (1210, 1.283, 0.0361),
-    (1200, 1.281, 0.0362),
-    (1190, 1.279, 0.0366),
-    (1180, 1.276, 0.0370),
-    (1170, 1.274, 0.0374),
-    (1160, 1.271, 0.0378),
-    (1150, 1.269, 0.0383),
-    (1140, 1.267, 0.0387),
-    (1130, 1.264, 0.0392),
-    (1120, 1.261, 0.0398),
-    (1110, 1.259, 0.0405),
-    (1100, 1.256, 0.0411),
-    (1090, 1.253, 0.0417),
-    (1080, 1.249, 0.0424),
-    (1070, 1.246, 0.0434),
-    (1060, 1.242, 0.0443),
-    (1050, 1.238, 0.0453),
-    (1040, 1.234, 0.0467),
-    (1030, 1.230, 0.0481),
-    (1020, 1.224, 0.0497),
-    (1010, 1.220, 0.0515),
-    (1000, 1.214, 0.0534),
-    (990, 1.208, 0.0557),
-    (980, 1.202, 0.0589),
-    (970, 1.194, 0.0622),
-    (960, 1.189, 0.0661),
-    (950, 1.181, 0.0707),
-    (940, 1.174, 0.0764),
-    (930, 1.168, 0.0828),
-    (920, 1.162, 0.0898),
-    (910, 1.156, 0.0973),
-    (900, 1.149, 0.1070),
-    (890, 1.143, 0.1180),
-    (880, 1.139, 0.1300),
-    (870, 1.135, 0.1440),
-    (860, 1.132, 0.1590),
-    (850, 1.132, 0.1760),
-    (840, 1.131, 0.1920),
-    (830, 1.132, 0.2080),
-    (820, 1.130, 0.2260),
-    (810, 1.130, 0.2430),
-    (800, 1.134, 0.2600),
-    (790, 1.138, 0.2770),
-    (780, 1.142, 0.2920),
-    (770, 1.157, 0.3050),
-    (760, 1.171, 0.3170),
-    (750, 1.182, 0.3280),
-    (740, 1.189, 0.3380),
-    (730, 1.201, 0.3470),
-    (720, 1.213, 0.3560),
-    (710, 1.223, 0.3650),
-)
+_TABLE_CSV = Path(__file__).parent / "data" / "water_nk.csv"
 
 BAND_M = (8.0e-6, 14.0e-6)
 
@@ -103,10 +45,46 @@ BOLTZMANN_K = 1.380649e-23  # J K^-1
 T_SEA_K = 288.0
 
 
-def optical_constants() -> tuple[FloatArray, FloatArray, FloatArray]:
-    """Wavelength (m), n, k across the band, ascending in wavelength."""
-    wn, n, k = np.array(WATER_NK, dtype=np.float64).T
-    lam = 1e-2 / wn  # cm^-1 -> m
+@functools.lru_cache(maxsize=1)
+def _table() -> tuple[FloatArray, FloatArray, FloatArray]:
+    """The shipped table as (wavenumber, temperature, n and k on that grid).
+
+    n and k come back shaped (temperature, wavenumber). Rows are placed by index
+    rather than reshaped, so the file's row order does not matter. Arrays are frozen
+    because the cache hands the same objects to every caller.
+    """
+    raw = np.loadtxt(_TABLE_CSV, delimiter=",", comments="#")
+    grid, column = np.unique(raw[:, 0], return_inverse=True)
+    temperatures, row = np.unique(raw[:, 1], return_inverse=True)
+
+    nk = np.full((2, len(temperatures), len(grid)), np.nan)
+    nk[0, row, column] = raw[:, 2]
+    nk[1, row, column] = raw[:, 3]
+    if np.isnan(nk).any():
+        raise ValueError(f"{_TABLE_CSV.name} is missing rows: the grid has holes")
+
+    for a in (grid, temperatures, nk):
+        a.setflags(write=False)
+    return grid, temperatures, nk
+
+
+def optical_constants(
+    t_k: float = T_SEA_K,
+) -> tuple[FloatArray, FloatArray, FloatArray]:
+    """Wavelength (m), n, k across the band at `t_k`, ascending in wavelength.
+
+    Linearly interpolated between the table's 4 K steps and clamped outside 271-311 K,
+    which already spans any sea surface. Water's optical constants move little across
+    that range: emissivity shifts by 0.016 at most, peaking at 80 degrees where the
+    curve is steepest, and by 0.003 looking straight down.
+    """
+    grid, temperatures, nk = _table()
+    t = float(np.clip(t_k, temperatures[0], temperatures[-1]))
+    n, k = (
+        np.array([np.interp(t, temperatures, col) for col in plane.T]) for plane in nk
+    )
+
+    lam = 1e-2 / grid  # cm^-1 -> m
     order = np.argsort(lam)
     lam, n, k = lam[order], n[order], k[order]
     inside = (lam >= BAND_M[0]) & (lam <= BAND_M[1])
@@ -151,7 +129,7 @@ def emissivity_curve(
     *, t_sea_k: float = T_SEA_K, n_angles: int = 91
 ) -> tuple[FloatArray, FloatArray]:
     """Planck-weighted, band-integrated emissivity against incidence angle (rad)."""
-    lam, n, k = optical_constants()
+    lam, n, k = optical_constants(t_sea_k)
     weight = planck(lam, t_sea_k)
     theta = np.linspace(0.0, np.pi / 2, n_angles)
     eps = fresnel_emissivity(theta[:, None], n, k)
@@ -160,5 +138,5 @@ def emissivity_curve(
 
 def band_radiance(t_k: float) -> float:
     """Blackbody radiance integrated over the band, W m^-2 sr^-1."""
-    lam, _, _ = optical_constants()
+    lam, _, _ = optical_constants(t_k)
     return float(np.trapezoid(planck(lam, t_k), lam))

@@ -122,3 +122,7 @@ lsof -nP -iTCP:9876 -sTCP:LISTEN
 
 MIT — see [LICENSE](LICENSE). Bundled 3D assets carry their own licences, recorded in
 `assets.toml`; some require attribution, which travels with any released dataset.
+
+`seascape/data/water_nk.csv` is CC BY 4.0, from
+[Nalli et al. 2022](https://doi.org/10.6084/m9.figshare.19341533); the citation travels in
+the file's own header.
