@@ -28,36 +28,35 @@ Do not add `sys.path` entries, `.pth` files, `importlib.reload`, symlinks into B
 script directories, or an add-on wrapper to get around this. Each of those exists to make
 Blender host your code, which is the problem rather than the solution.
 
-Iterating with Blender open, via MCP:
+The loop is `seascape build`, then reload in Blender. Building a scene is cheap; the cost of a
+cycle is process startup, not the work.
+
+To reload without losing where the user had the viewport, via MCP:
 
 ```python
-# 1. build headless (separate process)   uv run seascape build <scenario>
-# 2. reload in the live session, keeping the viewport where the user left it
 import bpy
 from mathutils import Matrix
 
-rv = next(s.region_3d for w in bpy.context.window_manager.windows
-          for a in w.screen.areas if a.type == "VIEW_3D"
-          for s in a.spaces if s.type == "VIEW_3D")
+def _view3d():
+    for w in bpy.context.window_manager.windows:
+        for a in w.screen.areas:
+            if a.type == "VIEW_3D":
+                return next(s.region_3d for s in a.spaces if s.type == "VIEW_3D")
+
+rv = _view3d()
 view = Matrix(rv.view_matrix), rv.view_distance, rv.view_location.copy()
-
 bpy.ops.wm.open_mainfile(filepath=path)
-
-rv = next(...)                      # regions are rebuilt by open_mainfile
+rv = _view3d()                      # regions are rebuilt by open_mainfile
 rv.view_matrix, rv.view_distance, rv.view_location = view
 rv.update()
 ```
 
-Measured: 0.08 s to build a scene, 0.34 s to reload with the view restored exactly.
+Without MCP, **File → Revert** (`bpy.ops.wm.revert_mainfile`) does the same minus the view
+restore. Either way, reloading discards unsaved in-memory changes, so anything hand-tweaked in
+Blender is lost — put it in the build code instead.
 
-Without MCP the same loop is **File → Revert** in Blender (`bpy.ops.wm.revert_mainfile`),
-which reloads the `.blend` from disk. One menu click, but the viewport resets — restoring the
-view is the only thing the MCP version adds. Either way, reloading discards unsaved in-memory
-changes, so anything hand-tweaked in Blender is lost. Put it in the build code instead.
-
-Two reasons this is the loop rather than a compromise. A fresh process cannot accumulate
-state — orphaned shader nodes and half-restored materials are both reachable only in a
-long-lived session. And what you see is what CI renders, because it was built the same way.
+Building fresh each time is also what keeps a long-lived session from accumulating state that
+the next build inherits.
 
 ## Traps that fail silently
 
@@ -105,13 +104,8 @@ uv run ty check
 uv run pytest
 ```
 
-`pytest` skips the Blender-dependent tests unless the `blender` group is installed, and skips
-the render-drift check without a GPU. Run the full suite locally before touching anything in
-the shader chain:
-
-```bash
-uv sync --group blender && uv run pytest
-```
+The render-drift check needs a GPU and skips without one, which is also why CI never runs it.
+Run it locally before touching anything in the shader chain.
 
 ## Working here
 
