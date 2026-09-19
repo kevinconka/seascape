@@ -96,7 +96,8 @@ lsof -nP -iTCP:9876 -sTCP:LISTEN
 |---|---|
 | Add-on gone after restarting Blender | Preferences were never saved. Run **Save Preferences**, or enable auto-save. |
 | "Online access must be enabled" | **Edit → Preferences → System → Network → Allow Online Access**. |
-| Nothing listening on 9876 | Blender isn't running, the add-on is disabled, or another instance holds the port. MCP needs the GUI. |
+| Nothing listening on 9876 | Blender isn't running, or the add-on is disabled. MCP needs the GUI. |
+| Listening, but the wrong scene answers | Another Blender instance bound the port first. Only one can hold it. |
 | Dragging the link does nothing | Drop it twice — the first drop only registers the repository. |
 | A guide tells you to run `uvx blender-mcp` | That's [`ahujasid/blender-mcp`](https://github.com/ahujasid/blender-mcp), a different community server. Both work; don't mix their instructions. |
 
