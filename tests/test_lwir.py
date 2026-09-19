@@ -13,7 +13,11 @@ import pytest
 
 from seascape import lwir
 
-STEFAN_BOLTZMANN = 5.670374419e-8  # W m^-2 K^-4
+# Derived from the three SI defining constants rather than hardcoded: sigma is
+# 2 pi^5 k^4 / (15 h^3 c^2) exactly, so this also checks they are self-consistent.
+STEFAN_BOLTZMANN = (
+    2 * np.pi**5 * lwir.BOLTZMANN_K**4 / (15 * lwir.PLANCK_H**3 * lwir.LIGHT_C**2)
+)
 
 
 @pytest.fixture(scope="module")
@@ -54,6 +58,14 @@ def test_optical_constants_match_downing_williams_at_10um() -> None:
     j = int(np.argmin(np.abs(lam - 10e-6)))
     assert n[j] == pytest.approx(1.214, abs=1e-3)
     assert k[j] == pytest.approx(0.0534, abs=1e-4)
+
+
+def test_stefan_boltzmann_matches_its_published_value() -> None:
+    """Guards the transcription of h, c and k_B against CODATA's rounded sigma."""
+    sigma = (
+        STEFAN_BOLTZMANN  # local: ruff reads a bare constant here as a Yoda condition
+    )
+    assert sigma == pytest.approx(5.670374419e-8, rel=1e-9)
 
 
 def test_band_holds_a_plausible_share_of_total_emission() -> None:

@@ -47,7 +47,7 @@ type FloatArray = npt.NDArray[np.float64]
 # (8.00-14.08 um). Three OCR artifacts in the source PDF were corrected against
 # the smoothness of their neighbours: k(1010) 0.515->0.0515, k(930) 0.O828->
 # 0.0828, k(900) _0.107->0.107.
-WATER_NK = [
+WATER_NK = (
     (1250, 1.291, 0.0351), (1240, 1.288, 0.0352), (1230, 1.286, 0.0356),
     (1220, 1.285, 0.0359), (1210, 1.283, 0.0361), (1200, 1.281, 0.0362),
     (1190, 1.279, 0.0366), (1180, 1.276, 0.0370), (1170, 1.274, 0.0374),
@@ -67,7 +67,7 @@ WATER_NK = [
     (770, 1.157, 0.3050), (760, 1.171, 0.3170), (750, 1.182, 0.3280),
     (740, 1.189, 0.3380), (730, 1.201, 0.3470), (720, 1.213, 0.3560),
     (710, 1.223, 0.3650),
-]  # fmt: skip
+)  # fmt: skip
 
 BAND_M = (8.0e-6, 14.0e-6)
 
@@ -75,6 +75,8 @@ BAND_M = (8.0e-6, 14.0e-6)
 PLANCK_H = 6.62607015e-34  # J s
 LIGHT_C = 2.99792458e8  # m s^-1
 BOLTZMANN_K = 1.380649e-23  # J K^-1
+
+T_SEA_K = 288.0
 
 # Chosen, not measured. See "Where the numbers come from" above before quoting anything
 # downstream of these three.
@@ -122,7 +124,7 @@ def fresnel_emissivity(
 
 
 def emissivity_curve(
-    t_sea_k: float = 288.0, n_angles: int = 91
+    *, t_sea_k: float = T_SEA_K, n_angles: int = 91
 ) -> tuple[FloatArray, FloatArray]:
     """Planck-weighted, band-integrated emissivity against incidence angle (rad)."""
     lam, n, k = optical_constants()
@@ -140,6 +142,7 @@ def band_radiance(t_k: float) -> float:
 
 def sky_radiance(
     elevation_rad: npt.ArrayLike,
+    *,
     t_air_k: float = T_AIR_K,
     eps_zenith: float = SKY_EPS_ZENITH,
 ) -> FloatArray:
@@ -156,21 +159,32 @@ def sky_radiance(
     return (1.0 - (1.0 - eps_zenith) ** (1.0 / s)) * band_radiance(t_air_k)
 
 
-def transmittance(range_m: npt.ArrayLike) -> FloatArray:
+def transmittance(
+    range_m: npt.ArrayLike, *, beta_per_km: float = BETA_PER_KM
+) -> FloatArray:
     """Fraction of in-band radiance surviving a path of `range_m`."""
-    return np.exp(-BETA_PER_KM * np.asarray(range_m, dtype=np.float64) / 1000.0)
+    return np.exp(-beta_per_km * np.asarray(range_m, dtype=np.float64) / 1000.0)
 
 
-def path_radiance(range_m: npt.ArrayLike, t_air_k: float = T_AIR_K) -> FloatArray:
+def path_radiance(
+    range_m: npt.ArrayLike,
+    *,
+    t_air_k: float = T_AIR_K,
+    beta_per_km: float = BETA_PER_KM,
+) -> FloatArray:
     """In-band radiance the atmosphere itself adds over a path of `range_m`."""
-    return (1.0 - transmittance(range_m)) * band_radiance(t_air_k)
+    surviving = transmittance(range_m, beta_per_km=beta_per_km)
+    return (1.0 - surviving) * band_radiance(t_air_k)
 
 
 def sea_radiance(
     theta_rad: npt.ArrayLike,
+    *,
     height_m: float = 40.0,
-    t_sea_k: float = 288.0,
+    t_sea_k: float = T_SEA_K,
     t_air_k: float = T_AIR_K,
+    eps_zenith: float = SKY_EPS_ZENITH,
+    beta_per_km: float = BETA_PER_KM,
 ) -> FloatArray:
     """In-band radiance of the sea seen at incidence `theta_rad` from `height_m`.
 
@@ -179,10 +193,11 @@ def sea_radiance(
     reflected sky elevation (pi/2 - theta) and the range (h * tan theta).
     """
     theta = np.asarray(theta_rad, dtype=np.float64)
-    angles, eps = emissivity_curve(t_sea_k)
+    angles, eps = emissivity_curve(t_sea_k=t_sea_k)
     e = np.interp(theta, angles, eps)
-    surface = e * band_radiance(t_sea_k) + (1.0 - e) * sky_radiance(
-        np.pi / 2 - theta, t_air_k
-    )
+    sky = sky_radiance(np.pi / 2 - theta, t_air_k=t_air_k, eps_zenith=eps_zenith)
+    surface = e * band_radiance(t_sea_k) + (1.0 - e) * sky
     slant_m = height_m * np.tan(np.clip(theta, 0.0, GRAZING_LIMIT_RAD))
-    return surface * transmittance(slant_m) + path_radiance(slant_m, t_air_k)
+    return surface * transmittance(slant_m, beta_per_km=beta_per_km) + path_radiance(
+        slant_m, t_air_k=t_air_k, beta_per_km=beta_per_km
+    )
