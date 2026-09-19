@@ -74,7 +74,7 @@ def test_optical_constants_vary_smoothly() -> None:
     n and k change gradually with wavelength, so every value should sit near the
     midpoint of its two neighbours. The k column around 1010 cm^-1 reads 0.0497,
     0.0515, 0.0534: the middle one is 0.1% off that midpoint, and the worst row in
-    the table is 2% off. The table was transcribed from a PDF with three OCR
+    the table is 1.1% off. The table was transcribed from a PDF with three OCR
     artifacts fixed by hand; restoring the worst, k(1010) as 0.515, puts that row
     90% off. Hence the 10% bar.
     """
