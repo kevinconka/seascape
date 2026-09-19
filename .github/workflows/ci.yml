@@ -1,0 +1,49 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  code-quality: write # upload-code-coverage needs nothing else
+
+jobs:
+  checks:
+    name: Checks
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+          # The PR head, not the merge commit, so coverage line numbers land on
+          # the diff GitHub shows.
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+
+      # Full version because setup-uv publishes no major tag past v7; dependabot
+      # moves it. Every other action here floats on its major.
+      - uses: astral-sh/setup-uv@v10.1.0
+        with:
+          enable-cache: true
+
+      - run: uv sync --locked
+
+      - run: uvx ruff check .
+      - run: uvx ruff format --check .
+      - run: uvx ty check
+      - run: uv run pytest --cov=seascape --cov-report=xml
+
+      # Skips PRs from forks, which cannot be granted code-quality: write.
+      - if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
+        uses: actions/upload-code-coverage@v1
+        with:
+          file: coverage.xml
+          language: Python
+          label: code-coverage/pytest
+          fail-on-error: false # coverage is a signal, not a gate
