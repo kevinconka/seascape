@@ -49,7 +49,7 @@ without it.
 ```bash
 uv run seascape render scenarios/baseline.toml            # images + ground truth
 uv run seascape render scenarios/baseline.toml --set rig.tilt_deg=-5
-uv run seascape build  scenarios/baseline.toml            # a .blend you can open
+uv run seascape build  scenarios/baseline.toml --open     # a .blend, opened in Blender
 ```
 
 A scenario is a TOML file describing the world, the platform, the sensors and the targets.

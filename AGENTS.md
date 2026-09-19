@@ -18,6 +18,47 @@ Do not migrate that into shader nodes.
 
 If a new dependency looks necessary, say why Blender or the standard library can't do it.
 
+## The dev loop
+
+**Code never runs inside Blender.** `seascape` builds a `.blend` in its own process; Blender
+opens it. The dependency between them is a file, not an import — so there is nothing to
+hot-reload and no module cache to defeat.
+
+Do not add `sys.path` entries, `.pth` files, `importlib.reload`, symlinks into Blender's
+script directories, or an add-on wrapper to get around this. Each of those exists to make
+Blender host your code, which is the problem rather than the solution.
+
+Iterating with Blender open, via MCP:
+
+```python
+# 1. build headless (separate process)   uv run seascape build <scenario>
+# 2. reload in the live session, keeping the viewport where the user left it
+import bpy
+from mathutils import Matrix
+
+rv = next(s.region_3d for w in bpy.context.window_manager.windows
+          for a in w.screen.areas if a.type == "VIEW_3D"
+          for s in a.spaces if s.type == "VIEW_3D")
+view = Matrix(rv.view_matrix), rv.view_distance, rv.view_location.copy()
+
+bpy.ops.wm.open_mainfile(filepath=path)
+
+rv = next(...)                      # regions are rebuilt by open_mainfile
+rv.view_matrix, rv.view_distance, rv.view_location = view
+rv.update()
+```
+
+Measured: 0.08 s to build a scene, 0.34 s to reload with the view restored exactly.
+
+Without MCP the same loop is **File → Revert** in Blender (`bpy.ops.wm.revert_mainfile`),
+which reloads the `.blend` from disk. One menu click, but the viewport resets — restoring the
+view is the only thing the MCP version adds. Either way, reloading discards unsaved in-memory
+changes, so anything hand-tweaked in Blender is lost. Put it in the build code instead.
+
+Two reasons this is the loop rather than a compromise. A fresh process cannot accumulate
+state — orphaned shader nodes and half-restored materials are both reachable only in a
+long-lived session. And what you see is what CI renders, because it was built the same way.
+
 ## Traps that fail silently
 
 These produce wrong output with no error. They are the reason this file exists.
