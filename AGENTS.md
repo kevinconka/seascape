@@ -141,5 +141,7 @@ Prefer the specific. A number, a file name or a flag beats an adjective.
 
 - **Commits:** Conventional Commits (`feat:`, `fix:`, `chore:`, `ci:`).
 - **Branches:** matching prefixes (`feat/...`, `fix/...`).
+- **Be concise.** PR descriptions and commit messages state the fact, not the journey. No
+  debugging narration, no restating the diff.
 - **Make PRs scannable.** A table, a before/after, or a rendered frame beats a paragraph.
 - Renders are cheap and settle arguments. If a change affects what the camera sees, show it.
