@@ -105,14 +105,15 @@ lsof -nP -iTCP:9876 -sTCP:LISTEN
 
 ## Status
 
-| | |
+| Area | State |
 |---|---|
 | Scaffolding and CI | in progress |
 | LWIR radiometry | porting |
 | Scenario config and schema | porting |
 | Scene build and rendering | porting |
-
-Not yet: multi-frame sequences, vessel motion, COCO labels.
+| Multi-frame sequences | planned |
+| Vessel motion | planned |
+| COCO labels | planned |
 
 ## Contributing
 
