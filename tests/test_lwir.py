@@ -135,11 +135,19 @@ def test_temperature_is_clamped_to_the_measured_range() -> None:
 
 @pytest.mark.parametrize("bad", [-1.0, 0.0, float("nan")])
 def test_planck_rejects_impossible_temperatures(bad: float) -> None:
-    """A negative kelvin returned a negative radiance and propagated in silence."""
+    """Every public entry point taking a temperature has to reject a non-temperature.
+
+    A negative kelvin returned a negative radiance and propagated in silence; nan
+    survived the clamp in optical_constants and turned the whole lookup into NaN.
+    """
     with pytest.raises(ValueError, match="positive"):
         lwir.planck(1e-5, bad)
     with pytest.raises(ValueError, match="positive"):
         lwir.band_radiance(bad)
+    with pytest.raises(ValueError, match="positive"):
+        lwir.optical_constants(bad)
+    with pytest.raises(ValueError, match="positive"):
+        lwir.emissivity_curve(t_sea_k=bad)
 
 
 def test_band_holds_a_plausible_share_of_total_emission() -> None:

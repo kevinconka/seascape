@@ -45,6 +45,19 @@ BOLTZMANN_K = 1.380649e-23  # J K^-1
 T_SEA_K = 288.0
 
 
+def _checked_kelvin(t_k: float) -> float:
+    """Reject anything that is not a temperature.
+
+    Written as `not > 0` so nan raises as well as zero and negatives; nan would
+    otherwise survive np.clip and turn a whole lookup into silent NaN.
+    """
+    if not t_k > 0.0:
+        raise ValueError(
+            f"temperature must be a positive number of kelvin, got {t_k!r}"
+        )
+    return float(t_k)
+
+
 @functools.lru_cache(maxsize=1)
 def _table() -> tuple[FloatArray, FloatArray, FloatArray]:
     """The shipped table as (wavenumber, temperature, n and k on that grid).
@@ -79,7 +92,7 @@ def optical_constants(
     curve is steepest, and by 0.003 looking straight down.
     """
     grid, temperatures, nk = _table()
-    t = float(np.clip(t_k, temperatures[0], temperatures[-1]))
+    t = float(np.clip(_checked_kelvin(t_k), temperatures[0], temperatures[-1]))
     n, k = (
         np.array([np.interp(t, temperatures, col) for col in plane.T]) for plane in nk
     )
@@ -94,14 +107,9 @@ def optical_constants(
 def planck(lam_m: npt.ArrayLike, t_k: float) -> FloatArray:
     """Spectral radiance of a blackbody, W m^-2 sr^-1 m^-1.
 
-    Guarded here because every temperature in this module reaches Planck eventually,
-    and a negative one returns a negative radiance rather than failing. Written as
-    `not > 0` so that nan raises too.
+    A negative temperature otherwise returns a negative radiance rather than failing.
     """
-    if not t_k > 0.0:
-        raise ValueError(
-            f"temperature must be a positive number of kelvin, got {t_k!r}"
-        )
+    _checked_kelvin(t_k)
     lam = np.asarray(lam_m, dtype=np.float64)
     numerator = 2 * PLANCK_H * LIGHT_C**2 / lam**5
     return numerator / (np.exp(PLANCK_H * LIGHT_C / (lam * BOLTZMANN_K * t_k)) - 1.0)
