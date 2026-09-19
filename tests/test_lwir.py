@@ -69,17 +69,20 @@ def test_stefan_boltzmann_matches_its_published_value() -> None:
 
 
 def test_optical_constants_vary_smoothly() -> None:
-    """Catch a mistyped digit anywhere in the table, not just at the spot-check.
+    """Catch a mistyped digit anywhere in the table, not just at the one spot-check.
 
-    n and k are smooth functions of wavelength, so a slipped decimal shows up as a spike
-    in the second difference. The three OCR artifacts corrected by hand when the table
-    was transcribed were all of this shape: planting the worst of them back, k(1010) as
-    0.515 rather than 0.0515, takes the figure below from 0.02 to 9.3.
+    n and k change gradually with wavelength, so every value should sit near the
+    midpoint of its two neighbours. The k column around 1010 cm^-1 reads 0.0497,
+    0.0515, 0.0534: the middle one is 0.1% off that midpoint, and the worst row in
+    the table is 2% off. The table was transcribed from a PDF with three OCR
+    artifacts fixed by hand; restoring the worst, k(1010) as 0.515, puts that row
+    90% off. Hence the 10% bar.
     """
     _, n, k = lwir.optical_constants()
     for values in (n, k):
-        spikiness = np.abs(np.diff(values, 2)) / np.abs(values[1:-1])
-        assert spikiness.max() < 0.1
+        midpoint_of_neighbours = (values[:-2] + values[2:]) / 2
+        off_by = np.abs(values[1:-1] - midpoint_of_neighbours) / values[1:-1]
+        assert off_by.max() < 0.10
 
 
 def test_band_holds_a_plausible_share_of_total_emission() -> None:
