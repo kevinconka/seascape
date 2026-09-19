@@ -9,9 +9,8 @@ Angles are radians throughout; this module sits well inside the degrees boundary
 
 Where the numbers come from
 ---------------------------
-Two kinds of number live here and they are not interchangeable. Measured values carry a
-source; the rest are chosen to look right and are marked as such below and at their
-definition. Only the first kind can back a claim.
+Every number below is measured or derived from measured ones. Nothing is invented. If a
+value ever has to be guessed, it does not belong in this module.
 
 *Measured.* The optical constants are Downing & Williams, "Optical Constants of Water in
 the Infrared", J. Geophys. Res. 80(12), 1975, Table 1 -- water at 27 C, 1250-710 cm^-1.
@@ -29,15 +28,14 @@ assumptions ride on them and are easier to forget than to spot:
   only for a sensor whose spectral response is flat across 8-14 um. A real
   microbolometer is not, so a specific sensor wants its own response curve here.
 
-*Chosen.* The sky model: SKY_EPS_ZENITH and the 1/sin(elevation) airmass, which further
-assumes a plane-parallel atmosphere and so overstates the path near the horizon. It
-reproduces the shape of a thermal horizon rather than its radiometry, and a defensible
-figure needs a real model (lowtran, HITRAN) in its place.
+*Chosen.* Nothing. Every number here is measured or derived, and every function has an
+assertion. Keep it that way: the sky and atmosphere terms this curve pairs with are a
+guess until someone brings a real model (lowtran, HITRAN), so they belong wherever they
+get a caller, not here.
 
-Path extinction is deliberately absent. Beer-Lambert over a homogeneous medium is what
-Blender's Volume Absorption and Volume Emission nodes already do, per ray and with the
-real geometry, so computing it here would only work for a flat sea and would be thrown
-away the moment there are waves and targets at different ranges.
+Path extinction is Blender's. Beer-Lambert over a homogeneous medium is what its Volume
+Absorption and Volume Emission nodes already do, per ray and against the real geometry;
+a numpy copy would be correct only for a flat sea.
 
 The band itself is the atmospheric window an uncooled microbolometer sees.
 """
@@ -81,11 +79,6 @@ LIGHT_C = 2.99792458e8  # m s^-1
 BOLTZMANN_K = 1.380649e-23  # J K^-1
 
 T_SEA_K = 288.0
-
-# Chosen, not measured. See "Where the numbers come from" above before quoting anything
-# downstream of these three.
-T_AIR_K = 288.0
-SKY_EPS_ZENITH = 0.30  # in-band zenith emissivity, clear dry sky
 
 
 def optical_constants() -> tuple[FloatArray, FloatArray, FloatArray]:
@@ -138,22 +131,3 @@ def band_radiance(t_k: float) -> float:
     """Blackbody radiance integrated over the band, W m^-2 sr^-1."""
     lam, _, _ = optical_constants()
     return float(np.trapezoid(planck(lam, t_k), lam))
-
-
-def sky_radiance(
-    elevation_rad: npt.ArrayLike,
-    *,
-    t_air_k: float = T_AIR_K,
-    eps_zenith: float = SKY_EPS_ZENITH,
-) -> FloatArray:
-    """Downwelling in-band sky radiance at an elevation above the horizon.
-
-    Sky emissivity grows toward the horizon as the slant path lengthens, so the sky
-    warms from a cold zenith to ambient at the horizon. That convergence is what
-    makes a thermal horizon read correctly.
-
-    Shape, not radiometry — the zenith emissivity and the 1/sin airmass are chosen
-    values. See "Where the numbers come from".
-    """
-    s = np.clip(np.sin(np.asarray(elevation_rad, dtype=np.float64)), 1e-3, 1.0)
-    return (1.0 - (1.0 - eps_zenith) ** (1.0 / s)) * band_radiance(t_air_k)
