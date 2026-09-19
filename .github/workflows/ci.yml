@@ -22,7 +22,8 @@ jobs:
         with:
           persist-credentials: false
 
-      - uses: astral-sh/setup-uv@v10
+      # Exact version: setup-uv stopped publishing floating major tags after v7.
+      - uses: astral-sh/setup-uv@v10.1.0
         with:
           enable-cache: true
 
@@ -37,3 +38,4 @@ jobs:
         with:
           files: ./coverage.xml
           token: ${{ secrets.CODECOV_TOKEN }}
+          fail_ci_if_error: false # coverage is a signal, not a gate
