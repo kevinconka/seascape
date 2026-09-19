@@ -1,43 +1,25 @@
-"""Band-integrated LWIR radiometry for a water surface.
+"""Band-integrated LWIR emissivity of a water surface.
 
-Blender is an RGB renderer with no concept of an 8-14 um band, and its Fresnel node
-takes a scalar IOR where seawater needs a complex one (n + i*k). So the angular
-emissivity curve is evaluated here, in numpy, and the shader consumes it as a 1D
-lookup. Band-integrating costs nothing, because the sensor does it anyway.
+Blender is an RGB renderer with no concept of the 8-14 um band, and its Fresnel node
+takes a scalar IOR where water needs a complex one (n + i*k). So the emissivity curve is
+evaluated here and the shader consumes it as a 1D lookup. Nothing else belongs in this
+module: path extinction is Blender's volume nodes, and the sky term stays a guess until
+someone brings a real model. Angles are radians.
 
-Angles are radians throughout; this module sits well inside the degrees boundary.
+Sources
+-------
+Optical constants: Downing & Williams, "Optical Constants of Water in the Infrared",
+J. Geophys. Res. 80(12), 1975, Table 1 -- water at 27 C, 1250-710 cm^-1. Pure water, not
+seawater; Friedman (1969) is the seawater source if that correction is ever needed.
+h, c and k_B are the SI defining constants, exact since the 2019 redefinition.
 
-Where the numbers come from
----------------------------
-Every number below is measured or derived from measured ones. Nothing is invented. If a
-value ever has to be guessed, it does not belong in this module.
+Planck's law and Fresnel for an absorbing medium are textbook, but carry two assumptions
+that fail silently:
 
-*Measured.* The optical constants are Downing & Williams, "Optical Constants of Water in
-the Infrared", J. Geophys. Res. 80(12), 1975, Table 1 -- water at 27 C, 1250-710 cm^-1.
-Pure water, not seawater: salinity shifts k slightly in this band, and Friedman (1969)
-is the seawater source if that correction is ever needed. The physical constants are the
-SI defining constants, exact by definition since the 2019 redefinition.
-
-*Derived.* Planck's law and Fresnel for an absorbing medium are textbook. Two
-assumptions ride on them and are easier to forget than to spot:
-
-- Kirchhoff's law, eps = 1 - R, which holds because water is opaque across this band
-  well inside any depth the sensor resolves. No transmitted term.
-
-- Band emissivity is the Planck-weighted mean of the spectral emissivity. This is exact
-  only for a sensor whose spectral response is flat across 8-14 um. A real
-  microbolometer is not, so a specific sensor wants its own response curve here.
-
-*Chosen.* Nothing. Every number here is measured or derived, and every function has an
-assertion. Keep it that way: the sky and atmosphere terms this curve pairs with are a
-guess until someone brings a real model (lowtran, HITRAN), so they belong wherever they
-get a caller, not here.
-
-Path extinction is Blender's. Beer-Lambert over a homogeneous medium is what its Volume
-Absorption and Volume Emission nodes already do, per ray and against the real geometry;
-a numpy copy would be correct only for a flat sea.
-
-The band itself is the atmospheric window an uncooled microbolometer sees.
+- Kirchhoff's law, eps = 1 - R. Holds because water is opaque across this band well
+  inside any depth the sensor resolves, so there is no transmitted term.
+- Band emissivity is the Planck-weighted mean of the spectral emissivity. Exact only for
+  a flat sensor response; a specific microbolometer wants its own curve here.
 """
 
 import numpy as np

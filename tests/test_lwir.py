@@ -68,6 +68,20 @@ def test_stefan_boltzmann_matches_its_published_value() -> None:
     assert sigma == pytest.approx(5.670374419e-8, rel=1e-9)
 
 
+def test_optical_constants_vary_smoothly() -> None:
+    """Catch a mistyped digit anywhere in the table, not just at the spot-check.
+
+    n and k are smooth functions of wavelength, so a slipped decimal shows up as a spike
+    in the second difference. The three OCR artifacts corrected by hand when the table
+    was transcribed were all of this shape: planting the worst of them back, k(1010) as
+    0.515 rather than 0.0515, takes the figure below from 0.02 to 9.3.
+    """
+    _, n, k = lwir.optical_constants()
+    for values in (n, k):
+        spikiness = np.abs(np.diff(values, 2)) / np.abs(values[1:-1])
+        assert spikiness.max() < 0.1
+
+
 def test_band_holds_a_plausible_share_of_total_emission() -> None:
     """The band is a fraction of a 288 K body's total emission.
 
