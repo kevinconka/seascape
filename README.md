@@ -1,7 +1,7 @@
 <h1 align="center">seascape</h1>
 
 <p align="center">
-  <em>Synthetic maritime scenes with exact ground truth — EO and LWIR, from a TOML file.</em>
+  <em>Maritime scene generator for sensor validation. Multi-camera rigs, EO/LWIR, exact ground truth.</em>
 </p>
 
 <p align="center">
@@ -40,12 +40,8 @@ cd seascape
 uv sync
 ```
 
-Working on the physics or the config only? `uv sync` skips Blender entirely. Add it when you
-want to render:
-
-```bash
-uv sync --group blender
-```
+Only touching the radiometry or the scenario config? `uv sync --no-group blender` skips the
+~400 MB Blender wheel. Those parts are plain NumPy and run without it.
 
 ## Quickstart
 
@@ -71,17 +67,26 @@ completion, inline validation and hover docs.
 
 ## Blender MCP (optional)
 
-Only needed if you want to drive Blender interactively from an AI agent. Rendering from the
-CLI never touches it.
+Lets an AI agent inspect and edit whatever scene you have open in Blender. Rendering from the
+CLI never touches it — skip this unless you want the interactive workflow.
+
+1. **Add the connector.** In Claude Desktop: **Customize → Connectors**, search *Blender*,
+   click **Add**. It's first-party, so there's no config file and no `.mcpb`.
+2. **Install the Blender add-on.** Open the [MCP server page](https://www.blender.org/lab/mcp-server/)
+   next to Blender and drag the install link onto the Blender window — **twice**. The first
+   drop allows the Blender Lab extension repository, the second installs the add-on.
+3. **Start it.** In Blender: **Edit → Preferences → Add-ons**, find *BlenderMCP*, enable
+   **start MCP server**. Then **Save Preferences**, or it's gone on restart.
+
+Check it's listening:
 
 ```bash
-blender --command extension repo-add lab_blender_org --url https://lab.blender.org/
-blender --command extension install mcp --repo lab_blender_org --enable --sync
-claude mcp add blender -- blender-mcp
+lsof -nP -iTCP:9876 -sTCP:LISTEN
 ```
 
-Then in Blender: **Edit → Preferences → System → Network → Allow Online Access**, and
-**Save Preferences**.
+> [!WARNING]
+> The add-on runs generated code in your Blender session with no sandbox, and the port is
+> unauthenticated. Changes only persist when you save in Blender.
 
 <details>
 <summary>Troubleshooting</summary>
@@ -89,9 +94,10 @@ Then in Blender: **Edit → Preferences → System → Network → Allow Online 
 | Symptom | Cause |
 |---|---|
 | Add-on gone after restarting Blender | Preferences were never saved. Run **Save Preferences**, or enable auto-save. |
-| "Online access must be enabled" | Turn on **Allow Online Access**, or pass `--online-mode` for background runs. |
-| Connection refused on port 9876 | Blender isn't running, or another instance already holds the port. MCP needs the GUI. |
-| Searching "mcp" finds nothing | The repository index syncs at startup. Restart Blender after adding it. |
+| "Online access must be enabled" | **Edit → Preferences → System → Network → Allow Online Access**. |
+| Nothing listening on 9876 | Blender isn't running, the add-on is disabled, or another instance holds the port. MCP needs the GUI. |
+| Dragging the link does nothing | Drop it twice — the first drop only registers the repository. |
+| A guide tells you to run `uvx blender-mcp` | That's [`ahujasid/blender-mcp`](https://github.com/ahujasid/blender-mcp), a different community server. Both work; don't mix their instructions. |
 
 </details>
 
