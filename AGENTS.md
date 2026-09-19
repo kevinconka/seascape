@@ -101,11 +101,15 @@ These produce wrong output with no error. They are the reason this file exists.
 These mirror CI; all must pass.
 
 ```bash
-uv run ruff check .
-uv run ruff format --check .
-uv run ty check
+uvx ruff check .
+uvx ruff format --check .
+uvx ty check
 uv run pytest
 ```
+
+ruff and ty run through `uvx` on purpose — they are not project dependencies, and the latest
+release is the one that counts. Do not add them to a dependency group or pin a version anywhere,
+including `.pre-commit-config.yaml`. pytest uses `uv run` because it has to import `seascape`.
 
 `uvx pre-commit install` automates the two ruff lines; `ty` and `pytest` stay manual. Note that
 `ruff format` also formats Python fenced in Markdown, so snippets in this file are held to the

@@ -31,10 +31,13 @@ Repository = "https://github.com/kevinconka/seascape"
 Issues = "https://github.com/kevinconka/seascape/issues"
 
 [dependency-groups]
-dev = ["pytest>=9.0", "pytest-cov>=7.0", "ruff>=0.16", "ty>=0.0.82"]
+# ruff and ty are deliberately absent: they run through uvx, which tracks the
+# latest release. Only tools that must see the project's own environment, as
+# pytest does to import seascape, belong here.
+dev = ["pytest>=9.0", "pytest-cov>=7.0"]
 # Blender is the renderer, so this group installs by default. Skip the wheel
 # with `uv sync --no-group blender` to work on the NumPy-only parts.
-blender = ["bpy>=5.2,<5.3"]
+blender = ["bpy>=5.2"]
 
 [tool.uv]
 default-groups = ["dev", "blender"]
