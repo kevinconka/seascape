@@ -3,9 +3,9 @@
 No GPU, no Blender. These are the check that the radiometry is right; a render only
 shows that it is plausible.
 
-Each assertion names what it is measured against. Nothing here tests the sky or
-atmosphere model: those constants are chosen rather than measured, so a test would only
-pin a guess. See "Where the numbers come from" in seascape/lwir.py.
+Each assertion names what it is measured against. Nothing here tests the sky model:
+its constants are chosen rather than measured, so a test would only pin a guess.
+See "Where the numbers come from" in seascape/lwir.py.
 """
 
 import numpy as np
@@ -77,10 +77,3 @@ def test_band_holds_a_plausible_share_of_total_emission() -> None:
     """
     total = STEFAN_BOLTZMANN * 288.0**4 / np.pi
     assert 0.35 <= lwir.band_radiance(288.0) / total <= 0.50
-
-
-def test_sea_radiance_is_finite_over_the_full_angular_sweep() -> None:
-    """Guards the clip at grazing, where tan() would otherwise diverge."""
-    radiance = lwir.sea_radiance(np.linspace(0.0, np.pi / 2, 91))
-    assert radiance.shape == (91,)
-    assert np.all(np.isfinite(radiance)) and np.all(radiance > 0.0)

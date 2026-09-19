@@ -29,11 +29,15 @@ assumptions ride on them and are easier to forget than to spot:
   only for a sensor whose spectral response is flat across 8-14 um. A real
   microbolometer is not, so a specific sensor wants its own response curve here.
 
-*Chosen.* Everything in the sky and atmosphere model: SKY_EPS_ZENITH, BETA_PER_KM, and
-the 1/sin(elevation) airmass, which further assumes a plane-parallel atmosphere and so
-overstates the path near the horizon. These reproduce the shape of a thermal horizon
-rather than its radiometry. Replacing them with MODTRAN or an equivalent is the work
-required before any figure from this module backs a claim.
+*Chosen.* The sky model: SKY_EPS_ZENITH and the 1/sin(elevation) airmass, which further
+assumes a plane-parallel atmosphere and so overstates the path near the horizon. It
+reproduces the shape of a thermal horizon rather than its radiometry, and a defensible
+figure needs a real model (lowtran, HITRAN) in its place.
+
+Path extinction is deliberately absent. Beer-Lambert over a homogeneous medium is what
+Blender's Volume Absorption and Volume Emission nodes already do, per ray and with the
+real geometry, so computing it here would only work for a flat sea and would be thrown
+away the moment there are waves and targets at different ranges.
 
 The band itself is the atmospheric window an uncooled microbolometer sees.
 """
@@ -82,10 +86,6 @@ T_SEA_K = 288.0
 # downstream of these three.
 T_AIR_K = 288.0
 SKY_EPS_ZENITH = 0.30  # in-band zenith emissivity, clear dry sky
-BETA_PER_KM = 0.20  # LWIR extinction, maritime boundary layer
-
-# tan() diverges at exactly pi/2, and a horizon ray never reaches the sea anyway.
-GRAZING_LIMIT_RAD = np.radians(89.999)
 
 
 def optical_constants() -> tuple[FloatArray, FloatArray, FloatArray]:
@@ -157,47 +157,3 @@ def sky_radiance(
     """
     s = np.clip(np.sin(np.asarray(elevation_rad, dtype=np.float64)), 1e-3, 1.0)
     return (1.0 - (1.0 - eps_zenith) ** (1.0 / s)) * band_radiance(t_air_k)
-
-
-def transmittance(
-    range_m: npt.ArrayLike, *, beta_per_km: float = BETA_PER_KM
-) -> FloatArray:
-    """Fraction of in-band radiance surviving a path of `range_m`."""
-    return np.exp(-beta_per_km * np.asarray(range_m, dtype=np.float64) / 1000.0)
-
-
-def path_radiance(
-    range_m: npt.ArrayLike,
-    *,
-    t_air_k: float = T_AIR_K,
-    beta_per_km: float = BETA_PER_KM,
-) -> FloatArray:
-    """In-band radiance the atmosphere itself adds over a path of `range_m`."""
-    surviving = transmittance(range_m, beta_per_km=beta_per_km)
-    return (1.0 - surviving) * band_radiance(t_air_k)
-
-
-def sea_radiance(
-    theta_rad: npt.ArrayLike,
-    *,
-    height_m: float = 40.0,
-    t_sea_k: float = T_SEA_K,
-    t_air_k: float = T_AIR_K,
-    eps_zenith: float = SKY_EPS_ZENITH,
-    beta_per_km: float = BETA_PER_KM,
-) -> FloatArray:
-    """In-band radiance of the sea seen at incidence `theta_rad` from `height_m`.
-
-    Emission plus reflected sky, attenuated over the slant path and filled in by
-    path radiance. Exact for a flat sea: theta alone fixes the emissivity, the
-    reflected sky elevation (pi/2 - theta) and the range (h * tan theta).
-    """
-    theta = np.asarray(theta_rad, dtype=np.float64)
-    angles, eps = emissivity_curve(t_sea_k=t_sea_k)
-    e = np.interp(theta, angles, eps)
-    sky = sky_radiance(np.pi / 2 - theta, t_air_k=t_air_k, eps_zenith=eps_zenith)
-    surface = e * band_radiance(t_sea_k) + (1.0 - e) * sky
-    slant_m = height_m * np.tan(np.clip(theta, 0.0, GRAZING_LIMIT_RAD))
-    return surface * transmittance(slant_m, beta_per_km=beta_per_km) + path_radiance(
-        slant_m, t_air_k=t_air_k, beta_per_km=beta_per_km
-    )
