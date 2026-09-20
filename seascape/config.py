@@ -25,6 +25,9 @@ from seascape import lwir
 
 CFG_DIR = Path(__file__).parent / "cfg"
 
+# A camera's kind is the band it sees in, and a scene is built for one band at a time.
+type Band = Literal["eo", "ir"]
+
 
 class Model(BaseModel):
     """Strictness shared by everything this package parses from TOML."""
@@ -37,7 +40,7 @@ class Model(BaseModel):
 
 
 class Camera(Model):
-    kind: Literal["eo", "ir"]
+    kind: Band
     pod: str
     bearing_deg: float  # relative to the bow, positive to starboard
     hfov_deg: float = Field(gt=0.0, lt=180.0)

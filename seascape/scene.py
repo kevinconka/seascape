@@ -12,7 +12,7 @@ from mathutils import Matrix, Vector
 
 from seascape import lwir
 from seascape.assets import fetch, manifest
-from seascape.config import Object, Rig, Scenario, Sea, Sky
+from seascape.config import Band, Object, Rig, Scenario, Sea, Sky
 
 # An ocean tile is `spatial_size` across with `resolution**2` samples, so spacing is
 # spatial_size / resolution**2, and the whole grid spans spatial_size * repeat.
@@ -53,8 +53,14 @@ def _place(obj: bpy.types.Object, east_m: float, north_m: float, up_m: float) ->
     obj.location = (east_m, north_m, up_m)
 
 
-def _sky(sky: Sky) -> bpy.types.World:
+def _sky(sky: Sky, band: Band) -> bpy.types.World:
     world = bpy.data.worlds.new("sky")
+    if band == "ir":
+        # The Sky Texture is a visible-band scattering model, so it has nothing to say
+        # about 8-14 um. Downwelling atmospheric radiance needs LOWTRAN or HITRAN, which
+        # this project does not have, so the IR sky is empty rather than invented.
+        world.color = (0.0, 0.0, 0.0)
+        return world
     tree = world.node_tree
     node = tree.nodes.new("ShaderNodeTexSky")
     # Multiple scattering is Blender 5's name for Nishita. `turbidity` belongs to the
@@ -86,16 +92,25 @@ def _emissivity_image(t_sea_k: float) -> bpy.types.Image:
     return image
 
 
-def _sea_material(sea: Sea) -> bpy.types.Material:
-    """Emission of eps(theta) * B(T_sea), with eps read from the baked curve.
+def _emissive_material(
+    name: str, radiance: float, eps: bpy.types.Image | None
+) -> bpy.types.Material:
+    """Emission of `radiance` W m^-2 sr^-1, scaled by `eps` against cos(theta) if given.
 
-    Blender has no 8-14 um band, so the LWIR look is an emission whose strength carries
-    the band radiance in W m^-2 sr^-1. Reflected sky is not modelled: it needs an
-    atmospheric model this project does not have yet.
+    Blender has no 8-14 um band, so an LWIR surface is an emission whose strength is the
+    band radiance. A target with no measured emissivity radiates as a blackbody.
     """
-    material = bpy.data.materials.new("sea")
+    material = bpy.data.materials.new(name)
     tree = material.node_tree
     tree.nodes.clear()
+    emission = tree.nodes.new("ShaderNodeEmission")
+    output = tree.nodes.new("ShaderNodeOutputMaterial")
+    link = tree.links.new
+    link(emission.outputs["Emission"], output.inputs["Surface"])
+
+    if eps is None:
+        emission.inputs["Strength"].default_value = radiance
+        return material
 
     geometry = tree.nodes.new("ShaderNodeNewGeometry")
     dot = tree.nodes.new("ShaderNodeVectorMath")
@@ -104,15 +119,12 @@ def _sea_material(sea: Sea) -> bpy.types.Material:
     facing.operation = "ABSOLUTE"
     lookup = tree.nodes.new("ShaderNodeCombineXYZ")
     texture = tree.nodes.new("ShaderNodeTexImage")
-    texture.image = _emissivity_image(sea.t_sea_k)
+    texture.image = eps
     texture.extension = "EXTEND"
     scale = tree.nodes.new("ShaderNodeMath")
     scale.operation = "MULTIPLY"
-    scale.inputs[1].default_value = lwir.band_radiance(sea.t_sea_k)
-    emission = tree.nodes.new("ShaderNodeEmission")
-    output = tree.nodes.new("ShaderNodeOutputMaterial")
+    scale.inputs[1].default_value = radiance
 
-    link = tree.links.new
     link(geometry.outputs["Incoming"], dot.inputs[0])
     # Vector Math names both inputs "Vector", so the second one can only be indexed.
     link(geometry.outputs["Normal"], dot.inputs[1])
@@ -121,11 +133,28 @@ def _sea_material(sea: Sea) -> bpy.types.Material:
     link(lookup.outputs["Vector"], texture.inputs["Vector"])
     link(texture.outputs["Color"], scale.inputs[0])
     link(scale.outputs["Value"], emission.inputs["Strength"])
-    link(emission.outputs["Emission"], output.inputs["Surface"])
     return material
 
 
-def _sea(sea: Sea, seed: int, reach_m: float) -> bpy.types.Object:
+def _water_material() -> bpy.types.Material:
+    """Daylight water: rough enough to catch the sun, refracting at seawater's IOR."""
+    material = bpy.data.materials.new("sea")
+    principled = material.node_tree.nodes["Principled BSDF"]
+    principled.inputs["Base Color"].default_value = (0.004, 0.02, 0.035, 1.0)
+    principled.inputs["Roughness"].default_value = 0.05
+    principled.inputs["IOR"].default_value = 1.33
+    return material
+
+
+def _sea_material(sea: Sea, band: Band) -> bpy.types.Material:
+    if band == "eo":
+        return _water_material()
+    return _emissive_material(
+        "sea", lwir.band_radiance(sea.t_sea_k), _emissivity_image(sea.t_sea_k)
+    )
+
+
+def _sea(sea: Sea, seed: int, reach_m: float, band: Band) -> bpy.types.Object:
     tile_m = OCEAN_SPACING_M * OCEAN_RESOLUTION**2
     bpy.ops.mesh.primitive_plane_add(size=1.0)
     water = bpy.context.object
@@ -144,7 +173,7 @@ def _sea(sea: Sea, seed: int, reach_m: float) -> bpy.types.Object:
     ocean.choppiness = sea.choppiness
     ocean.random_seed = int(_substream(seed, "sea/surface").integers(2**31))
 
-    water.data.materials.append(_sea_material(sea))
+    water.data.materials.append(_sea_material(sea, band))
     return water
 
 
@@ -188,7 +217,7 @@ def _bounds(objects: list[bpy.types.Object]) -> tuple[Vector, Vector]:
     return Vector([min(a) for a in axes]), Vector([max(a) for a in axes])
 
 
-def _object(spec: Object) -> bpy.types.Object:
+def _object(spec: Object, band: Band) -> bpy.types.Object:
     """Import the mesh, fit it to its manifest length, and pose it.
 
     An asset arrives in whatever units its author used, off-origin, in many parts. It
@@ -209,6 +238,17 @@ def _object(spec: Object) -> bpy.types.Object:
     for part in parts:
         part.matrix_world = centre @ part.matrix_world
 
+    if band == "ir":
+        # The asset's own materials are albedo, which says nothing about 8-14 um.
+        skin = _emissive_material(
+            f"{spec.asset}_ir", lwir.band_radiance(spec.t_k), None
+        )
+        for part in parts:
+            for mesh in [part, *part.children_recursive]:
+                if mesh.type == "MESH":
+                    mesh.data.materials.clear()
+                    mesh.data.materials.append(skin)
+
     anchor = bpy.data.objects.new(spec.asset, None)
     bpy.context.collection.objects.link(anchor)
     for part in parts:
@@ -223,18 +263,22 @@ def _object(spec: Object) -> bpy.types.Object:
     return anchor
 
 
-def build(scenario: Scenario) -> None:
-    """Replace the current Blender session's contents with `scenario`."""
+def build(scenario: Scenario, band: Band = "eo") -> None:
+    """Replace the current Blender session's contents with `scenario` in one band.
+
+    A scene is EO or LWIR, never both: the two describe different physics and share no
+    units. Rendering both bands means building twice, which costs seconds.
+    """
     bpy.ops.wm.read_factory_settings(use_empty=True)
-    bpy.context.scene.world = _sky(scenario.sky)
+    bpy.context.scene.world = _sky(scenario.sky, band)
     reach_m = REACH_MARGIN * max(
         MIN_REACH_M, *(o.range_m for o in scenario.objects), 0.0
     )
-    _sea(scenario.sea, scenario.seed, reach_m)
+    _sea(scenario.sea, scenario.seed, reach_m, band)
     # The sea's far corner is reach * sqrt(2) away, so the clip plane has to clear that.
     cameras = _cameras(scenario.rig, 1.5 * reach_m)
     for spec in scenario.objects:
-        _object(spec)
+        _object(spec, band)
     bpy.context.scene.camera = cameras[0]
     # Until the depsgraph runs, every child still reports its pre-parenting
     # matrix_world, so anything measuring the scene reads the wrong place.

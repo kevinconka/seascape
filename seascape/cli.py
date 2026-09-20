@@ -11,10 +11,10 @@ from pathlib import Path
 
 from pydantic import ValidationError
 
-from seascape.config import Scenario, load
+from seascape.config import Band, Scenario, load
 
 
-def _build(scenario_path: Path, output: Path | None) -> None:
+def _build(scenario_path: Path, output: Path | None, band: Band) -> None:
     scenario = load(scenario_path)
     # Imported here, not at module scope: bpy is a 400 MB library and `schema` and a
     # failed validation should not wait for it.
@@ -22,12 +22,14 @@ def _build(scenario_path: Path, output: Path | None) -> None:
 
     from seascape import scene
 
-    scene.build(scenario)
-    path = output or scenario_path.with_suffix(".blend")
+    scene.build(scenario, band)
+    path = output or scenario_path.with_suffix(f".{band}.blend")
     bpy.ops.wm.save_as_mainfile(filepath=str(path.resolve()))
     cameras = scenario.rig.cameras
     kinds = ", ".join(sorted({camera.kind for camera in cameras}))
-    print(f"{path}: {len(cameras)} cameras ({kinds}) at {scenario.rig.height_m} m")
+    print(
+        f"{path}: {band}, {len(cameras)} cameras ({kinds}) at {scenario.rig.height_m} m"
+    )
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -37,6 +39,8 @@ def main(argv: list[str] | None = None) -> int:
     build = commands.add_parser("build", help="write a .blend from a scenario")
     build.add_argument("scenario", type=Path)
     build.add_argument("-o", "--output", type=Path, help="default: alongside the input")
+    # A scene is one band or the other: EO and LWIR share no units.
+    build.add_argument("--band", choices=("eo", "ir"), default="eo")
 
     commands.add_parser("schema", help="print the scenario JSON schema on stdout")
 
@@ -45,7 +49,7 @@ def main(argv: list[str] | None = None) -> int:
         print(json.dumps(Scenario.model_json_schema(), indent=2))
         return 0
     try:
-        _build(args.scenario, args.output)
+        _build(args.scenario, args.output, args.band)
     except (ValidationError, OSError, ValueError, TypeError, tomllib.TOMLDecodeError):
         # A scenario mistake is the user's, not a crash; a traceback buries the line.
         print(sys.exception(), file=sys.stderr)

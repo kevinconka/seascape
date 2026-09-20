@@ -1,15 +1,17 @@
 {
   "$defs": {
+    "Band": {
+      "enum": [
+        "eo",
+        "ir"
+      ],
+      "type": "string"
+    },
     "Camera": {
       "additionalProperties": false,
       "properties": {
         "kind": {
-          "enum": [
-            "eo",
-            "ir"
-          ],
-          "title": "Kind",
-          "type": "string"
+          "$ref": "#/$defs/Band"
         },
         "pod": {
           "title": "Pod",
