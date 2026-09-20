@@ -1,0 +1,48 @@
+# Two EO pods flanking the bow, plus a bow-centred LWIR pair. Eight cameras.
+#
+# Bearings are relative to the bow, positive to starboard. Each pod's three EO
+# cameras sit 40.0 deg apart, giving a 125.0 deg pod span with 5.0 deg of overlap
+# between neighbours; the pods themselves overlap by 5.0 deg across the bow.
+
+height_m = 12.0
+tilt_deg = 0.0
+
+[[cameras]]
+preset = "eo"
+pod = "port"
+bearing_deg = -100.0
+
+[[cameras]]
+preset = "eo"
+pod = "port"
+bearing_deg = -60.0
+
+[[cameras]]
+preset = "eo"
+pod = "port"
+bearing_deg = -20.0
+
+[[cameras]]
+preset = "eo"
+pod = "starboard"
+bearing_deg = 20.0
+
+[[cameras]]
+preset = "eo"
+pod = "starboard"
+bearing_deg = 60.0
+
+[[cameras]]
+preset = "eo"
+pod = "starboard"
+bearing_deg = 100.0
+
+[[cameras]]
+preset = "ir"
+pod = "bow"
+bearing_deg = -10.0
+
+[[cameras]]
+preset = "ir"
+pod = "bow"
+bearing_deg = 10.0
