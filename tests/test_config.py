@@ -170,11 +170,11 @@ def test_sea_temperature_is_bounded_at_the_config_boundary(tmp_path, t_sea_k) ->
 
 
 def test_committed_schema_matches_the_models() -> None:
-    """Editors validate against the committed file, so a stale one is worse than none.
-
-    Regenerate with `uv run seascape schema > schema/scenario.json`.
-    """
-    assert json.loads(SCHEMA.read_text()) == Scenario.model_json_schema()
+    """Editors validate against the committed file; a stale one is worse than none."""
+    assert json.loads(SCHEMA.read_text()) == Scenario.model_json_schema(), (
+        "schema/scenario.json is stale. Regenerate it:\n"
+        "    uv run seascape schema > schema/scenario.json"
+    )
 
 
 def test_baseline_points_at_the_committed_schema() -> None:
