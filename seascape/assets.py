@@ -5,6 +5,7 @@ import os
 import shutil
 import tomllib
 import urllib.request
+import uuid
 from pathlib import Path, PurePosixPath
 
 from pydantic import Field
@@ -47,9 +48,9 @@ def fetch(name: str) -> Path:
         return path
 
     path.parent.mkdir(parents=True, exist_ok=True)
-    # A killed or corrupt transfer must never take the cache name, and two processes
-    # fetching at once must not share a scratch file.
-    part = path.with_name(f"{path.name}.{os.getpid()}.part")
+    # A killed or corrupt transfer must never take the cache name, and concurrent
+    # callers must not share a scratch file. A pid is not enough: threads share one.
+    part = path.with_name(f"{path.name}.{uuid.uuid4().hex}.part")
     # urlretrieve takes no timeout and the default socket timeout is None, so a server
     # that stops sending hangs the build forever.
     with (

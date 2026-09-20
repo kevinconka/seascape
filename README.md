@@ -67,8 +67,9 @@ completion, inline validation and hover docs. `seascape schema` regenerates
 `schema/scenario.json` from the models.
 
 Meshes are never committed. `seascape/assets.toml` records each one's source, sha256,
-licence and credit; they download to `~/.cache/seascape` on first use and every run
-re-checks the digest.
+licence and credit; they download on first use to `~/.cache/seascape`, or to
+`$XDG_CACHE_HOME/seascape` when that is set to an absolute path. Every run re-checks
+the digest.
 
 > [!NOTE]
 > `seascape build` validates a scenario and summarises it; `render` doesn't exist yet.
