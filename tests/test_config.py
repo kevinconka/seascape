@@ -169,6 +169,21 @@ def test_sea_temperature_is_bounded_at_the_config_boundary(tmp_path, t_sea_k) ->
         load(variant(tmp_path, f"[sea]\nt_sea_k = {t_sea_k}\n"))
 
 
+@pytest.mark.parametrize("value", ["nan", "inf", "-inf"])
+def test_non_finite_numbers_are_rejected(tmp_path, value) -> None:
+    """tomllib parses these and pydantic accepts them by default.
+
+    `bearing_deg` carries no bound, so nothing else would catch one.
+    """
+    with pytest.raises(ValidationError, match="bearing_deg"):
+        load(
+            variant(
+                tmp_path,
+                f'[[rig.cameras]]\npreset = "ir"\npod = "bow"\nbearing_deg = {value}\n',
+            )
+        )
+
+
 def test_committed_schema_matches_the_models() -> None:
     """Editors validate against the committed file; a stale one is worse than none."""
     assert json.loads(SCHEMA.read_text()) == Scenario.model_json_schema(), (

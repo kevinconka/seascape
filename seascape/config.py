@@ -27,9 +27,11 @@ CFG_DIR = Path(__file__).parent / "cfg"
 
 
 class _Model(BaseModel):
-    # A typo in a scenario is a silent wrong render otherwise. `preset` is consumed by
-    # the loader before validation, so this also catches it leaking.
-    model_config = ConfigDict(extra="forbid")
+    # extra: a typo in a scenario is a silent wrong render otherwise. `preset` is
+    # consumed by the loader before validation, so this also catches it leaking.
+    # inf_nan: tomllib parses `nan` and `inf`, and pydantic accepts both by default.
+    # A nan bearing renders a camera pointing nowhere and reports no error.
+    model_config = ConfigDict(extra="forbid", allow_inf_nan=False)
 
 
 class Camera(_Model):
