@@ -1,4 +1,4 @@
-"""The manifest is the only record of what a render owes credit to."""
+"""Manifest parsing, and the digest gate in front of the cache."""
 
 import hashlib
 import tomllib
@@ -21,15 +21,11 @@ def one(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     manifest = tmp_path / "assets.toml"
     manifest.write_text(
         f'[ship]\nurl = "{source.as_uri()}"\nsha256 = "{DIGEST}"\n'
-        'licence = "CC0-1.0"\nattribution = "nobody"\npage = "https://example.invalid"\n'
+        'licence = "CC0-1.0"\nattribution = "nobody"\n'
     )
     monkeypatch.setattr(assets, "MANIFEST", manifest)
     monkeypatch.setattr(assets, "CACHE", tmp_path / "cache")
     return source
-
-
-def test_the_shipped_manifest_parses() -> None:
-    assert assets.manifest()
 
 
 def test_every_object_preset_names_an_asset() -> None:
@@ -39,10 +35,16 @@ def test_every_object_preset_names_an_asset() -> None:
             assert tomllib.load(handle)["asset"] in assets.manifest(), preset
 
 
+def test_every_url_carries_an_extension() -> None:
+    """The cached name takes its suffix from the URL, and Blender picks by extension."""
+    for name, asset in assets.manifest().items():
+        assert Path(asset.url).suffix, name
+
+
 def test_fetch_downloads_once(one: Path) -> None:
     first = assets.fetch("ship")
     assert first.read_bytes() == BODY
-    assert first.suffix == ".fbx"  # the importer picks off the extension
+    assert first.suffix == ".fbx"
 
     one.unlink()
     assert assets.fetch("ship") == first
@@ -58,19 +60,7 @@ def test_fetch_rejects_bytes_that_miss_the_digest(one: Path) -> None:
     one.write_bytes(b"a different mesh")
     with pytest.raises(ValueError, match="manifest says"):
         assets.fetch("ship")
-    # The bytes stay as a `.part` for inspection; what must not exist is a cache hit.
     assert not (assets.CACHE / "ship.fbx").exists()
-
-
-def test_a_failed_download_is_not_cached(
-    one: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    """A killed transfer leaves a `.part`; only a verified file takes the cache name."""
-    monkeypatch.setattr(
-        assets.urllib.request,
-        "urlretrieve",
-        lambda url, path: Path(path).write_bytes(BODY[:4]) and None,
-    )
-    with pytest.raises(ValueError):
-        assets.fetch("ship")
-    assert not (assets.CACHE / "ship.fbx").exists()
+    assert [p.read_bytes() for p in assets.CACHE.glob("*.part")] == [
+        b"a different mesh"
+    ]
