@@ -1,0 +1,203 @@
+{
+  "$defs": {
+    "Camera": {
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "enum": [
+            "eo",
+            "ir"
+          ],
+          "title": "Kind",
+          "type": "string"
+        },
+        "pod": {
+          "title": "Pod",
+          "type": "string"
+        },
+        "bearing_deg": {
+          "title": "Bearing Deg",
+          "type": "number"
+        },
+        "hfov_deg": {
+          "exclusiveMaximum": 180.0,
+          "exclusiveMinimum": 0.0,
+          "title": "Hfov Deg",
+          "type": "number"
+        },
+        "width_px": {
+          "exclusiveMinimum": 0,
+          "title": "Width Px",
+          "type": "integer"
+        },
+        "height_px": {
+          "exclusiveMinimum": 0,
+          "title": "Height Px",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "kind",
+        "pod",
+        "bearing_deg",
+        "hfov_deg",
+        "width_px",
+        "height_px"
+      ],
+      "title": "Camera",
+      "type": "object"
+    },
+    "Object": {
+      "additionalProperties": false,
+      "description": "Something to detect.",
+      "properties": {
+        "asset": {
+          "title": "Asset",
+          "type": "string"
+        },
+        "range_m": {
+          "exclusiveMinimum": 0.0,
+          "title": "Range M",
+          "type": "number"
+        },
+        "bearing_deg": {
+          "title": "Bearing Deg",
+          "type": "number"
+        },
+        "heading_deg": {
+          "default": 0.0,
+          "title": "Heading Deg",
+          "type": "number"
+        },
+        "t_k": {
+          "default": 293.0,
+          "maximum": 400.0,
+          "minimum": 250.0,
+          "title": "T K",
+          "type": "number"
+        }
+      },
+      "required": [
+        "asset",
+        "range_m",
+        "bearing_deg"
+      ],
+      "title": "Object",
+      "type": "object"
+    },
+    "Rig": {
+      "additionalProperties": false,
+      "description": "The sensor mast on the ownship.",
+      "properties": {
+        "height_m": {
+          "exclusiveMinimum": 0.0,
+          "title": "Height M",
+          "type": "number"
+        },
+        "tilt_deg": {
+          "default": 0.0,
+          "title": "Tilt Deg",
+          "type": "number"
+        },
+        "cameras": {
+          "items": {
+            "$ref": "#/$defs/Camera"
+          },
+          "minItems": 1,
+          "title": "Cameras",
+          "type": "array"
+        }
+      },
+      "required": [
+        "height_m",
+        "cameras"
+      ],
+      "title": "Rig",
+      "type": "object"
+    },
+    "Sea": {
+      "additionalProperties": false,
+      "description": "Blender's Ocean modifier is driven by wind, so the config is too.\n\n271-311 K is the span of the shipped optical-constant table. `lwir` clamps to it;\nhere it is an error.",
+      "properties": {
+        "t_sea_k": {
+          "default": 288.0,
+          "maximum": 311.0,
+          "minimum": 271.0,
+          "title": "T Sea K",
+          "type": "number"
+        },
+        "wind_speed_mps": {
+          "default": 7.0,
+          "minimum": 0.0,
+          "title": "Wind Speed Mps",
+          "type": "number"
+        },
+        "choppiness": {
+          "default": 1.0,
+          "maximum": 4.0,
+          "minimum": 0.0,
+          "title": "Choppiness",
+          "type": "number"
+        }
+      },
+      "title": "Sea",
+      "type": "object"
+    },
+    "Sky": {
+      "additionalProperties": false,
+      "description": "Blender's Sky Texture (Nishita). Turbidity's 1-10 is the node's own range.",
+      "properties": {
+        "sun_elevation_deg": {
+          "default": 30.0,
+          "maximum": 90.0,
+          "minimum": -90.0,
+          "title": "Sun Elevation Deg",
+          "type": "number"
+        },
+        "sun_bearing_deg": {
+          "default": 0.0,
+          "title": "Sun Bearing Deg",
+          "type": "number"
+        },
+        "turbidity": {
+          "default": 2.0,
+          "maximum": 10.0,
+          "minimum": 1.0,
+          "title": "Turbidity",
+          "type": "number"
+        }
+      },
+      "title": "Sky",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "seed": {
+      "default": 0,
+      "title": "Seed",
+      "type": "integer"
+    },
+    "rig": {
+      "$ref": "#/$defs/Rig"
+    },
+    "sea": {
+      "$ref": "#/$defs/Sea"
+    },
+    "sky": {
+      "$ref": "#/$defs/Sky"
+    },
+    "objects": {
+      "items": {
+        "$ref": "#/$defs/Object"
+      },
+      "title": "Objects",
+      "type": "array"
+    }
+  },
+  "required": [
+    "rig"
+  ],
+  "title": "Scenario",
+  "type": "object"
+}

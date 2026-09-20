@@ -1,0 +1,26 @@
+#:schema ../schema/scenario.json
+
+# Tests measure against these numbers. Write a variant that extends this file rather
+# than editing it.
+
+seed = 20260920
+
+[rig]
+preset = "twin_pod"
+height_m = 12.0
+
+[sea]
+t_sea_k = 288.0
+wind_speed_mps = 7.0
+choppiness = 1.0
+
+[sky]
+sun_elevation_deg = 30.0
+sun_bearing_deg = 135.0
+turbidity = 2.0
+
+[[objects]]
+preset = "container_ship"
+range_m = 2000.0
+bearing_deg = 15.0
+heading_deg = 250.0

@@ -63,7 +63,12 @@ tilt_deg = -5.0
 ```
 
 Scenarios carry a `#:schema` line, so editors with a TOML language server give you key
-completion, inline validation and hover docs.
+completion, inline validation and hover docs. `seascape schema` regenerates
+`schema/scenario.json` from the models.
+
+> [!NOTE]
+> `seascape build` validates a scenario and summarises it; `render` doesn't exist yet.
+> The Blender scene lands next.
 
 ## Blender MCP (optional)
 
@@ -108,7 +113,7 @@ lsof -nP -iTCP:9876 -sTCP:LISTEN
 |---|---|
 | Scaffolding and CI | done |
 | LWIR radiometry | done |
-| Scenario config and schema | porting |
+| Scenario config and schema | done |
 | Scene build and rendering | porting |
 | Multi-frame sequences | planned |
 | Vessel motion | planned |
