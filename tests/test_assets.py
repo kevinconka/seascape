@@ -1,8 +1,9 @@
 """Manifest parsing, and the digest gate in front of the cache."""
 
 import hashlib
+import re
 import tomllib
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 
 import pytest
 
@@ -35,10 +36,11 @@ def test_every_object_preset_names_an_asset() -> None:
             assert tomllib.load(handle)["asset"] in assets.manifest(), preset
 
 
-def test_every_url_carries_an_extension() -> None:
-    """The cached name takes its suffix from the URL, and Blender picks by extension."""
+def test_every_url_ends_in_a_bare_extension() -> None:
+    """`fetch` slices the cached name's suffix off the URL and Blender picks the
+    importer by extension, so a query string or a bare id both land wrong."""
     for name, asset in assets.manifest().items():
-        assert Path(asset.url).suffix, name
+        assert re.fullmatch(r"\.[a-z0-9]+", PurePosixPath(asset.url).suffix), name
 
 
 def test_fetch_downloads_once(one: Path) -> None:
@@ -61,6 +63,5 @@ def test_fetch_rejects_bytes_that_miss_the_digest(one: Path) -> None:
     with pytest.raises(ValueError, match="manifest says"):
         assets.fetch("ship")
     assert not (assets.CACHE / "ship.fbx").exists()
-    assert [p.read_bytes() for p in assets.CACHE.glob("*.part")] == [
-        b"a different mesh"
-    ]
+    (part,) = assets.CACHE.glob("*.part")
+    assert part.read_bytes() == b"a different mesh"

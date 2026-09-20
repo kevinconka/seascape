@@ -23,7 +23,7 @@ class Asset(Model):
 
     url: str
     sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
-    licence: str
+    licence: str = Field(min_length=1)
     attribution: str = Field(min_length=1)
 
 
