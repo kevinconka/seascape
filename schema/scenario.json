@@ -1,36 +1,22 @@
 {
   "$defs": {
     "Camera": {
-      "discriminator": {
-        "mapping": {
-          "eo": "#/$defs/EOCamera",
-          "ir": "#/$defs/IRCamera"
-        },
-        "propertyName": "kind"
-      },
-      "oneOf": [
-        {
-          "$ref": "#/$defs/EOCamera"
-        },
-        {
-          "$ref": "#/$defs/IRCamera"
-        }
-      ]
-    },
-    "EOCamera": {
       "additionalProperties": false,
       "properties": {
+        "kind": {
+          "enum": [
+            "eo",
+            "ir"
+          ],
+          "title": "Kind",
+          "type": "string"
+        },
         "pod": {
           "title": "Pod",
           "type": "string"
         },
         "bearing_deg": {
           "title": "Bearing Deg",
-          "type": "number"
-        },
-        "tilt_deg": {
-          "default": 0.0,
-          "title": "Tilt Deg",
           "type": "number"
         },
         "hfov_deg": {
@@ -48,94 +34,22 @@
           "exclusiveMinimum": 0,
           "title": "Height Px",
           "type": "integer"
-        },
-        "kind": {
-          "const": "eo",
-          "default": "eo",
-          "title": "Kind",
-          "type": "string"
         }
       },
       "required": [
+        "kind",
         "pod",
         "bearing_deg",
         "hfov_deg",
         "width_px",
         "height_px"
       ],
-      "title": "EOCamera",
-      "type": "object"
-    },
-    "IRCamera": {
-      "additionalProperties": false,
-      "properties": {
-        "pod": {
-          "title": "Pod",
-          "type": "string"
-        },
-        "bearing_deg": {
-          "title": "Bearing Deg",
-          "type": "number"
-        },
-        "tilt_deg": {
-          "default": 0.0,
-          "title": "Tilt Deg",
-          "type": "number"
-        },
-        "hfov_deg": {
-          "exclusiveMaximum": 180.0,
-          "exclusiveMinimum": 0.0,
-          "title": "Hfov Deg",
-          "type": "number"
-        },
-        "width_px": {
-          "exclusiveMinimum": 0,
-          "title": "Width Px",
-          "type": "integer"
-        },
-        "height_px": {
-          "exclusiveMinimum": 0,
-          "title": "Height Px",
-          "type": "integer"
-        },
-        "kind": {
-          "const": "ir",
-          "default": "ir",
-          "title": "Kind",
-          "type": "string"
-        },
-        "band_m": {
-          "default": [
-            8e-06,
-            1.4e-05
-          ],
-          "maxItems": 2,
-          "minItems": 2,
-          "prefixItems": [
-            {
-              "type": "number"
-            },
-            {
-              "type": "number"
-            }
-          ],
-          "title": "Band M",
-          "type": "array"
-        }
-      },
-      "required": [
-        "pod",
-        "bearing_deg",
-        "hfov_deg",
-        "width_px",
-        "height_px"
-      ],
-      "title": "IRCamera",
+      "title": "Camera",
       "type": "object"
     },
     "Object": {
       "additionalProperties": false,
-      "description": "Something to detect. A person in the water and a floating container count.",
+      "description": "Something to detect.",
       "properties": {
         "asset": {
           "title": "Asset",
@@ -173,7 +87,7 @@
     },
     "Rig": {
       "additionalProperties": false,
-      "description": "The sensor mast: where it sits on the ownship, and what is bolted to it.",
+      "description": "The sensor mast on the ownship.",
       "properties": {
         "height_m": {
           "exclusiveMinimum": 0.0,
@@ -203,7 +117,7 @@
     },
     "Sea": {
       "additionalProperties": false,
-      "description": "Blender's Ocean modifier is driven by wind, so the config is too.\n\nThe temperature bound is the span of the shipped optical-constant table, which\nalready covers any sea surface. `lwir` clamps to it; here it is an error, because\na scenario asking for 400 K water is a mistake, not something to silently correct.",
+      "description": "Blender's Ocean modifier is driven by wind, so the config is too.\n\n271-311 K is the span of the shipped optical-constant table. `lwir` clamps to it;\nhere it is an error.",
       "properties": {
         "t_sea_k": {
           "default": 288.0,

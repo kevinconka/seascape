@@ -1,6 +1,0 @@
-# Daylight camera. 45.0 deg horizontal FOV, so three of them 40.0 deg apart span
-# 125.0 deg with 5.0 deg of overlap between neighbours.
-kind = "eo"
-hfov_deg = 45.0
-width_px = 1920
-height_px = 1080

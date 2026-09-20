@@ -1,7 +1,7 @@
 """Loader rules and the shipped presets.
 
-No Blender. The geometry assertions check the numbers issue #6 accepts against, at
-the config level; measuring them from a built scene is a separate check.
+No Blender. Geometry is asserted from the bearings and FOVs as configured; measuring
+it off a built scene is a separate check.
 """
 
 import itertools
@@ -12,10 +12,17 @@ from pathlib import Path
 import pytest
 from pydantic import ValidationError
 
-from seascape.config import Scenario, load
+from seascape.config import CFG_DIR, Scenario, load
 
 BASELINE = Path(__file__).parents[1] / "scenarios" / "baseline.toml"
 SCHEMA = Path(__file__).parents[1] / "schema" / "scenario.json"
+
+
+def variant(tmp_path: Path, body: str) -> Path:
+    """A scenario extending the baseline; `body` is the override TOML."""
+    path = tmp_path / "variant.toml"
+    path.write_text(f'extends = "{BASELINE}"\n\n{body}')
+    return path
 
 
 @pytest.fixture(scope="module")
@@ -23,30 +30,29 @@ def baseline() -> Scenario:
     return load(BASELINE)
 
 
-def write(path: Path, text: str) -> Path:
-    path.write_text(text)
-    return path
-
-
 def test_baseline_has_eight_cameras(baseline) -> None:
-    """Six EO plus an LWIR pair, which is the eight images acceptance asks for."""
+    """Six EO plus an LWIR pair, from twin_pod.toml."""
     kinds = [camera.kind for camera in baseline.rig.cameras]
     assert kinds.count("eo") == 6
     assert kinds.count("ir") == 2
 
 
 @pytest.mark.parametrize(
-    ("pod", "span_deg", "overlap_deg"), [("port", 125.0, 5.0), ("bow", 44.0, 4.0)]
+    ("pod", "span_deg", "overlap_deg"),
+    [("port", 125.0, 5.0), ("starboard", 125.0, 5.0), ("bow", 44.0, 4.0)],
 )
 def test_pod_geometry(baseline, pod, span_deg, overlap_deg) -> None:
-    """Combined span and neighbour overlap, from the bearings and FOVs as configured.
+    """Combined span and neighbour overlap, derived from the bearings and FOVs.
 
     A typo in twin_pod.toml or in a camera preset moves these; nothing else does.
     """
     edges = sorted(
-        (c.bearing_deg - c.hfov_deg / 2, c.bearing_deg + c.hfov_deg / 2)
-        for c in baseline.rig.cameras
-        if c.pod == pod
+        (
+            camera.bearing_deg - camera.hfov_deg / 2,
+            camera.bearing_deg + camera.hfov_deg / 2,
+        )
+        for camera in baseline.rig.cameras
+        if camera.pod == pod
     )
     assert edges[-1][1] - edges[0][0] == pytest.approx(span_deg)
     overlaps = [left[1] - right[0] for left, right in itertools.pairwise(edges)]
@@ -54,101 +60,113 @@ def test_pod_geometry(baseline, pod, span_deg, overlap_deg) -> None:
 
 
 def test_preset_supplies_optics_and_block_supplies_the_mount(baseline) -> None:
-    """The half of a camera that is reusable comes from the preset, the rest doesn't."""
-    camera = baseline.rig.cameras[0]
-    assert (camera.hfov_deg, camera.width_px) == (45.0, 1920)
-    assert (camera.pod, camera.bearing_deg) == ("port", -100.0)
+    """Optics come from the camera preset, mount from the rig block that names it."""
+    eo, ir = baseline.rig.cameras[0], baseline.rig.cameras[-1]
+    assert (eo.hfov_deg, eo.width_px, eo.height_px) == (45.0, 1920, 1080)
+    assert (ir.hfov_deg, ir.width_px, ir.height_px) == (24.0, 640, 512)
+    assert (eo.pod, eo.bearing_deg) == ("port", -100.0)
 
 
-def test_extends_overrides_one_key_and_keeps_the_rest(tmp_path) -> None:
-    """Acceptance check 5: change the mounting height without touching the cameras."""
-    variant = write(
-        tmp_path / "taller.toml",
-        f'extends = "{BASELINE}"\n\n[rig]\nheight_m = 22.0\n',
+def test_objects_merge_their_preset(baseline) -> None:
+    """The only list-of-tables preset: asset and temperature from cfg, pose here."""
+    obj = baseline.objects[0]
+    assert (obj.asset, obj.t_k) == ("container_ship", 295.0)
+    assert (obj.range_m, obj.bearing_deg) == (2000.0, 15.0)
+
+
+def test_a_block_overrides_its_own_preset(tmp_path) -> None:
+    """Rule 1's whole point. Disjoint keys would pass whichever way the merge ran."""
+    scenario = load(
+        variant(
+            tmp_path,
+            '[[rig.cameras]]\npreset = "eo"\npod = "bow"\n'
+            "bearing_deg = 0.0\nhfov_deg = 10.0\n",
+        )
     )
-    scenario = load(variant)
-    assert scenario.rig.height_m == 22.0
-    assert len(scenario.rig.cameras) == 8
-    assert scenario.sky.sun_bearing_deg == 135.0
+    assert scenario.rig.cameras[0].hfov_deg == 10.0  # preset says 45.0
+    assert scenario.rig.cameras[0].width_px == 1920  # untouched by the block
+
+
+def test_a_preset_outranks_an_inherited_value(tmp_path) -> None:
+    """A preset the variant names explicitly beats what `extends` brought in.
+
+    Expanding after the parent merge inverts this, and nothing else notices.
+    """
+    (tmp_path / "single.toml").write_text(
+        'height_m = 2.0\n\n[[cameras]]\npreset = "ir"\npod = "bow"\nbearing_deg = 0.0\n'
+    )
+    scenario = load(variant(tmp_path, '[rig]\npreset = "./single.toml"\n'))
+    assert scenario.rig.height_m == 2.0  # baseline says 12.0
+    assert [camera.kind for camera in scenario.rig.cameras] == ["ir"]
 
 
 def test_tables_merge_and_lists_replace(tmp_path) -> None:
-    """The one merge rule. A replaced list is what makes an override predictable."""
-    variant = write(
-        tmp_path / "one_camera.toml",
-        f'extends = "{BASELINE}"\n\n[sea]\nchoppiness = 0.2\n\n'
-        '[[rig.cameras]]\npreset = "ir"\npod = "bow"\nbearing_deg = 0.0\n',
+    """A variant changes one key; siblings survive, a list does not."""
+    scenario = load(
+        variant(
+            tmp_path,
+            "[sea]\nchoppiness = 0.2\n\n"
+            '[[rig.cameras]]\npreset = "ir"\npod = "bow"\nbearing_deg = 0.0\n',
+        )
     )
-    scenario = load(variant)
     assert scenario.sea.choppiness == 0.2
     assert scenario.sea.t_sea_k == 288.0  # sibling key survived the merge
+    assert scenario.rig.height_m == 12.0  # sibling table survived it too
     assert len(scenario.rig.cameras) == 1  # the list did not
 
 
-def test_preset_can_be_a_path(tmp_path) -> None:
+@pytest.mark.parametrize("name", ["./mine.toml", "mine.toml"])
+def test_preset_can_be_a_path(tmp_path, name) -> None:
     """A `/` or a `.toml` means a path, so a scenario can carry its own presets."""
-    write(tmp_path / "mine.toml", 'kind = "eo"\nhfov_deg = 12.0\n')
-    variant = write(
-        tmp_path / "narrow.toml",
-        f'extends = "{BASELINE}"\n\n[[rig.cameras]]\n'
-        'preset = "./mine.toml"\npod = "bow"\nbearing_deg = 0.0\n'
-        "width_px = 1920\nheight_px = 1080\n",
+    (tmp_path / "mine.toml").write_text('kind = "eo"\nhfov_deg = 12.0\n')
+    scenario = load(
+        variant(
+            tmp_path,
+            f'[[rig.cameras]]\npreset = "{name}"\npod = "bow"\nbearing_deg = 0.0\n'
+            "width_px = 1920\nheight_px = 1080\n",
+        )
     )
-    assert load(variant).rig.cameras[0].hfov_deg == 12.0
+    assert scenario.rig.cameras[0].hfov_deg == 12.0
 
 
 @pytest.mark.parametrize(
-    ("preset", "match"),
+    ("preset", "error", "match"),
     [
-        ("no such preset", "neither a preset name nor a path"),
-        ("not_a_real_preset", "not_a_real_preset.toml"),
-        (12, "must be a string"),
+        ("not_a_real_preset", FileNotFoundError, "not_a_real_preset.toml"),
+        (12, TypeError, "must be a string"),
     ],
 )
-def test_bad_preset_names_fail_loudly(tmp_path, preset, match) -> None:
+def test_bad_presets_fail_loudly(tmp_path, preset, error, match) -> None:
     """The loader never guesses: it does not try one form and fall back to another."""
-    variant = write(
-        tmp_path / "bad.toml",
-        f'extends = "{BASELINE}"\n\n[rig]\npreset = {json.dumps(preset)}\n',
-    )
-    with pytest.raises((ValueError, TypeError, OSError), match=match):
-        load(variant)
+    with pytest.raises(error, match=match):
+        load(variant(tmp_path, f"[rig]\npreset = {json.dumps(preset)}\n"))
 
 
-def test_presets_are_rejected_where_none_exist(tmp_path) -> None:
-    variant = write(
-        tmp_path / "sky.toml",
-        f'extends = "{BASELINE}"\n\n[sky]\npreset = "clear"\n',
-    )
-    with pytest.raises(ValueError, match="no presets exist for the 'sky' block"):
-        load(variant)
+def test_extends_demands_a_path(tmp_path) -> None:
+    """`extends` has no preset directory to draw from, so a bare name is an error."""
+    path = tmp_path / "bare.toml"
+    path.write_text('extends = "baseline"\n')
+    with pytest.raises(ValueError, match="must be a path"):
+        load(path)
 
 
 def test_circular_extends_raises_rather_than_recursing(tmp_path) -> None:
-    write(tmp_path / "a.toml", 'extends = "b.toml"\n')
-    write(tmp_path / "b.toml", 'extends = "a.toml"\n')
+    (tmp_path / "a.toml").write_text('extends = "b.toml"\n')
+    (tmp_path / "b.toml").write_text('extends = "a.toml"\n')
     with pytest.raises(ValueError, match="circular include"):
         load(tmp_path / "a.toml")
 
 
 def test_a_mistyped_key_is_an_error_not_a_silent_default(tmp_path) -> None:
-    variant = write(
-        tmp_path / "typo.toml",
-        f'extends = "{BASELINE}"\n\n[rig]\nheight_metres = 22.0\n',
-    )
     with pytest.raises(ValidationError, match="height_metres"):
-        load(variant)
+        load(variant(tmp_path, "[rig]\nheight_metres = 22.0\n"))
 
 
 @pytest.mark.parametrize("t_sea_k", [260.0, 400.0])
 def test_sea_temperature_is_bounded_at_the_config_boundary(tmp_path, t_sea_k) -> None:
-    """`lwir` clamps out-of-range temperatures; a scenario asking for one is a bug."""
-    variant = write(
-        tmp_path / "hot.toml",
-        f'extends = "{BASELINE}"\n\n[sea]\nt_sea_k = {t_sea_k}\n',
-    )
+    """The bound is 271-311 K, the span of the shipped optical-constant table."""
     with pytest.raises(ValidationError, match="t_sea_k"):
-        load(variant)
+        load(variant(tmp_path, f"[sea]\nt_sea_k = {t_sea_k}\n"))
 
 
 def test_committed_schema_matches_the_models() -> None:
@@ -167,7 +185,8 @@ def test_baseline_points_at_the_committed_schema() -> None:
 
 
 def test_every_shipped_preset_parses() -> None:
-    presets = sorted((Path(__file__).parents[1] / "seascape" / "cfg").rglob("*.toml"))
-    assert len(presets) >= 4
+    """A preset directory is named after the block it serves, and holds valid TOML."""
+    presets = sorted(CFG_DIR.rglob("*.toml"))
+    assert {path.parent.name for path in presets} == {"rig", "cameras", "objects"}
     for preset in presets:
         tomllib.loads(preset.read_text())

@@ -1,6 +1,0 @@
-# Uncooled microbolometer. 24.0 deg horizontal FOV, so a pair 20.0 deg apart spans
-# 44.0 deg with 4.0 deg of overlap.
-kind = "ir"
-hfov_deg = 24.0
-width_px = 640
-height_px = 512

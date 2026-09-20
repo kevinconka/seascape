@@ -1,7 +1,7 @@
 #:schema ../schema/scenario.json
 
-# The scenario every acceptance check is measured against. Change it and the numbers
-# in issue #6 stop meaning anything; write a variant that `extends` it instead.
+# Tests measure against these numbers. Write a variant that extends this file rather
+# than editing it.
 
 seed = 20260920
 
