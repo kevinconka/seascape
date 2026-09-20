@@ -1,0 +1,13 @@
+# Meshes are fetched, never committed. Each entry pairs a URL with the sha256 that makes
+# a cached copy trustworthy, and with the credit any released render has to carry.
+#
+# Sources have to be reachable by a script. poly.pizza is the nicer page to read, but it
+# sits behind a Cloudflare challenge that rejects non-browser clients, so `url` points at
+# Icosa Gallery's archive of the same Google Poly asset and `page` at poly.pizza.
+
+[container_ship]
+url = "https://s3.us-east-005.backblazeb2.com/icosa-gallery/poly/3AmDGcCu6Ll/model.fbx"
+sha256 = "70f5d10641245613e8887ac3f0ab1e180c1cc2d27b1401621e56d0fe56dcf9ab"
+licence = "CC-BY-3.0"
+attribution = 'Container Ship by Alex "SAFFY" Safayan'
+page = "https://poly.pizza/m/3AmDGcCu6Ll"

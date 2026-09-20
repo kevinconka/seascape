@@ -26,7 +26,9 @@ from seascape import lwir
 CFG_DIR = Path(__file__).parent / "cfg"
 
 
-class _Model(BaseModel):
+class Model(BaseModel):
+    """Strictness shared by everything this package parses from TOML."""
+
     # extra: a typo in a scenario is a silent wrong render otherwise. `preset` is
     # consumed by the loader before validation, so this also catches it leaking.
     # inf_nan: tomllib parses `nan` and `inf`, and pydantic accepts both by default.
@@ -34,7 +36,7 @@ class _Model(BaseModel):
     model_config = ConfigDict(extra="forbid", allow_inf_nan=False)
 
 
-class Camera(_Model):
+class Camera(Model):
     kind: Literal["eo", "ir"]
     pod: str
     bearing_deg: float  # relative to the bow, positive to starboard
@@ -43,7 +45,7 @@ class Camera(_Model):
     height_px: int = Field(gt=0)
 
 
-class Rig(_Model):
+class Rig(Model):
     """The sensor mast on the ownship."""
 
     height_m: float = Field(gt=0.0)
@@ -51,7 +53,7 @@ class Rig(_Model):
     cameras: list[Camera] = Field(min_length=1)
 
 
-class Sea(_Model):
+class Sea(Model):
     """Blender's Ocean modifier is driven by wind, so the config is too.
 
     271-311 K is the span of the shipped optical-constant table. `lwir` clamps to it;
@@ -63,7 +65,7 @@ class Sea(_Model):
     choppiness: float = Field(default=1.0, ge=0.0, le=4.0)
 
 
-class Sky(_Model):
+class Sky(Model):
     """Blender's Sky Texture (Nishita). Turbidity's 1-10 is the node's own range."""
 
     sun_elevation_deg: float = Field(default=30.0, ge=-90.0, le=90.0)
@@ -71,7 +73,7 @@ class Sky(_Model):
     turbidity: float = Field(default=2.0, ge=1.0, le=10.0)
 
 
-class Object(_Model):
+class Object(Model):
     """Something to detect."""
 
     asset: str
@@ -81,7 +83,7 @@ class Object(_Model):
     t_k: float = Field(default=293.0, ge=250.0, le=400.0)
 
 
-class Scenario(_Model):
+class Scenario(Model):
     seed: int = 0
     rig: Rig
     sea: Sea = Field(default_factory=Sea)

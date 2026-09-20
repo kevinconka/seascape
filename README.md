@@ -66,6 +66,11 @@ Scenarios carry a `#:schema` line, so editors with a TOML language server give y
 completion, inline validation and hover docs. `seascape schema` regenerates
 `schema/scenario.json` from the models.
 
+Meshes are never committed. `seascape/assets.toml` records each one's source, sha256,
+licence and credit; the first render downloads them to `~/.cache/seascape` and every run
+re-checks the digest. `seascape assets` lists what a release has to credit, `--fetch`
+downloads them up front.
+
 > [!NOTE]
 > `seascape build` validates a scenario and summarises it; `render` doesn't exist yet.
 > The Blender scene lands next.
@@ -114,6 +119,7 @@ lsof -nP -iTCP:9876 -sTCP:LISTEN
 | Scaffolding and CI | done |
 | LWIR radiometry | done |
 | Scenario config and schema | done |
+| Asset manifest and cache | done |
 | Scene build and rendering | porting |
 | Multi-frame sequences | planned |
 | Vessel motion | planned |
@@ -126,7 +132,7 @@ lsof -nP -iTCP:9876 -sTCP:LISTEN
 ## Licence
 
 MIT — see [LICENSE](LICENSE). Bundled 3D assets carry their own licences, recorded in
-`assets.toml`; some require attribution, which travels with any released dataset.
+`seascape/assets.toml`; some require attribution, which travels with any released dataset.
 
 `seascape/data/water_nk.csv` is CC BY 4.0, from
 [Nalli et al. 2022](https://doi.org/10.6084/m9.figshare.19341533); the citation travels in
