@@ -37,8 +37,7 @@ def test_every_object_preset_names_an_asset() -> None:
 
 
 def test_every_url_ends_in_a_bare_extension() -> None:
-    """`fetch` slices the cached name's suffix off the URL and Blender picks the
-    importer by extension, so a query string or a bare id both land wrong."""
+    """The cached filename takes its suffix off the URL, so the URL must end in one."""
     for name, asset in assets.manifest().items():
         assert re.fullmatch(r"\.[a-z0-9]+", PurePosixPath(asset.url).suffix), name
 
