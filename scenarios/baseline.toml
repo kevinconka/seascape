@@ -17,7 +17,7 @@ choppiness = 1.0
 [sky]
 sun_elevation_deg = 30.0
 sun_bearing_deg = 135.0
-turbidity = 2.0
+aerosol_density = 1.0
 
 [[objects]]
 preset = "container_ship"

@@ -66,11 +66,16 @@ class Sea(Model):
 
 
 class Sky(Model):
-    """Blender's Sky Texture (Nishita). Turbidity's 1-10 is the node's own range."""
+    """Blender's Sky Texture, multiple-scattering model.
+
+    Haze is `aerosol_density`, the node's own parameter. Its `turbidity` belongs to the
+    Preetham and Hosek-Wilkie models and is ignored by this one, so naming it that would
+    be a knob that changes nothing.
+    """
 
     sun_elevation_deg: float = Field(default=30.0, ge=-90.0, le=90.0)
     sun_bearing_deg: float = 0.0
-    turbidity: float = Field(default=2.0, ge=1.0, le=10.0)
+    aerosol_density: float = Field(default=1.0, ge=0.0, le=10.0)
 
 
 class Object(Model):

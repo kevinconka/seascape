@@ -46,9 +46,9 @@ without it.
 ## Quickstart
 
 ```bash
+uv run seascape build  scenarios/baseline.toml            # scenarios/baseline.blend
+uv run seascape build  scenarios/baseline.toml -o /tmp/look.blend
 uv run seascape render scenarios/baseline.toml            # images + ground truth
-uv run seascape render scenarios/baseline.toml --set rig.tilt_deg=-5
-uv run seascape build  scenarios/baseline.toml --open     # a .blend, opened in Blender
 ```
 
 A scenario is a TOML file describing the world, the platform, the sensors and the targets.
@@ -72,8 +72,8 @@ licence and credit; they download on first use to `~/.cache/seascape`, or to
 the digest.
 
 > [!NOTE]
-> `seascape build` validates a scenario and summarises it; `render` doesn't exist yet.
-> The Blender scene lands next.
+> `seascape build` writes the `.blend`; `render` doesn't exist yet. Open the file in
+> Blender to look at it.
 
 ## Blender MCP (optional)
 
@@ -120,7 +120,8 @@ lsof -nP -iTCP:9876 -sTCP:LISTEN
 | LWIR radiometry | done |
 | Scenario config and schema | done |
 | Asset manifest and cache | done |
-| Scene build and rendering | porting |
+| Scene build | done |
+| Rendering and ground truth | porting |
 | Multi-frame sequences | planned |
 | Vessel motion | planned |
 | COCO labels | planned |

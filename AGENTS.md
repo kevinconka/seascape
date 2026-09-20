@@ -78,7 +78,18 @@ These produce wrong output with no error. They are the reason this file exists.
 - **Shader node trees leak.** If you build a chain, cleanup must remove the whole chain, not
   just the node you tagged. Re-running a build should leave the node count unchanged.
 - **The engine identifier is version-dependent.** `BLENDER_EEVEE` means EEVEE Legacy on ≤4.1
-  and EEVEE Next on ≥5.0, with `BLENDER_EEVEE_NEXT` in between. Assert against the enum.
+  and EEVEE Next on ≥5.0, with `BLENDER_EEVEE_NEXT` in between. Assert against the enum. The Sky
+  Texture moved the same way: `NISHITA` is `SINGLE_SCATTERING` and `MULTIPLE_SCATTERING` on ≥5.0.
+- **A camera's `clip_end` defaults to 1000 m.** A target at 2 km renders as sky and the clip
+  boundary reads as a convincing horizon. Nothing warns. Set it from the scene's reach.
+- **`matrix_world` is stale until the depsgraph runs.** Parent an object, move the parent, read
+  a child's `matrix_world`, and you get where it used to be. `view_layer.update()` first, or
+  every measurement quietly describes the wrong scene.
+- **An empty's `bound_box` is a unit cube at its origin.** An imported FBX is largely empties, so
+  measuring the extent of "everything I just imported" inflates it and the fit comes out wrong.
+- **The Sky Texture's `turbidity` does nothing under the scattering models.** It belongs to
+  Preetham and Hosek-Wilkie. Haze there is `aerosol_density`. Setting the wrong one is accepted
+  in silence and changes no pixel, which was verified by rendering both.
 
 ## Conventions
 

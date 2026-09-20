@@ -23,6 +23,7 @@ class Asset(Model):
 
     url: str
     sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
+    length_m: float = Field(gt=0.0)  # bow to stern; the mesh arrives in arbitrary units
     licence: str = Field(min_length=1)
     attribution: str = Field(min_length=1)
 
