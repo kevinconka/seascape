@@ -43,7 +43,9 @@ class Model(BaseModel):
 
 class Camera(Model):
     kind: Band
-    pod: str
+    # A camera's name is built from these three and used as a filename, so a pod that
+    # is path text writes the render outside the output directory.
+    pod: str = Field(pattern=r"^[A-Za-z0-9_-]+$")
     bearing_deg: float  # relative to the bow, positive to starboard
     hfov_deg: float = Field(gt=0.0, lt=180.0)
     width_px: int = Field(gt=0)
@@ -56,6 +58,14 @@ class Rig(Model):
     height_m: float = Field(gt=0.0)
     tilt_deg: float = 0.0
     cameras: list[Camera] = Field(min_length=1)
+
+    @model_validator(mode="after")
+    def _names_are_unique(self) -> "Rig":
+        """Two cameras of one name share a datablock and overwrite each other's file."""
+        names = [f"{c.pod}_{c.kind}_{c.bearing_deg:+g}" for c in self.cameras]
+        if len(set(names)) != len(names):
+            raise ValueError(f"two cameras share a name: {sorted(names)}")
+        return self
 
 
 class Sea(Model):
@@ -130,6 +140,13 @@ class Outputs(Model):
                 "png cannot hold LWIR radiance: mapping it to 8 bits needs the "
                 "sensor's gain curve. Use exr, or drop 'ir' from bands."
             )
+        return self
+
+    @model_validator(mode="after")
+    def _bands_are_distinct(self) -> "Outputs":
+        """A repeat renders the same cameras twice, onto the same files."""
+        if len(set(self.bands)) != len(self.bands):
+            raise ValueError(f"a band is listed twice: {self.bands}")
         return self
 
 

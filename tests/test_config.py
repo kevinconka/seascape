@@ -11,7 +11,7 @@ from pathlib import Path
 import pytest
 from pydantic import ValidationError
 
-from seascape.config import CFG_DIR, Outputs, Scenario, load
+from seascape.config import CFG_DIR, Camera, Outputs, Rig, Scenario, load
 
 BASELINE = Path(__file__).parents[1] / "scenarios" / "baseline.toml"
 SCHEMA = Path(__file__).parents[1] / "schema" / "scenario.json"
@@ -193,3 +193,37 @@ def test_png_is_rejected_for_lwir() -> None:
 
 def test_png_is_fine_without_lwir() -> None:
     assert Outputs(format="png", bands=("eo",)).format == "png"
+
+
+def test_a_band_cannot_be_listed_twice() -> None:
+    """A repeat renders the same cameras onto the same files."""
+    with pytest.raises(ValidationError, match="listed twice"):
+        Outputs(bands=("eo", "eo"))
+
+
+@pytest.mark.parametrize("pod", ["../escaped", "/tmp/absolute", "sub/dir"])
+def test_a_pod_cannot_be_path_text(pod: str) -> None:
+    """A camera's name is a filename, so path text writes outside the output dir."""
+    with pytest.raises(ValidationError, match="pod"):
+        Camera(
+            kind="eo", pod=pod, bearing_deg=0.0, hfov_deg=60.0, width_px=8, height_px=8
+        )
+
+
+def test_two_cameras_cannot_share_a_name() -> None:
+    """They would share a datablock and overwrite each other's render."""
+    twice = {
+        "kind": "eo",
+        "pod": "bow",
+        "bearing_deg": 0.0,
+        "width_px": 8,
+        "height_px": 8,
+    }
+    with pytest.raises(ValidationError, match="share a name"):
+        Rig(
+            height_m=12.0,
+            cameras=[
+                Camera(**twice, hfov_deg=60.0),
+                Camera(**twice, hfov_deg=30.0),
+            ],
+        )

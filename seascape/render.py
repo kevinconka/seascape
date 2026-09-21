@@ -40,10 +40,15 @@ def render(scenario: Scenario, into: Path) -> list[Path]:
     into.mkdir(parents=True, exist_ok=True)
     written: list[Path] = []
     for band in scenario.outputs.bands:
+        # An EO-only rig is legitimate, and the default bands ask for both. Selecting
+        # first means such a rig renders its EO cameras instead of raising on IR.
+        specs = [c for c in scenario.rig.cameras if c.kind == band]
+        if not specs:
+            continue
         scene.build(scenario, band)
         _settings(scenario, band)
         sc = bpy.context.scene
-        for spec in (c for c in scenario.rig.cameras if c.kind == band):
+        for spec in specs:
             name = scene.camera_name(spec)
             sc.camera = bpy.data.objects[name]
             sc.render.resolution_x, sc.render.resolution_y = (
