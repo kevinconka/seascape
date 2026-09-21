@@ -127,10 +127,12 @@ class Outputs(Model):
     bands: tuple[Band, ...] = Field(default=("eo", "ir"), min_length=1)
     samples: int = Field(default=64, gt=0)
     format: ImageFormat = "exr"
-    # Stops. Scene radiance off a sunlit sea is 3 to 13 where a display wants 1, so EO
-    # clips to white without it; -5 is daylight. Display transform only, so the exr is
-    # unaffected and ir ignores it.
-    # Blender clamps its own exposure to +/-32 in silence: -50 reads back as -32.
+    # Stops, and EO clips to white without them: a sunlit sea renders at 3 to 13 where
+    # a display wants 1. -5 puts the frame's median luminance on the 18% grey card
+    # every light meter is calibrated to -- the baseline reads 7.0, and
+    # log2(0.18 / 7.0) = -5.3, rounded to the nearest stop. Display transform only, so
+    # the exr keeps its radiance and ir ignores this. Blender clamps to +/-32 in
+    # silence, so -50 would read back as -32.
     exposure_ev: float = Field(default=-5.0, ge=-32.0, le=32.0)
     # Brightness temperature at black and at white in an ir png. Fixed, not stretched
     # per frame: a stretch makes two frames incomparable. 270-300 K spans the shipped
