@@ -69,16 +69,21 @@ class Sea(Model):
 
 
 class Sky(Model):
-    """Blender's Sky Texture, multiple-scattering model.
+    """Blender's Sky Texture in EO, and the downwelling radiance the sea reflects in IR.
 
     Haze is `aerosol_density`, the node's own parameter. Its `turbidity` belongs to the
     Preetham and Hosek-Wilkie models and is ignored by this one, so naming it that would
     be a knob that changes nothing.
+
+    `t_air_k` scales the IR sky and nothing in EO. Its range is the one the sky curve's
+    own profile is credible over; the shape of that curve is fixed, so a temperature far
+    from a temperate sea would need a different profile, not a different number here.
     """
 
     sun_elevation_deg: float = Field(default=30.0, ge=-90.0, le=90.0)
     sun_bearing_deg: float = 0.0
     aerosol_density: float = Field(default=1.0, ge=0.0, le=10.0)
+    t_air_k: float = Field(default=lwir.T_AIR_K, ge=250.0, le=320.0)
 
 
 class Object(Model):

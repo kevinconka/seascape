@@ -147,7 +147,7 @@
     },
     "Sky": {
       "additionalProperties": false,
-      "description": "Blender's Sky Texture, multiple-scattering model.\n\nHaze is `aerosol_density`, the node's own parameter. Its `turbidity` belongs to the\nPreetham and Hosek-Wilkie models and is ignored by this one, so naming it that would\nbe a knob that changes nothing.",
+      "description": "Blender's Sky Texture in EO, and the downwelling radiance the sea reflects in IR.\n\nHaze is `aerosol_density`, the node's own parameter. Its `turbidity` belongs to the\nPreetham and Hosek-Wilkie models and is ignored by this one, so naming it that would\nbe a knob that changes nothing.\n\n`t_air_k` scales the IR sky and nothing in EO. Its range is the one the sky curve's\nown profile is credible over; the shape of that curve is fixed, so a temperature far\nfrom a temperate sea would need a different profile, not a different number here.",
       "properties": {
         "sun_elevation_deg": {
           "default": 30.0,
@@ -166,6 +166,13 @@
           "maximum": 10.0,
           "minimum": 0.0,
           "title": "Aerosol Density",
+          "type": "number"
+        },
+        "t_air_k": {
+          "default": 288.0,
+          "maximum": 320.0,
+          "minimum": 250.0,
+          "title": "T Air K",
           "type": "number"
         }
       },
