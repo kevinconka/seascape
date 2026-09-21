@@ -23,6 +23,7 @@ roughness^2 convention Cycles follows.
 """
 
 import math
+from collections.abc import Iterable
 
 import bpy
 import numpy as np
@@ -120,12 +121,14 @@ def sea_reach_m(rig: Rig, band: Band) -> float:
     what makes that vanishing point read as a horizon. Earth curvature is not modelled,
     so a target past the true horizon shows when it should be hull-down.
     """
-    ifov_rad = min(
+    ifov_rad = [
         math.radians(camera.hfov_deg) / camera.width_px
         for camera in rig.cameras
         if camera.kind == band
-    )
-    return rig.height_m / math.tan(ifov_rad / 2)
+    ]
+    if not ifov_rad:
+        raise ValueError(f"the rig has no {band} camera to build a {band} scene for")
+    return rig.height_m / math.tan(min(ifov_rad) / 2)
 
 
 def _yaw(bearing_deg: float) -> float:
@@ -412,7 +415,7 @@ def _cameras(rig: Rig, far_m: float) -> list[bpy.types.Object]:
     return cameras
 
 
-def _bounds(objects: list[bpy.types.Object]) -> tuple[Vector, Vector]:
+def _bounds(objects: Iterable[bpy.types.Object]) -> tuple[Vector, Vector]:
     """World-space extent of the meshes in `objects`.
 
     An empty's `bound_box` is a unit cube at its origin, and an FBX rig is mostly
@@ -437,10 +440,13 @@ def _object(spec: Object, band: Band) -> bpy.types.Object:
     """
     before = set(bpy.data.objects)
     bpy.ops.import_scene.fbx(filepath=str(fetch(spec.asset)))
-    parts = [o for o in set(bpy.data.objects) - before if o.parent is None]
+    imported = set(bpy.data.objects) - before
+    # Measure everything, move the roots. The shipped ship keeps 40 of its 88 meshes
+    # under empties, and measuring only the roots would leave them out of the fit.
+    parts = [o for o in imported if o.parent is None]
 
     asset = manifest()[spec.asset]
-    low, high = _bounds(parts)
+    low, high = _bounds(imported)
     scale = asset.length_m / (high.y - low.y)
     # A uniform scale about the origin, so the fitted bounds follow without remeasuring
     # -- and without reading matrix_world back on the line after writing it.
@@ -495,7 +501,13 @@ def build(scenario: Scenario, band: Band = "eo") -> None:
     cameras = _cameras(scenario.rig, 1.5 * reach_m)
     for spec in scenario.objects:
         _object(spec, band)
-    bpy.context.scene.camera = cameras[0]
+    # Scenario order, so the first camera is EO in the baseline: an IR build would
+    # otherwise open on a camera whose optics belong to the other band.
+    bpy.context.scene.camera = next(
+        obj
+        for obj, spec in zip(cameras, scenario.rig.cameras, strict=True)
+        if spec.kind == band
+    )
     # Until the depsgraph runs, every child still reports its pre-parenting
     # matrix_world, so anything measuring the scene reads the wrong place.
     bpy.context.view_layer.update()

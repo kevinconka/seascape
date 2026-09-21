@@ -17,7 +17,8 @@ from seascape import lwir, scene
 from seascape.assets import manifest
 from seascape.config import Camera, load
 
-SCENARIO = load(Path(__file__).parent.parent / "scenarios" / "baseline.toml")
+BASELINE = Path(__file__).parent.parent / "scenarios" / "baseline.toml"
+SCENARIO = load(BASELINE)
 
 
 def name_of(spec: Camera) -> str:
@@ -211,6 +212,28 @@ class TestGeometry:
         before = counts()
         scene.build(SCENARIO, "eo")
         assert counts() == before
+
+
+@pytest.mark.parametrize("band", ["eo", "ir"])
+def test_the_active_camera_belongs_to_the_band_built(band) -> None:
+    """The scene opens on whichever camera it saved as active, and F12 uses it.
+
+    Scenario order puts an EO camera first, so an IR build would otherwise render
+    through EO optics against IR materials, with nothing to say so.
+    """
+    scene.build(SCENARIO, band)
+    assert f"_{band}_" in bpy.context.scene.camera.name
+
+
+def test_a_band_the_rig_cannot_see_is_an_error(tmp_path) -> None:
+    """Otherwise `min()` raises on an empty sequence, naming nothing."""
+    path = tmp_path / "eo_only.toml"
+    path.write_text(
+        f'extends = "{BASELINE}"\n\n'
+        '[[rig.cameras]]\npreset = "eo"\npod = "bow"\nbearing_deg = 0.0\n'
+    )
+    with pytest.raises(ValueError, match="no ir camera"):
+        scene.build(load(path), "ir")
 
 
 class TestEoBand:

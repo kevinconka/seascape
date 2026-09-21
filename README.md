@@ -38,7 +38,7 @@ Only touching the radiometry or the scenario config? `uv sync --no-group blender
 ## Quickstart
 
 ```bash
-uv run seascape build scenarios/baseline.toml            # scenarios/baseline.blend
+uv run seascape build scenarios/baseline.toml            # scenarios/baseline.eo.blend
 uv run seascape build scenarios/baseline.toml -o /tmp/look.blend
 ```
 
