@@ -429,8 +429,8 @@ def _object(spec: Object, band: Band) -> bpy.types.Object:
     """Import the mesh, fit it to its manifest length, and pose it.
 
     An asset arrives in whatever units its author used, off-origin, in many parts. It
-    is scaled by its bow-to-stern extent, centred, and set down with its lowest point on
-    the waterline. Draft is not modelled: nothing knows the hull's displacement.
+    is scaled by its bow-to-stern extent, centred, and set down so its keel sits at the
+    manifest draught below the waterline. The sea is opaque, so it hides what is under.
     """
     before = set(bpy.data.objects)
     bpy.ops.import_scene.fbx(filepath=str(fetch(spec.asset)))
@@ -442,7 +442,13 @@ def _object(spec: Object, band: Band) -> bpy.types.Object:
         part.matrix_world = fit @ part.matrix_world
 
     low, high = _bounds(parts)
-    centre = Matrix.Translation((-(low.x + high.x) / 2, -(low.y + high.y) / 2, -low.z))
+    centre = Matrix.Translation(
+        (
+            -(low.x + high.x) / 2,
+            -(low.y + high.y) / 2,
+            -low.z - manifest()[spec.asset].draught_m,
+        )
+    )
     for part in parts:
         part.matrix_world = centre @ part.matrix_world
 

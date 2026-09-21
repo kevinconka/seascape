@@ -24,6 +24,11 @@ class Asset(Model):
     url: str
     sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
     length_m: float = Field(gt=0.0)  # bow to stern; the mesh arrives in arbitrary units
+    # How deep the keel sits. A real figure for the vessel, not a proportion of the
+    # mesh: assets are stylised, and this one is 43 m in the beam where a real feeder
+    # is 32. Required, because defaulting it to zero floats the hull and looks almost
+    # right.
+    draught_m: float = Field(ge=0.0)
     licence: str = Field(min_length=1)
     attribution: str = Field(min_length=1)
 

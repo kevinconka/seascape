@@ -111,10 +111,13 @@ class TestGeometry:
                 for corner in part.bound_box
             ]
             axes = list(zip(*corners, strict=True))
-            length = manifest()[spec.asset].length_m
-            assert max(axes[1]) - min(axes[1]) == pytest.approx(length)
+            asset = manifest()[spec.asset]
+            assert max(axes[1]) - min(axes[1]) == pytest.approx(asset.length_m)
             # 1 mm: the fit runs through float32 mesh coordinates.
-            assert min(axes[2]) == pytest.approx(0.0, abs=1e-3), "keel on the waterline"
+            assert min(axes[2]) == pytest.approx(-asset.draught_m, abs=1e-3), (
+                "keel sits at the manifest draught, not on the surface"
+            )
+            assert max(axes[2]) > 0.0, "and the rest of it is above water"
 
     def test_the_sea_takes_its_wind_from_the_scenario(self) -> None:
         """Wind reaches the waves through wavelength and slope, or it is a dead knob.

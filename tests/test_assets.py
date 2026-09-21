@@ -22,7 +22,7 @@ def one(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     manifest = tmp_path / "assets.toml"
     manifest.write_text(
         f'[ship]\nurl = "{source.as_uri()}"\nsha256 = "{DIGEST}"\n'
-        'length_m = 1.0\nlicence = "CC0-1.0"\nattribution = "nobody"\n'
+        'length_m = 1.0\ndraught_m = 0.1\nlicence = "CC0-1.0"\nattribution = "nobody"\n'
     )
     monkeypatch.setattr(assets, "MANIFEST", manifest)
     monkeypatch.setattr(assets, "CACHE", tmp_path / "cache")
