@@ -50,6 +50,13 @@
       "title": "Camera",
       "type": "object"
     },
+    "ImageFormat": {
+      "enum": [
+        "exr",
+        "png"
+      ],
+      "type": "string"
+    },
     "Object": {
       "additionalProperties": false,
       "description": "Something to detect.",
@@ -90,7 +97,7 @@
     },
     "Outputs": {
       "additionalProperties": false,
-      "description": "What a render writes.\n\nEvery camera of a listed band is rendered; a scene is built per band.\n\nCycles only: EEVEE is not bit-reproducible and its Metal driver cannot be pinned.\n\nEXR because an LWIR pixel is radiance in W m^-2 sr^-1 and float is what holds it.\nAn 8-bit image needs a mapping onto it, which is a separate decision per band.",
+      "description": "What a render writes.\n\nEvery camera of a listed band is rendered; a scene is built per band.\n\nCycles only: EEVEE is not bit-reproducible and its Metal driver cannot be pinned.\n\nEXR by default: it is float, so an LWIR pixel stays the radiance in W m^-2 sr^-1\nthat the render produced. PNG is 8-bit and needs a mapping onto it -- for EO the\nexposure below and Blender's AgX film curve, for LWIR `ir_window_k`.",
       "properties": {
         "bands": {
           "default": [
@@ -109,6 +116,33 @@
           "exclusiveMinimum": 0,
           "title": "Samples",
           "type": "integer"
+        },
+        "format": {
+          "$ref": "#/$defs/ImageFormat",
+          "default": "exr"
+        },
+        "exposure_ev": {
+          "default": -5.0,
+          "title": "Exposure Ev",
+          "type": "number"
+        },
+        "ir_window_k": {
+          "default": [
+            270.0,
+            300.0
+          ],
+          "maxItems": 2,
+          "minItems": 2,
+          "prefixItems": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "number"
+            }
+          ],
+          "title": "Ir Window K",
+          "type": "array"
         }
       },
       "title": "Outputs",

@@ -57,7 +57,7 @@ Scenarios carry a `#:schema` line, so editors with a TOML language server give y
 Meshes are never committed. `seascape/assets.toml` records each one's source, sha256, licence and credit; they download on first use to `~/.cache/seascape`, or to `$XDG_CACHE_HOME/seascape` when that is set to an absolute path. Every run re-checks the digest.
 
 > [!NOTE]
-> `seascape build` writes the `.blend` to open in Blender; `seascape render` writes one EXR per camera. There is no ground-truth file yet.
+> `seascape build` writes the `.blend` to open in Blender; `seascape render` writes the images. There is no ground-truth file yet.
 
 ## Blender MCP (optional)
 

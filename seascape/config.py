@@ -28,6 +28,8 @@ CFG_DIR = Path(__file__).parent / "cfg"
 # A camera's kind is the band it sees in, and a scene is built for one band at a time.
 type Band = Literal["eo", "ir"]
 
+type ImageFormat = Literal["exr", "png"]
+
 
 class Model(BaseModel):
     """Strictness shared by everything this package parses from TOML."""
@@ -117,12 +119,35 @@ class Outputs(Model):
 
     Cycles only: EEVEE is not bit-reproducible and its Metal driver cannot be pinned.
 
-    EXR because an LWIR pixel is radiance in W m^-2 sr^-1 and float is what holds it.
-    An 8-bit image needs a mapping onto it, which is a separate decision per band.
+    EXR by default: it is float, so an LWIR pixel stays the radiance in W m^-2 sr^-1
+    that the render produced. PNG is 8-bit and needs a mapping onto it -- for EO the
+    exposure below and Blender's AgX film curve, for LWIR `ir_window_k`.
     """
 
     bands: tuple[Band, ...] = Field(default=("eo", "ir"), min_length=1)
     samples: int = Field(default=64, gt=0)
+    format: ImageFormat = "exr"
+    # Stops. Scene radiance off a sunlit sea is 3 to 13 where a display wants 1, so EO
+    # clips to white without it; -5 is daylight. Display transform only, so the exr is
+    # unaffected and ir ignores it.
+    exposure_ev: float = -5.0
+    # Brightness temperature at black and at white in an ir png. Fixed, not stretched
+    # per frame: a stretch makes two frames incomparable. 270-300 K spans the shipped
+    # sea, sky and hull.
+    ir_window_k: tuple[float, float] = (270.0, 300.0)
+
+    @model_validator(mode="after")
+    def _window_is_a_usable_span(self) -> "Outputs":
+        """Reversed inverts every frame; too narrow quantises it to one bit."""
+        low, high = self.ir_window_k
+        if not 200.0 <= low < high <= 400.0:
+            raise ValueError(
+                f"ir_window_k must be low to high within 200-400 K, the range "
+                f"`lwir.brightness_temperature` resolves: {self.ir_window_k}"
+            )
+        if high - low < 1.0:
+            raise ValueError(f"ir_window_k spans less than 1 K: {self.ir_window_k}")
+        return self
 
     @model_validator(mode="after")
     def _bands_are_distinct(self) -> "Outputs":
