@@ -13,7 +13,7 @@ from seascape import scene
 from seascape.config import Engine, Scenario
 
 # The scenario names engines in lower case because Blender's identifiers move between
-# versions; `_engine` resolves one and checks it against this build.
+# versions; `_set_engine` resolves one and lets Blender reject what it does not know.
 _ENGINES: dict[Engine, str] = {"cycles": "CYCLES", "eevee": "BLENDER_EEVEE"}
 
 

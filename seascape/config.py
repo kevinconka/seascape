@@ -29,7 +29,7 @@ CFG_DIR = Path(__file__).parent / "cfg"
 type Band = Literal["eo", "ir"]
 
 # Lower case, because Blender's own identifiers move between versions: BLENDER_EEVEE
-# meant Legacy on 4.1 and Next on 5.0. The renderer maps these and asserts on the enum.
+# meant Legacy on 4.1 and Next on 5.0. The renderer maps these to the build's own.
 type Engine = Literal["cycles", "eevee"]
 
 
