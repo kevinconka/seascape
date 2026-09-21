@@ -402,7 +402,7 @@ def _sea(sea: Sea, seed: int, reach_m: float, band: Band) -> bpy.types.Object:
 def _cameras(rig: Rig, far_m: float) -> list[bpy.types.Object]:
     cameras = []
     for spec in rig.cameras:
-        data = bpy.data.cameras.new(f"{spec.pod}_{spec.kind}_{spec.bearing_deg:+g}")
+        data = bpy.data.cameras.new(spec.name)
         # AUTO fits the field of view to whichever image dimension is larger, so a
         # portrait sensor would silently reinterpret hfov as a vertical angle.
         data.sensor_fit = "HORIZONTAL"

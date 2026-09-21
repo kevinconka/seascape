@@ -15,14 +15,10 @@ from mathutils import Vector
 
 from seascape import lwir, scene
 from seascape.assets import manifest
-from seascape.config import Camera, load
+from seascape.config import load
 
 BASELINE = Path(__file__).parent.parent / "scenarios" / "baseline.toml"
 SCENARIO = load(BASELINE)
-
-
-def name_of(spec: Camera) -> str:
-    return f"{spec.pod}_{spec.kind}_{spec.bearing_deg:+g}"
 
 
 def baked(name: str) -> np.ndarray:
@@ -80,14 +76,14 @@ class TestGeometry:
     def test_starboard_bearings_yaw_to_port(self) -> None:
         """The one negation. Two of them cancel and the whole rig mirrors unnoticed."""
         for spec in SCENARIO.rig.cameras:
-            camera = bpy.data.objects[name_of(spec)]
+            camera = bpy.data.objects[spec.name]
             yaw = math.degrees(camera.rotation_euler.z)
             assert yaw == pytest.approx(-spec.bearing_deg)
 
     def test_cameras_carry_their_field_of_view_horizontally(self) -> None:
         """AUTO fits the angle to the longer image side, flipping a portrait sensor."""
         for spec in SCENARIO.rig.cameras:
-            data = bpy.data.objects[name_of(spec)].data
+            data = bpy.data.objects[spec.name].data
             assert data.sensor_fit == "HORIZONTAL"
             assert math.degrees(data.angle_x) == pytest.approx(spec.hfov_deg)
 
@@ -95,7 +91,7 @@ class TestGeometry:
         """The acceptance numbers, read off the built cameras rather than the config."""
         arcs: dict[tuple[str, str], list[tuple[float, float]]] = {}
         for spec in SCENARIO.rig.cameras:
-            camera = bpy.data.objects[name_of(spec)]
+            camera = bpy.data.objects[spec.name]
             half = math.degrees(camera.data.angle_x) / 2
             # Blender yaw is the bearing negated, so read the bearing back out.
             centre = -math.degrees(camera.rotation_euler.z)
@@ -117,7 +113,7 @@ class TestGeometry:
         """Blender's default 1000 m renders a 2 km target as sky, reporting nothing."""
         furthest = max(spec.range_m for spec in SCENARIO.objects)
         for spec in SCENARIO.rig.cameras:
-            assert bpy.data.objects[name_of(spec)].data.clip_end > furthest
+            assert bpy.data.objects[spec.name].data.clip_end > furthest
 
     def test_a_target_lands_at_its_range_and_bearing(self) -> None:
         for spec in SCENARIO.objects:
