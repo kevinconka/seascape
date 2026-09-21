@@ -15,10 +15,14 @@ from mathutils import Vector
 
 from seascape import lwir, scene
 from seascape.assets import manifest
-from seascape.config import load
+from seascape.config import Mount, load
 
 BASELINE = Path(__file__).parent.parent / "scenarios" / "baseline.toml"
 SCENARIO = load(BASELINE)
+
+
+def camera_of(mount: Mount) -> bpy.types.Object:
+    return bpy.data.objects[mount.name]
 
 
 def baked(name: str) -> np.ndarray:
@@ -75,45 +79,50 @@ class TestGeometry:
 
     def test_starboard_bearings_yaw_to_port(self) -> None:
         """The one negation. Two of them cancel and the whole rig mirrors unnoticed."""
-        for spec in SCENARIO.rig.cameras:
-            camera = bpy.data.objects[spec.name]
-            yaw = math.degrees(camera.rotation_euler.z)
-            assert yaw == pytest.approx(-spec.bearing_deg)
+        for mount in SCENARIO.rig.mounts:
+            camera = camera_of(mount)
+            yaw = math.degrees(camera.matrix_world.to_euler("XYZ").z)
+            assert yaw == pytest.approx(-mount.bearing_deg)
 
     def test_cameras_carry_their_field_of_view_horizontally(self) -> None:
         """AUTO fits the angle to the longer image side, flipping a portrait sensor."""
-        for spec in SCENARIO.rig.cameras:
-            data = bpy.data.objects[spec.name].data
+        for mount in SCENARIO.rig.mounts:
+            data = camera_of(mount).data
             assert data.sensor_fit == "HORIZONTAL"
-            assert math.degrees(data.angle_x) == pytest.approx(spec.hfov_deg)
+            assert math.degrees(data.angle_x) == pytest.approx(mount.camera.hfov_deg)
 
     def test_pod_span_and_overlap_measured_from_the_scene(self) -> None:
         """The acceptance numbers, read off the built cameras rather than the config."""
         arcs: dict[tuple[str, str], list[tuple[float, float]]] = {}
-        for spec in SCENARIO.rig.cameras:
-            camera = bpy.data.objects[spec.name]
+        for mount in SCENARIO.rig.mounts:
+            camera = camera_of(mount)
             half = math.degrees(camera.data.angle_x) / 2
             # Blender yaw is the bearing negated, so read the bearing back out.
-            centre = -math.degrees(camera.rotation_euler.z)
-            arcs.setdefault((spec.pod, spec.kind), []).append(
+            centre = -math.degrees(camera.matrix_world.to_euler("XYZ").z)
+            # The IR pair is one camera per pod, so it is grouped across the rig: its
+            # span and overlap are what the two pods achieve together.
+            pod = "rig" if mount.camera.kind == "ir" else mount.pod.name
+            arcs.setdefault((pod, mount.camera.kind), []).append(
                 (centre - half, centre + half)
             )
 
         for key, span, overlap in (
             (("port", "eo"), 125.0, 5.0),
             (("starboard", "eo"), 125.0, 5.0),
-            (("bow", "ir"), 44.0, 4.0),
+            (("rig", "ir"), 44.0, 4.0),
         ):
             sectors = sorted(arcs[key])
             assert sectors[-1][1] - sectors[0][0] == pytest.approx(span), key
             gaps = [a[1] - b[0] for a, b in pairwise(sectors)]
-            assert gaps == pytest.approx([overlap] * len(gaps)), key
+            # abs, not the default relative: a bearing composed through a pod's
+            # transform and read back off matrix_world lands a few microdegrees out.
+            assert gaps == pytest.approx([overlap] * len(gaps), abs=1e-4), key
 
     def test_the_far_clip_clears_every_target(self) -> None:
         """Blender's default 1000 m renders a 2 km target as sky, reporting nothing."""
         furthest = max(spec.range_m for spec in SCENARIO.objects)
-        for spec in SCENARIO.rig.cameras:
-            assert bpy.data.objects[spec.name].data.clip_end > furthest
+        for mount in SCENARIO.rig.mounts:
+            assert camera_of(mount).data.clip_end > furthest
 
     def test_a_target_lands_at_its_range_and_bearing(self) -> None:
         for spec in SCENARIO.objects:
@@ -184,7 +193,8 @@ class TestGeometry:
         reach = min(max(abs(v.x), abs(v.y)) for v in corners)
         edge_rad = math.atan(SCENARIO.rig.height_m / reach)
         sharpest = min(
-            math.radians(c.hfov_deg) / c.width_px for c in SCENARIO.rig.cameras
+            math.radians(m.camera.hfov_deg) / m.camera.width_px
+            for m in SCENARIO.rig.mounts
         )
         assert edge_rad <= sharpest / 2
         assert reach > max(spec.range_m for spec in SCENARIO.objects)
@@ -217,12 +227,49 @@ def test_the_active_camera_belongs_to_the_band_built(band) -> None:
     assert f"_{band}_" in bpy.context.scene.camera.name
 
 
+@pytest.mark.parametrize("fan_deg", [-40.0, 0.0, 40.0])
+def test_a_tilted_pod_rolls_the_horizon_of_its_fanned_cameras(
+    tmp_path, fan_deg
+) -> None:
+    """A pod is one rigid enclosure: tilt pitches the box, not each lens.
+
+    Applying tilt per camera instead holds every horizon level, which looks correct
+    in the centre camera and is wrong in the other two. A camera fanned off the pod
+    axis of a pitched pod sees the horizon rolled by asin(sin(tilt) sin(fan)), and
+    the two sides roll opposite ways.
+    """
+    tilt_deg = -5.0
+    path = tmp_path / "tilted.toml"
+    path.write_text(
+        f'extends = "{BASELINE}"\n\n'
+        f"[rig]\ntilt_deg = {tilt_deg}\n\n"
+        '[[rig.pods]]\nname = "bow"\nyaw_deg = 0.0\n\n'
+        f'[[rig.pods.cameras]]\npreset = "eo"\nfan_deg = {fan_deg}\n'
+    )
+    scenario = load(path)
+    # Through `_yaw`, not a hand-written minus: the fan is a bearing, and Blender's
+    # +Z turns to port, so the roll follows the yaw the scene actually applies.
+    expected = math.degrees(
+        math.asin(math.sin(math.radians(tilt_deg)) * math.sin(scene._yaw(fan_deg)))
+    )
+
+    scene.build(scenario, "eo")
+    across = bpy.data.objects[
+        scenario.rig.mounts[0].name
+    ].matrix_world.to_3x3() @ Vector((1.0, 0.0, 0.0))
+
+    assert math.degrees(math.asin(across.normalized().z)) == pytest.approx(
+        expected, abs=1e-6
+    )
+
+
 def test_a_band_the_rig_cannot_see_is_an_error(tmp_path) -> None:
     """Otherwise `min()` raises on an empty sequence, naming nothing."""
     path = tmp_path / "eo_only.toml"
     path.write_text(
         f'extends = "{BASELINE}"\n\n'
-        '[[rig.cameras]]\npreset = "eo"\npod = "bow"\nbearing_deg = 0.0\n'
+        '[[rig.pods]]\nname = "bow"\nyaw_deg = 0.0\n\n'
+        '[[rig.pods.cameras]]\npreset = "eo"\n'
     )
     with pytest.raises(ValueError, match="no ir camera"):
         scene.build(load(path), "ir")

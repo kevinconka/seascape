@@ -11,10 +11,15 @@ from pathlib import Path
 import pytest
 from pydantic import ValidationError
 
-from seascape.config import CFG_DIR, Camera, Outputs, Rig, Scenario, load
+from seascape.config import CFG_DIR, Camera, Outputs, Pod, Rig, Scenario, load
 
 BASELINE = Path(__file__).parents[1] / "scenarios" / "baseline.toml"
 SCHEMA = Path(__file__).parents[1] / "schema" / "scenario.json"
+
+
+# A rig of one camera in one pod. Overriding `rig.pods` replaces the list whole, which
+# is what the merge tests are here to show.
+ONE_POD = '[[rig.pods]]\nname = "bow"\nyaw_deg = 0.0\n\n[[rig.pods.cameras]]\n'
 
 
 def variant(tmp_path: Path, body: str) -> Path:
@@ -31,17 +36,39 @@ def baseline() -> Scenario:
 
 def test_baseline_has_eight_cameras(baseline) -> None:
     """Six EO plus an LWIR pair, from twin_pod.toml."""
-    kinds = [camera.kind for camera in baseline.rig.cameras]
+    kinds = [mount.camera.kind for mount in baseline.rig.mounts]
     assert kinds.count("eo") == 6
     assert kinds.count("ir") == 2
 
 
 def test_preset_supplies_optics_and_block_supplies_the_mount(baseline) -> None:
-    """Optics come from the camera preset, mount from the rig block that names it."""
-    eo, ir = baseline.rig.cameras[0], baseline.rig.cameras[-1]
-    assert (eo.hfov_deg, eo.width_px, eo.height_px) == (45.0, 1920, 1080)
-    assert (ir.hfov_deg, ir.width_px, ir.height_px) == (24.0, 640, 512)
-    assert (eo.pod, eo.bearing_deg) == ("port", -100.0)
+    """Optics come from the camera preset, mount from the pod that holds it."""
+    eo, ir = baseline.rig.mounts[0], baseline.rig.mounts[-1]
+    assert (eo.camera.hfov_deg, eo.camera.width_px, eo.camera.height_px) == (
+        45.0,
+        3840,
+        2160,
+    )
+    assert (ir.camera.hfov_deg, ir.camera.width_px, ir.camera.height_px) == (
+        24.0,
+        640,
+        512,
+    )
+    assert (eo.pod.name, eo.bearing_deg) == ("port", -100.0)
+
+
+def test_a_bearing_is_its_pod_plus_its_fan(baseline) -> None:
+    """The reason a camera authors a fan angle and not a bearing: re-aiming a pod has
+    to move its four cameras together, and a literal bearing would not follow."""
+    port = baseline.rig.pods[0]
+    assert port.yaw_deg == -60.0
+    assert [camera.fan_deg for camera in port.cameras] == [-40.0, 0.0, 40.0, 50.0]
+    assert [mount.bearing_deg for mount in baseline.rig.mounts][:4] == [
+        -100.0,
+        -60.0,
+        -20.0,
+        -10.0,
+    ]
 
 
 def test_objects_merge_their_preset(baseline) -> None:
@@ -56,12 +83,12 @@ def test_a_block_overrides_its_own_preset(tmp_path) -> None:
     scenario = load(
         variant(
             tmp_path,
-            '[[rig.cameras]]\npreset = "eo"\npod = "bow"\n'
-            "bearing_deg = 0.0\nhfov_deg = 10.0\n",
+            ONE_POD + 'preset = "eo"\nhfov_deg = 10.0\n',
         )
     )
-    assert scenario.rig.cameras[0].hfov_deg == 10.0  # preset says 45.0
-    assert scenario.rig.cameras[0].width_px == 1920  # untouched by the block
+    camera = scenario.rig.mounts[0].camera
+    assert camera.hfov_deg == 10.0  # preset says 45.0
+    assert camera.width_px == 3840  # untouched by the block
 
 
 def test_a_preset_outranks_an_inherited_value(tmp_path) -> None:
@@ -70,11 +97,12 @@ def test_a_preset_outranks_an_inherited_value(tmp_path) -> None:
     Expanding after the parent merge inverts this, and nothing else notices.
     """
     (tmp_path / "single.toml").write_text(
-        'height_m = 2.0\n\n[[cameras]]\npreset = "ir"\npod = "bow"\nbearing_deg = 0.0\n'
+        'height_m = 2.0\n\n[[pods]]\nname = "bow"\nyaw_deg = 0.0\n\n'
+        '[[pods.cameras]]\npreset = "ir"\n'
     )
     scenario = load(variant(tmp_path, '[rig]\npreset = "./single.toml"\n'))
     assert scenario.rig.height_m == 2.0  # baseline says 12.0
-    assert [camera.kind for camera in scenario.rig.cameras] == ["ir"]
+    assert [mount.camera.kind for mount in scenario.rig.mounts] == ["ir"]
 
 
 def test_tables_merge_and_lists_replace(tmp_path, baseline) -> None:
@@ -82,15 +110,14 @@ def test_tables_merge_and_lists_replace(tmp_path, baseline) -> None:
     scenario = load(
         variant(
             tmp_path,
-            "[sea]\nwind_speed_mps = 3.0\n\n"
-            '[[rig.cameras]]\npreset = "ir"\npod = "bow"\nbearing_deg = 0.0\n',
+            "[sea]\nwind_speed_mps = 3.0\n\n" + ONE_POD + 'preset = "ir"\n',
         )
     )
     assert scenario.sea.wind_speed_mps == 3.0
     # Read off the parent, not written out: this is about the merge, not the value.
     assert scenario.sea.t_sea_k == baseline.sea.t_sea_k
     assert scenario.rig.height_m == 12.0  # sibling table survived it too
-    assert len(scenario.rig.cameras) == 1  # the list did not
+    assert len(scenario.rig.mounts) == 1  # the list did not
 
 
 @pytest.mark.parametrize("name", ["./mine.toml", "mine.toml"])
@@ -100,11 +127,10 @@ def test_preset_can_be_a_path(tmp_path, name) -> None:
     scenario = load(
         variant(
             tmp_path,
-            f'[[rig.cameras]]\npreset = "{name}"\npod = "bow"\nbearing_deg = 0.0\n'
-            "width_px = 1920\nheight_px = 1080\n",
+            ONE_POD + f'preset = "{name}"\nwidth_px = 1920\nheight_px = 1080\n',
         )
     )
-    assert scenario.rig.cameras[0].hfov_deg == 12.0
+    assert scenario.rig.mounts[0].camera.hfov_deg == 12.0
 
 
 @pytest.mark.parametrize(
@@ -151,13 +177,14 @@ def test_sea_temperature_is_bounded_at_the_config_boundary(tmp_path, t_sea_k) ->
 def test_non_finite_numbers_are_rejected(tmp_path, value) -> None:
     """tomllib parses these and pydantic accepts them by default.
 
-    `bearing_deg` carries no bound, so nothing else would catch one.
+    `yaw_deg` carries no bound, so nothing else would catch one.
     """
-    with pytest.raises(ValidationError, match="bearing_deg"):
+    with pytest.raises(ValidationError, match="yaw_deg"):
         load(
             variant(
                 tmp_path,
-                f'[[rig.cameras]]\npreset = "ir"\npod = "bow"\nbearing_deg = {value}\n',
+                f'[[rig.pods]]\nname = "bow"\nyaw_deg = {value}\n\n'
+                '[[rig.pods.cameras]]\npreset = "ir"\n',
             )
         )
 
@@ -192,29 +219,57 @@ def test_an_exposure_blender_would_clamp_is_rejected(exposure_ev: float) -> None
         Outputs(exposure_ev=exposure_ev)
 
 
-@pytest.mark.parametrize("pod", ["../escaped", "/tmp/absolute", "sub/dir"])
-def test_a_pod_cannot_be_path_text(pod: str) -> None:
-    """A camera's name is a filename, so path text writes outside the output dir."""
-    with pytest.raises(ValidationError, match="pod"):
-        Camera(
-            kind="eo", pod=pod, bearing_deg=0.0, hfov_deg=60.0, width_px=8, height_px=8
+@pytest.mark.parametrize("name", ["../escaped", "/tmp/absolute", "sub/dir"])
+def test_a_pod_cannot_be_path_text(name: str) -> None:
+    """A mount's name is a filename, so path text writes outside the output dir."""
+    with pytest.raises(ValidationError, match="name"):
+        Pod(
+            name=name,
+            yaw_deg=0.0,
+            cameras=[Camera(kind="eo", hfov_deg=60.0, width_px=8, height_px=8)],
         )
 
 
 def test_two_cameras_cannot_share_a_name() -> None:
     """They would share a datablock and overwrite each other's render."""
-    twice = {
-        "kind": "eo",
-        "pod": "bow",
-        "bearing_deg": 0.0,
-        "width_px": 8,
-        "height_px": 8,
-    }
+    twice = {"kind": "eo", "fan_deg": 0.0, "width_px": 8, "height_px": 8}
     with pytest.raises(ValidationError, match="share a name"):
         Rig(
             height_m=12.0,
-            cameras=[
-                Camera(**twice, hfov_deg=60.0),
-                Camera(**twice, hfov_deg=30.0),
+            pods=[
+                Pod(
+                    name="bow",
+                    yaw_deg=0.0,
+                    cameras=[
+                        Camera(**twice, hfov_deg=60.0),
+                        Camera(**twice, hfov_deg=30.0),
+                    ],
+                )
             ],
+        )
+
+
+def test_the_same_fan_angle_on_two_pods_is_fine() -> None:
+    """Names collide on bearing, not on fan: a pod aims its own cameras, and the two
+    pods of a rig are deliberately mirror images of each other."""
+    camera = Camera(kind="eo", fan_deg=0.0, hfov_deg=45.0, width_px=8, height_px=8)
+
+    rig = Rig(
+        height_m=12.0,
+        pods=[
+            Pod(name="port", yaw_deg=-60.0, cameras=[camera]),
+            Pod(name="starboard", yaw_deg=+60.0, cameras=[camera]),
+        ],
+    )
+
+    assert [mount.name for mount in rig.mounts] == ["port_eo_-60", "starboard_eo_+60"]
+
+
+def test_a_pod_name_cannot_be_path_text() -> None:
+    """The name becomes a filename, so a slash writes outside the output directory."""
+    with pytest.raises(ValidationError, match="pattern"):
+        Pod(
+            name="../escape",
+            yaw_deg=0.0,
+            cameras=[Camera(kind="eo", hfov_deg=45.0, width_px=8, height_px=8)],
         )

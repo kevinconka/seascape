@@ -115,24 +115,24 @@ def render(scenario: Scenario, into: Path) -> list[Path]:
     written: list[Path] = []
     for band in outputs.bands:
         # The default bands ask for both, so an EO-only rig must skip ir, not fail.
-        specs = [c for c in scenario.rig.cameras if c.kind == band]
-        if not specs:
+        mounts = [m for m in scenario.rig.mounts if m.camera.kind == band]
+        if not mounts:
             continue
         thermal_png = band == "ir" and outputs.format == "png"
         scene.build(scenario, band)
         _settings(scenario, band, "exr" if thermal_png else outputs.format, on_gpu)
         sc = bpy.context.scene
-        for spec in specs:
-            sc.camera = bpy.data.objects[spec.name]
+        for mount in mounts:
+            sc.camera = bpy.data.objects[mount.name]
             sc.render.resolution_x, sc.render.resolution_y = (
-                spec.width_px,
-                spec.height_px,
+                mount.camera.width_px,
+                mount.camera.height_px,
             )
-            sc.render.filepath = str(into / spec.name)
+            sc.render.filepath = str(into / mount.name)
             bpy.ops.render.render(write_still=True)
-            image = into / f"{spec.name}.{outputs.format}"
+            image = into / f"{mount.name}.{outputs.format}"
             if thermal_png:
-                _thermal_png(into / f"{spec.name}.exr", image)
+                _thermal_png(into / f"{mount.name}.exr", image)
             written.append(image)
     if not written:
         # Skipping a band the default asked for is right; writing nothing at all

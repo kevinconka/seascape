@@ -17,7 +17,7 @@ Rules:
 
 import tomllib
 from pathlib import Path
-from typing import Any, Literal
+from typing import Any, Literal, NamedTuple
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
@@ -43,31 +43,65 @@ class Model(BaseModel):
 
 class Camera(Model):
     kind: Band
-    # A camera's name is built from these three and used as a filename, so a pod that
-    # is path text writes the render outside the output directory.
-    pod: str = Field(pattern=r"^[A-Za-z0-9_-]+$")
-    bearing_deg: float  # relative to the bow, positive to starboard
+    fan_deg: float = 0.0  # relative to the pod axis, positive to starboard
     hfov_deg: float = Field(gt=0.0, lt=180.0)
     width_px: int = Field(gt=0)
     height_px: int = Field(gt=0)
 
+
+class Pod(Model):
+    """One enclosure, bolted to a bridge wing: several cameras behind one yaw.
+
+    Offsets are the mount point, not a nicety: two pods a bridge-width apart have
+    fields that overlap in angle long before they overlap in space, which is the
+    blind wedge over the bow. Cameras coincident at the centreline hide it.
+    """
+
+    # A mount's name is built from this and used as a filename, so a pod that is path
+    # text writes the render outside the output directory.
+    name: str = Field(pattern=r"^[A-Za-z0-9_-]+$")
+    yaw_deg: float  # pod axis relative to the bow, positive to starboard
+    offset_x_m: float = 0.0  # from the centreline, positive to starboard
+    offset_y_m: float = 0.0  # from midships, positive forward
+    cameras: list[Camera] = Field(min_length=1)
+
+
+class Mount(NamedTuple):
+    """A camera as built: its optics, and the pod that decides where it looks."""
+
+    pod: Pod
+    camera: Camera
+
     @property
     def name(self) -> str:
-        """The .blend datablock name, and the render's filename."""
-        return f"{self.pod}_{self.kind}_{self.bearing_deg:+g}"
+        return f"{self.pod.name}_{self.camera.kind}_{self.bearing_deg:+g}"
+
+    @property
+    def bearing_deg(self) -> float:
+        """Absolute, relative to the bow. Authored as a fan angle off the pod axis,
+        so a pod can be re-aimed without eight bearings falling out of step."""
+        return self.pod.yaw_deg + self.camera.fan_deg
 
 
 class Rig(Model):
-    """The sensor mast on the ownship."""
+    """The pods on the ownship, and the deck height they sit at."""
 
     height_m: float = Field(gt=0.0)
     tilt_deg: float = 0.0
-    cameras: list[Camera] = Field(min_length=1)
+    pods: list[Pod] = Field(min_length=1)
+
+    @property
+    def mounts(self) -> list[Mount]:
+        return [Mount(pod, camera) for pod in self.pods for camera in pod.cameras]
 
     @model_validator(mode="after")
     def _names_are_unique(self) -> "Rig":
-        """Two cameras of one name share a datablock and overwrite each other's file."""
-        names = [c.name for c in self.cameras]
+        """Two cameras of one name share a datablock and overwrite each other's file.
+
+        Over mounts, not cameras: the same fan angle on two pods is fine, the same
+        bearing twice is not, and only the assembled name tells them apart.
+        """
+        names = [mount.name for mount in self.mounts]
         if len(set(names)) != len(names):
             raise ValueError(f"two cameras share a name: {sorted(names)}")
         return self
