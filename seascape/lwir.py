@@ -167,14 +167,57 @@ def fresnel_emissivity(
 
 
 def emissivity_curve(
-    *, t_sea_k: float = T_SEA_K, n_angles: int = 91
+    *,
+    t_sea_k: float = T_SEA_K,
+    n_angles: int = 91,
+    slope_sigma: float = 0.0,
+    facets: int = 4096,
+    seed: int = 0,
 ) -> tuple[FloatArray, FloatArray]:
-    """Planck-weighted, band-integrated emissivity against incidence angle (rad)."""
+    """Planck-weighted, band-integrated emissivity against viewing zenith (rad).
+
+    `slope_sigma` is the RMS surface slope the renderer does *not* resolve. At 0 this
+    is flat-surface Fresnel. Above 0 it averages Fresnel over facets drawn from a
+    Gaussian slope distribution -- Cox & Munk's statistics -- weighted by the area each
+    facet presents to the viewer, which is the Masuda 1988 construction.
+
+    Only the unresolved slope belongs here. Slope the wave normals already carry is
+    applied per pixel by the shader, and integrating it a second time would count it
+    twice.
+
+    Shadowing between facets and reflections from one facet to another are not
+    included; both raise emissivity further at grazing, so this is a lower bound there.
+    Wu & Smith put the multiple-reflection term at 0.02-0.03 around 73 deg.
+    """
     lam, n, k = optical_constants(t_sea_k)
     weight = planck(lam, t_sea_k)
+    band = np.trapezoid(weight, lam)
     theta = np.linspace(0.0, np.pi / 2, n_angles)
-    eps = fresnel_emissivity(theta[:, None], n, k)
-    return theta, np.trapezoid(eps * weight, lam, axis=-1) / np.trapezoid(weight, lam)
+
+    flat = np.trapezoid(fresnel_emissivity(theta[:, None], n, k) * weight, lam, -1)
+    if slope_sigma <= 0.0:
+        return theta, flat / band
+
+    # One table over incidence, interpolated per facet: the band integral is the
+    # expensive part and it does not depend on which facet asked for it.
+    table = flat / band
+    rng = np.random.default_rng(seed)
+    slope = rng.normal(0.0, slope_sigma, size=(facets, 2))
+    normal = np.stack([-slope[:, 0], -slope[:, 1], np.ones(facets)], axis=-1)
+    normal /= np.linalg.norm(normal, axis=-1, keepdims=True)
+
+    view = np.stack([np.sin(theta), np.zeros(n_angles), np.cos(theta)], axis=-1)
+    cos_i = view @ normal.T  # (angle, facet)
+    # A facet turned away from the viewer contributes no area and is not visible.
+    area = np.clip(cos_i, 0.0, None)
+    eps = np.interp(np.arccos(np.clip(cos_i, -1.0, 1.0)), theta, table)
+    total = area.sum(axis=1)
+    rough = np.divide(
+        (eps * area).sum(axis=1), total, out=np.zeros(n_angles), where=total > 0
+    )
+    # At exactly 90 deg no facet has area and the average is undefined; the flat curve
+    # is 0 there and so is the rough one in the limit.
+    return theta, rough
 
 
 def band_radiance(t_k: float) -> float:

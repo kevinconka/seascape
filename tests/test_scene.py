@@ -233,11 +233,11 @@ class TestIrBand:
         assert mix.inputs[2].links[0].from_node.bl_idname == "ShaderNodeEmission"
 
     def test_the_sea_reflects_specularly(self) -> None:
-        """Emissivity here is flat Fresnel, so the lobe has to match it.
+        """Wide enough and a target stops reflecting at all.
 
-        Roughening it to Cox & Munk's slope spreads the reflection into colder sky and
-        drops the sea at the horizon to 0.65 of ambient, where the reference holds
-        0.985. The emissivity rise that would pay that back is not modelled.
+        Measured at 2 km: a lobe matching the unresolved slope takes the reflection of a
+        hull from +1.2 W m^-2 sr^-1 over the water beside it to nothing, and the sea at
+        the horizon from 1.03 of ambient to 0.90.
         """
         mirror = next(
             n
@@ -245,6 +245,27 @@ class TestIrBand:
             if n.bl_idname == "ShaderNodeBsdfAnisotropic"
         )
         assert mirror.inputs["Roughness"].default_value == 0.0
+
+    def test_emissivity_is_averaged_over_the_slopes_the_bump_misses(self) -> None:
+        """Flat Fresnel reads 0.11 at 89 deg where a 7 m/s sea is nearer 0.63.
+
+        That is the angle a target at 2 km sits at, so it sets the contrast the whole
+        band is for.
+        """
+        image = bpy.data.images["sea_emissivity"]
+        pixels = np.empty(len(image.pixels), dtype=np.float32)
+        image.pixels.foreach_get(pixels)
+        baked = pixels.reshape(-1, 4)[:, 0]
+
+        _, flat = lwir.emissivity_curve(t_sea_k=SCENARIO.sea.t_sea_k)
+        assert baked[0] > 4 * flat[-1], (
+            "grazing emissivity is lifted well clear of flat"
+        )
+        _, eps = lwir.emissivity_curve(
+            t_sea_k=SCENARIO.sea.t_sea_k,
+            slope_sigma=scene.unresolved_slope(SCENARIO.sea.wind_speed_mps),
+        )
+        assert baked[-1] == pytest.approx(eps[0], rel=1e-4), "nadir is unchanged"
 
     def test_a_target_radiates_at_its_own_temperature(self) -> None:
         """`t_k` is in the scenario; a target rendering at its albedo ignores it."""
@@ -266,7 +287,10 @@ class TestIrBand:
         image.pixels.foreach_get(pixels)
         baked = pixels.reshape(-1, 4)[:, 0]
 
-        _, eps = lwir.emissivity_curve(t_sea_k=SCENARIO.sea.t_sea_k)
+        _, eps = lwir.emissivity_curve(
+            t_sea_k=SCENARIO.sea.t_sea_k,
+            slope_sigma=scene.unresolved_slope(SCENARIO.sea.wind_speed_mps),
+        )
         assert baked[-1] == pytest.approx(eps[0], rel=1e-4), "cos(theta)=1 is normal"
         assert baked[0] == pytest.approx(eps[-1], abs=2e-3), "cos(theta)=0 is grazing"
         assert np.all(np.diff(baked) >= -1e-6), "emissivity rises towards normal"

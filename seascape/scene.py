@@ -61,6 +61,15 @@ def bump_slope(wind_speed_mps: float) -> float:
     return RESOLVED_SLOPE_FRACTION * wave_slope(wind_speed_mps)
 
 
+def unresolved_slope(wind_speed_mps: float) -> float:
+    """RMS slope the bump cannot carry, left for the shading to account for.
+
+    Variances add, so this is a difference of squares rather than of slopes.
+    """
+    u = wind_speed_mps
+    return math.sqrt(max(wave_slope(u) ** 2 - bump_slope(u) ** 2, 0.0))
+
+
 def sea_reach_m(rig: Rig, band: Band) -> float:
     """Half-width of the sea plane: far enough that its edge lands inside a pixel.
 
@@ -126,13 +135,13 @@ def _curve_image(name: str, values: np.ndarray) -> bpy.types.Image:
     return image
 
 
-def _emissivity_image(t_sea_k: float) -> bpy.types.Image:
+def _emissivity_image(t_sea_k: float, slope_sigma: float) -> bpy.types.Image:
     """`lwir.emissivity_curve` baked against cos(theta), which is what the shader has.
 
     The curve is sampled uniformly in angle; the shader's dot product is uniform in its
     cosine, so it is resampled here rather than corrected in nodes.
     """
-    theta, eps = lwir.emissivity_curve(t_sea_k=t_sea_k)
+    theta, eps = lwir.emissivity_curve(t_sea_k=t_sea_k, slope_sigma=slope_sigma)
     mu = np.cos(theta)[::-1]
     return _curve_image(
         "sea_emissivity",
@@ -298,12 +307,12 @@ def _thermal_sea(sea: Sea, seed: int) -> bpy.types.Material:
     tree = material.node_tree
     tree.nodes.clear()
     mirror = tree.nodes.new("ShaderNodeBsdfGlossy")
-    # Specular, and it has to stay that way while emissivity comes from flat Fresnel.
-    # Roughing the lobe to Cox & Munk's slope spreads the reflection into colder sky
-    # and drops the sea at the horizon from 0.99 of ambient to 0.65, against 0.985 in
-    # the reference. A rough surface really does emit more at grazing, which is what
-    # Masuda and Wu & Smith compute and what would pay that back, but none of it is in
-    # the curve here. Half the correction is worse than neither.
+    # Specular, though the emissivity curve is averaged over facet slopes. Formally
+    # those should match, and the mismatch is benign here: within a lobe's width of the
+    # horizon the sky is flat at ambient, so averaging it changes nothing, and near the
+    # zenith where the sky does vary fast, eps is 0.985 and the reflection is 1.5% of
+    # the signal. Widening the lobe to the slope it implies costs 13% of horizon
+    # convergence and erases a target's reflection outright, both measured.
     mirror.inputs["Roughness"].default_value = 0.0
     # Glossy BSDF ships at 0.8 grey. The Mix Shader already applies the 1 - eps
     # weighting, so anything but white here absorbs a fifth of the reflected sky and
@@ -322,7 +331,11 @@ def _thermal_sea(sea: Sea, seed: int) -> bpy.types.Material:
     link(mirror.outputs["BSDF"], mix.inputs[1])
     link(emission.outputs["Emission"], mix.inputs[2])
     link(
-        _incidence_lookup(tree, _emissivity_image(sea.t_sea_k), normal),
+        _incidence_lookup(
+            tree,
+            _emissivity_image(sea.t_sea_k, unresolved_slope(sea.wind_speed_mps)),
+            normal,
+        ),
         mix.inputs["Factor"],
     )
     link(mix.outputs["Shader"], output.inputs["Surface"])
