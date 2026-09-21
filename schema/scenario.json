@@ -130,6 +130,11 @@
         "format": {
           "$ref": "#/$defs/ImageFormat",
           "default": "exr"
+        },
+        "exposure_ev": {
+          "default": -5.0,
+          "title": "Exposure Ev",
+          "type": "number"
         }
       },
       "title": "Outputs",

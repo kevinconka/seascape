@@ -121,6 +121,12 @@ class Outputs(Model):
     samples: int = Field(default=64, gt=0)
     engine: Engine = "cycles"
     format: ImageFormat = "exr"
+    # Stops. Blender hands back scene radiance, which for a sunlit sea is 3 to 13
+    # where a display wants 1, so without this every EO pixel clips to white. A real
+    # camera's aperture and shutter do this job; -5 is daylight, and like any exposure
+    # it is set for the light. It reaches the display transform only, so a png carries
+    # it and an exr stays the radiance the render produced. The ir band ignores it.
+    exposure_ev: float = -5.0
 
     @model_validator(mode="after")
     def _png_is_eo_only(self) -> "Outputs":

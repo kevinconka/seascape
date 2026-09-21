@@ -10,7 +10,7 @@ from pathlib import Path
 import bpy
 
 from seascape import scene
-from seascape.config import Engine, ImageFormat, Scenario
+from seascape.config import Band, Engine, ImageFormat, Scenario
 
 # The scenario names engines in lower case because Blender's identifiers move between
 # versions; `_set_engine` resolves one and lets Blender reject what it does not know.
@@ -41,10 +41,14 @@ def _set_engine(name: Engine) -> None:
         ) from error
 
 
-def _settings(scenario: Scenario) -> None:
+def _settings(scenario: Scenario, band: Band) -> None:
     outputs = scenario.outputs
     render = bpy.context.scene.render
     _set_engine(outputs.engine)
+    if band == "eo":
+        # LWIR keeps the exposure `build` pinned: those pixels are radiance, and any
+        # gain on them belongs to the sensor model.
+        bpy.context.scene.view_settings.exposure = outputs.exposure_ev
     if outputs.engine == "cycles":
         bpy.context.scene.cycles.samples = outputs.samples
     else:
@@ -60,7 +64,7 @@ def render(scenario: Scenario, into: Path) -> list[Path]:
     written: list[Path] = []
     for band in scenario.outputs.bands:
         scene.build(scenario, band)
-        _settings(scenario)
+        _settings(scenario, band)
         sc = bpy.context.scene
         for spec in (c for c in scenario.rig.cameras if c.kind == band):
             name = scene.camera_name(spec)
