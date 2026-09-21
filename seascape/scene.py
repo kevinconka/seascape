@@ -29,8 +29,12 @@ SLOPE_VARIANCE_PER_MPS = 0.00512
 PM_PEAK = 0.877
 MIN_WAVELENGTH_M = 1.0
 
-# How much of Cox & Munk's slope a four-octave noise field actually carries.
-RESOLVED_SLOPE_FRACTION = 0.68
+# Octaves of detail on the wave noise, and the shortest wave the sea carries. 1.73 cm
+# is where the phase speed of a surface wave is at its minimum and surface tension takes
+# over from gravity, so it is the bottom of the slope spectrum rather than a chosen
+# resolution. NOISE_DETAIL has to match the Detail input on the noise node.
+NOISE_DETAIL = 4.0
+CAPILLARY_WAVELENGTH_M = 0.0173
 
 # Relief fades out with camera distance. Perspective already smooths distant water;
 # this takes the last of the stipple off the approach to the horizon.
@@ -48,17 +52,25 @@ def wave_slope(wind_speed_mps: float) -> float:
     return math.sqrt(SLOPE_VARIANCE_INTERCEPT + SLOPE_VARIANCE_PER_MPS * wind_speed_mps)
 
 
-def bump_slope(wind_speed_mps: float) -> float:
-    """The part of that slope the noise field can carry.
+def resolved_slope_fraction(wind_speed_mps: float) -> float:
+    """Fraction of the RMS slope a noise field of NOISE_DETAIL octaves can carry.
 
-    Cox & Munk measured the whole spectrum down to capillaries. The bump runs four
-    octaves below the dominant wave and stops, so it cannot hold the short-wave slope,
-    and asking it to reproduce the full figure makes the sea about twice as textured as
-    the reference renders. The fraction is calibrated against those renders, not
-    derived: it is the one number here that a spectrum integral should eventually
-    replace.
+    Cox & Munk measured the whole spectrum down to capillaries; the noise stops a few
+    octaves below the dominant wave. In the Phillips equilibrium range the slope
+    spectrum goes as 1/k, so mean-square slope accumulates equally per octave and the
+    captured share is a ratio of logs rather than an integral. Slope, not variance, so
+    the square root.
+
+    Wind enters through the dominant wavelength: a longer dominant wave leaves more
+    octaves below the noise, so the fraction falls as it blows harder.
     """
-    return RESOLVED_SLOPE_FRACTION * wave_slope(wind_speed_mps)
+    octaves = math.log(wave_length_m(wind_speed_mps) / CAPILLARY_WAVELENGTH_M, 2.0)
+    return math.sqrt(min(NOISE_DETAIL / octaves, 1.0))
+
+
+def bump_slope(wind_speed_mps: float) -> float:
+    """The part of that slope the noise field can carry."""
+    return resolved_slope_fraction(wind_speed_mps) * wave_slope(wind_speed_mps)
 
 
 def unresolved_slope(wind_speed_mps: float) -> float:

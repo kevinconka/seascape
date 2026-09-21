@@ -119,6 +119,20 @@ class TestGeometry:
             )
             assert max(axes[2]) > 0.0, "and the rest of it is above water"
 
+    def test_the_noise_carries_the_slope_its_octaves_reach(self) -> None:
+        """A ratio of octaves, so more wind means a longer dominant wave and less of it.
+
+        Measured against the reference renders it runs about 12% under, which is the
+        price of deriving it rather than fitting it.
+        """
+        calm, blowing = (
+            scene.resolved_slope_fraction(2.0),
+            scene.resolved_slope_fraction(18.0),
+        )
+        assert 0.0 < blowing < calm < 1.0
+        # A dominant wave at the capillary scale would leave nothing unresolved.
+        assert scene.resolved_slope_fraction(0.0) <= 1.0
+
     def test_the_sea_takes_its_wind_from_the_scenario(self) -> None:
         """Wind reaches the waves through wavelength and slope, or it is a dead knob.
 
