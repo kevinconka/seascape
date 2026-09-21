@@ -131,6 +131,32 @@ class TestGeometry:
         reach = max(abs(vertex.co.x) for vertex in mesh.vertices)
         assert reach > max(spec.range_m for spec in SCENARIO.objects)
 
+    def test_the_sea_reaches_the_horizon(self) -> None:
+        """A sea that stops short puts its own edge in frame, above the true horizon.
+
+        The displaced grid cannot get there at 4 m spacing, so the flat ring has to.
+        Measured on the ring's own vertices, not the wave grid's.
+        """
+        horizon = scene.horizon_m(SCENARIO.rig.height_m)
+        ring = [o for o in bpy.data.objects if o.name.startswith("sea_far_")]
+        assert ring, "no flat sea beyond the wave grid"
+        corners = [o.matrix_world @ Vector(c) for o in ring for c in o.bound_box]
+        # Mesh coordinates are float32, which resolves to about a millimetre at 12 km.
+        assert max(abs(v.y) for v in corners) >= horizon - 1.0
+
+    def test_the_flat_sea_does_not_overlap_the_wave_grid(self) -> None:
+        """Coplanar faces z-fight, and the ring shares the wave grid's plane exactly.
+
+        The four panels tile the ring rather than covering it, so each one has to start
+        outside the grid it surrounds.
+        """
+        grid = bpy.data.objects["sea"].modifiers["ocean"]
+        inner = grid.spatial_size * grid.repeat_x / 2
+        for panel in (o for o in bpy.data.objects if o.name.startswith("sea_far_")):
+            corners = [panel.matrix_world @ Vector(c) for c in panel.bound_box]
+            near = min(max(abs(v.x), abs(v.y)) for v in corners)
+            assert near >= inner - 1e-6, f"{panel.name} laps over the wave grid"
+
     def test_building_twice_leaves_the_same_scene(self) -> None:
         """Node trees leak when a build appends to what is already there."""
         before = counts()
@@ -159,9 +185,42 @@ class TestIrBand:
     def built(cls) -> None:
         scene.build(SCENARIO, "ir")
 
-    def test_the_sky_is_empty(self) -> None:
-        """8-14 um downwelling needs an atmospheric model this project does not have."""
-        assert tuple(bpy.data.worlds["sky"].color) == (0.0, 0.0, 0.0)
+    def test_the_sky_carries_downwelling_radiance(self) -> None:
+        """What renders is the Background node, not `World.color`.
+
+        A new world already has `use_nodes` set, so assigning `World.color` changes
+        nothing a camera sees. An earlier version of this test asserted that attribute
+        and passed against a sky the renderer never read.
+        """
+        background = bpy.data.worlds["sky"].node_tree.nodes["Background"]
+        assert background.inputs["Color"].is_linked
+
+    def test_the_baked_sky_runs_cold_towards_the_zenith(self) -> None:
+        """The shader reads this by sin(elevation), not by the angle itself."""
+        image = bpy.data.images["sky_radiance"]
+        pixels = np.empty(len(image.pixels), dtype=np.float32)
+        image.pixels.foreach_get(pixels)
+        baked = pixels.reshape(-1, 4)[:, 0]
+
+        ambient = lwir.band_radiance(SCENARIO.sky.t_air_k)
+        assert baked[0] == pytest.approx(ambient, rel=1e-4), (
+            "sin(elev)=0 is the horizon"
+        )
+        assert baked[-1] < 0.5 * ambient, "the zenith is much colder than ambient"
+        assert np.all(np.diff(baked) <= 1e-6), "radiance falls towards the zenith"
+
+    def test_the_sea_reflects_what_it_does_not_emit(self) -> None:
+        """Emission alone falls to a fiftieth of ambient by 2 km: emissivity collapses
+        at grazing incidence and nothing fills the gap.
+
+        The factor is emissivity, so the mirror has to sit on the 0 input. That is the
+        grazing end, where the sea stops emitting and starts reflecting.
+        """
+        mix = bpy.data.materials["sea"].node_tree.nodes["Mix Shader"]
+        assert mix.inputs["Factor"].is_linked
+        # ShaderNodeBsdfGlossy still reports its pre-4.0 bl_idname.
+        assert mix.inputs[1].links[0].from_node.bl_idname == "ShaderNodeBsdfAnisotropic"
+        assert mix.inputs[2].links[0].from_node.bl_idname == "ShaderNodeEmission"
 
     def test_a_target_radiates_at_its_own_temperature(self) -> None:
         """`t_k` is in the scenario; a target rendering at its albedo ignores it."""
