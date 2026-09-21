@@ -19,7 +19,7 @@ import tomllib
 from pathlib import Path
 from typing import Any, Literal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from seascape import lwir
 
@@ -31,6 +31,8 @@ type Band = Literal["eo", "ir"]
 # Lower case, because Blender's own identifiers move between versions: BLENDER_EEVEE
 # meant Legacy on 4.1 and Next on 5.0. The renderer maps these to the build's own.
 type Engine = Literal["cycles", "eevee"]
+
+type ImageFormat = Literal["exr", "png"]
 
 
 class Model(BaseModel):
@@ -108,15 +110,26 @@ class Outputs(Model):
     Cycles by default. EEVEE is not bit-reproducible and its Metal driver cannot be
     pinned, so anything that has to be defensible renders in Cycles.
 
-    There is no image format. LWIR pixels are radiance in W m^-2 sr^-1 and EXR is the
-    only format that holds them; an 8-bit image needs the sensor's gain curve, which
-    nothing here knows yet.
+    EXR by default: it is float, so an LWIR pixel stays the radiance in W m^-2 sr^-1
+    that the render produced. PNG is 8-bit, which for EO means Blender's AgX film
+    curve and for LWIR would mean a gain curve nobody has specified, so `png` is
+    rejected for the `ir` band rather than written as a white frame.
     """
 
     # A tuple, so the default cannot be a list shared between scenarios.
     bands: tuple[Band, ...] = Field(default=("eo", "ir"), min_length=1)
     samples: int = Field(default=64, gt=0)
     engine: Engine = "cycles"
+    format: ImageFormat = "exr"
+
+    @model_validator(mode="after")
+    def _png_is_eo_only(self) -> "Outputs":
+        if self.format == "png" and "ir" in self.bands:
+            raise ValueError(
+                "png cannot hold LWIR radiance: mapping it to 8 bits needs the "
+                "sensor's gain curve. Use exr, or drop 'ir' from bands."
+            )
+        return self
 
 
 class Scenario(Model):

@@ -56,6 +56,13 @@
       ],
       "type": "string"
     },
+    "ImageFormat": {
+      "enum": [
+        "exr",
+        "png"
+      ],
+      "type": "string"
+    },
     "Object": {
       "additionalProperties": false,
       "description": "Something to detect.",
@@ -96,7 +103,7 @@
     },
     "Outputs": {
       "additionalProperties": false,
-      "description": "What a render writes.\n\nEvery camera of every listed band is rendered, so `bands` is the whole selection:\na scene is built per band, and within one there is nothing to choose between.\n\nCycles by default. EEVEE is not bit-reproducible and its Metal driver cannot be\npinned, so anything that has to be defensible renders in Cycles.\n\nThere is no image format. LWIR pixels are radiance in W m^-2 sr^-1 and EXR is the\nonly format that holds them; an 8-bit image needs the sensor's gain curve, which\nnothing here knows yet.",
+      "description": "What a render writes.\n\nEvery camera of every listed band is rendered, so `bands` is the whole selection:\na scene is built per band, and within one there is nothing to choose between.\n\nCycles by default. EEVEE is not bit-reproducible and its Metal driver cannot be\npinned, so anything that has to be defensible renders in Cycles.\n\nEXR by default: it is float, so an LWIR pixel stays the radiance in W m^-2 sr^-1\nthat the render produced. PNG is 8-bit, which for EO means Blender's AgX film\ncurve and for LWIR would mean a gain curve nobody has specified, so `png` is\nrejected for the `ir` band rather than written as a white frame.",
       "properties": {
         "bands": {
           "default": [
@@ -119,6 +126,10 @@
         "engine": {
           "$ref": "#/$defs/Engine",
           "default": "cycles"
+        },
+        "format": {
+          "$ref": "#/$defs/ImageFormat",
+          "default": "exr"
         }
       },
       "title": "Outputs",

@@ -1,4 +1,4 @@
-"""Render the cameras a scenario asks for: one EXR each, per band.
+"""Render the cameras a scenario asks for: one image each, per band.
 
 Nothing here decides what a pixel looks like. The scene already sets the LWIR view
 transform, because those pixels are radiance rather than a picture, and turning them
@@ -10,11 +10,19 @@ from pathlib import Path
 import bpy
 
 from seascape import scene
-from seascape.config import Engine, Scenario
+from seascape.config import Engine, ImageFormat, Scenario
 
 # The scenario names engines in lower case because Blender's identifiers move between
 # versions; `_set_engine` resolves one and lets Blender reject what it does not know.
 _ENGINES: dict[Engine, str] = {"cycles": "CYCLES", "eevee": "BLENDER_EEVEE"}
+
+# Blender's format identifier and the bit depth that goes with it. Full float for EXR,
+# not half: a half's 11-bit mantissa is a lossy step nobody would expect in a file
+# meant to be defensible.
+_FORMATS: dict[ImageFormat, tuple[str, str]] = {
+    "exr": ("OPEN_EXR", "32"),
+    "png": ("PNG", "8"),
+}
 
 
 def _set_engine(name: Engine) -> None:
@@ -41,10 +49,9 @@ def _settings(scenario: Scenario) -> None:
         bpy.context.scene.cycles.samples = outputs.samples
     else:
         bpy.context.scene.eevee.taa_render_samples = outputs.samples
-    render.image_settings.file_format = "OPEN_EXR"
-    # Full float, not half: these are radiance in W m^-2 sr^-1 and a half's 11-bit
-    # mantissa is a lossy step nobody would expect in a file meant to be defensible.
-    render.image_settings.color_depth = "32"
+    file_format, depth = _FORMATS[outputs.format]
+    render.image_settings.file_format = file_format
+    render.image_settings.color_depth = depth
 
 
 def render(scenario: Scenario, into: Path) -> list[Path]:
@@ -64,5 +71,5 @@ def render(scenario: Scenario, into: Path) -> list[Path]:
             )
             sc.render.filepath = str(into / name)
             bpy.ops.render.render(write_still=True)
-            written.append(into / f"{name}.exr")
+            written.append(into / f"{name}.{scenario.outputs.format}")
     return written

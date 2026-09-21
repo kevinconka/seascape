@@ -11,7 +11,7 @@ from pathlib import Path
 import pytest
 from pydantic import ValidationError
 
-from seascape.config import CFG_DIR, Scenario, load
+from seascape.config import CFG_DIR, Outputs, Scenario, load
 
 BASELINE = Path(__file__).parents[1] / "scenarios" / "baseline.toml"
 SCHEMA = Path(__file__).parents[1] / "schema" / "scenario.json"
@@ -183,3 +183,13 @@ def test_every_shipped_preset_parses() -> None:
     assert {path.parent.name for path in presets} == {"rig", "cameras", "objects"}
     for preset in presets:
         tomllib.load(preset.open("rb"))
+
+
+def test_png_is_rejected_for_lwir() -> None:
+    """8 bits of LWIR needs a gain curve, and a white frame would not announce it."""
+    with pytest.raises(ValidationError, match="gain curve"):
+        Outputs(format="png", bands=("eo", "ir"))
+
+
+def test_png_is_fine_without_lwir() -> None:
+    assert Outputs(format="png", bands=("eo",)).format == "png"

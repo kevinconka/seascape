@@ -50,7 +50,7 @@ def main(argv: list[str] | None = None) -> int:
     # A scene is one band or the other: EO and LWIR share no units.
     build.add_argument("--band", choices=("eo", "ir"), default="eo")
 
-    shoot = commands.add_parser("render", help="write one EXR per camera")
+    shoot = commands.add_parser("render", help="write one image per camera")
     shoot.add_argument("scenario", type=Path)
     shoot.add_argument("-o", "--output", type=Path, help="default: alongside the input")
 
