@@ -51,6 +51,11 @@ class Camera(Model):
     width_px: int = Field(gt=0)
     height_px: int = Field(gt=0)
 
+    @property
+    def name(self) -> str:
+        """The .blend datablock name, and the render's filename."""
+        return f"{self.pod}_{self.kind}_{self.bearing_deg:+g}"
+
 
 class Rig(Model):
     """The sensor mast on the ownship."""
@@ -62,7 +67,7 @@ class Rig(Model):
     @model_validator(mode="after")
     def _names_are_unique(self) -> "Rig":
         """Two cameras of one name share a datablock and overwrite each other's file."""
-        names = [f"{c.pod}_{c.kind}_{c.bearing_deg:+g}" for c in self.cameras]
+        names = [c.name for c in self.cameras]
         if len(set(names)) != len(names):
             raise ValueError(f"two cameras share a name: {sorted(names)}")
         return self
@@ -110,39 +115,38 @@ class Object(Model):
 class Outputs(Model):
     """What a render writes.
 
-    Every camera of every listed band is rendered, so `bands` is the whole selection:
-    a scene is built per band, and within one there is nothing to choose between.
+    Every camera of a listed band is rendered; a scene is built per band.
 
-    Cycles renders everything. EEVEE is not bit-reproducible and its Metal driver
-    cannot be pinned, so it is not an option rather than an option nobody should take.
+    Cycles only: EEVEE is not bit-reproducible and its Metal driver cannot be pinned.
 
     EXR by default: it is float, so an LWIR pixel stays the radiance in W m^-2 sr^-1
     that the render produced. PNG is 8-bit and needs a mapping onto it -- for EO the
     exposure below and Blender's AgX film curve, for LWIR `ir_window_k`.
     """
 
-    # A tuple, so the default cannot be a list shared between scenarios.
     bands: tuple[Band, ...] = Field(default=("eo", "ir"), min_length=1)
     samples: int = Field(default=64, gt=0)
     format: ImageFormat = "exr"
-    # Stops. Blender hands back scene radiance, which for a sunlit sea is 3 to 13
-    # where a display wants 1, so without this every EO pixel clips to white. A real
-    # camera's aperture and shutter do this job; -5 is daylight, and like any exposure
-    # it is set for the light. It reaches the display transform only, so a png carries
-    # it and an exr stays the radiance the render produced. The ir band ignores it.
+    # Stops. Scene radiance off a sunlit sea is 3 to 13 where a display wants 1, so EO
+    # clips to white without it; -5 is daylight. Display transform only, so the exr is
+    # unaffected and ir ignores it.
     exposure_ev: float = -5.0
-    # Brightness temperature at black and at white in an ir png. Fixed rather than
-    # stretched per frame: a per-frame stretch rescales every image on its own, so two
-    # frames cannot be compared and neither carries a temperature. This is a thermal
-    # camera's level and span, with the numbers written down. The band's own limits,
-    # which hold the shipped sea, sky and hull with room either side.
+    # Brightness temperature at black and at white in an ir png. Fixed, not stretched
+    # per frame: a stretch makes two frames incomparable. 270-300 K spans the shipped
+    # sea, sky and hull.
     ir_window_k: tuple[float, float] = (270.0, 300.0)
 
     @model_validator(mode="after")
-    def _window_is_ordered(self) -> "Outputs":
+    def _window_is_a_usable_span(self) -> "Outputs":
+        """Reversed inverts every frame; too narrow quantises it to one bit."""
         low, high = self.ir_window_k
-        if low >= high:
-            raise ValueError(f"ir_window_k is not low to high: {self.ir_window_k}")
+        if not 200.0 <= low < high <= 400.0:
+            raise ValueError(
+                f"ir_window_k must be low to high within 200-400 K, the range "
+                f"`lwir.brightness_temperature` resolves: {self.ir_window_k}"
+            )
+        if high - low < 1.0:
+            raise ValueError(f"ir_window_k spans less than 1 K: {self.ir_window_k}")
         return self
 
     @model_validator(mode="after")

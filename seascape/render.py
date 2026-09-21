@@ -13,9 +13,8 @@ import numpy as np
 from seascape import lwir, scene
 from seascape.config import Band, ImageFormat, Scenario
 
-# Blender's format identifier and the bit depth that goes with it. Full float for EXR,
-# not half: a half's 11-bit mantissa is a lossy step nobody would expect in a file
-# meant to be defensible.
+# Blender's format identifier and bit depth. 32-bit EXR, not half: an 11-bit
+# mantissa loses radiance.
 _FORMATS: dict[ImageFormat, tuple[str, str]] = {
     "exr": ("OPEN_EXR", "32"),
     "png": ("PNG", "8"),
@@ -28,37 +27,44 @@ def _settings(scenario: Scenario, band: Band, writing: ImageFormat) -> None:
     sc.render.engine = "CYCLES"
     sc.cycles.samples = outputs.samples
     if band == "eo":
-        # LWIR keeps the exposure `build` pinned: those pixels are radiance, and any
-        # gain on them belongs to the display mapping, not to the render.
+        # ir pixels are radiance; gain on them belongs to the display mapping.
         sc.view_settings.exposure = outputs.exposure_ev
+    # OIDN is an edge-aware image filter, not a radiometric one, and it is on by
+    # default. On a world flat at 290.00 K it returns 282.43-293.00 K and breaks the
+    # R=G=B the scene guarantees, which is the channel `_thermal_png` reads.
+    sc.cycles.use_denoising = band == "eo"
     file_format, depth = _FORMATS[writing]
     sc.render.image_settings.file_format = file_format
     sc.render.image_settings.color_depth = depth
 
 
 def _thermal_png(exr: Path, png: Path, window_k: tuple[float, float]) -> None:
-    """Rewrite a float LWIR render as 8-bit grey, linear in brightness temperature.
-
-    Black is the low end of the window and white the high end, so a pixel value is a
-    temperature and the same value means the same thing in every frame.
-    """
+    """Rewrite a float LWIR render as 8-bit grey, linear in brightness temperature."""
     source = bpy.data.images.load(str(exr))
     width, height = source.size
-    radiance = np.asarray(source.pixels[:], dtype=np.float32).reshape(-1, 4)[:, 0]
-    low, high = window_k
-    t_k = lwir.brightness_temperature(radiance)
-    grey = np.clip((t_k - low) / (high - low), 0.0, 1.0)
-
     out = bpy.data.images.new(png.stem, width, height)
-    # Non-Color, so the values written are the mapping above and not sRGB-encoded.
-    out.colorspace_settings.name = "Non-Color"
-    out.pixels = np.column_stack([grey, grey, grey, np.ones_like(grey)]).ravel()
-    out.file_format = "PNG"
-    out.filepath_raw = str(png)
-    out.save()
+    try:
+        buffer = np.empty(width * height * 4, dtype=np.float32)
+        source.pixels.foreach_get(buffer)
+        low, high = window_k
+        t_k = lwir.brightness_temperature(buffer.reshape(-1, 4)[:, 0])
+        # float32: foreach_set takes the buffer's type literally and rejects a double.
+        grey = np.clip((t_k - low) / (high - low), 0.0, 1.0).astype(np.float32)
 
-    bpy.data.images.remove(source)
-    bpy.data.images.remove(out)
+        # Before the pixels, never after: assigning the colorspace second re-reads
+        # what is already there and leaves the image black, with no error.
+        out.colorspace_settings.name = "Non-Color"
+        out.pixels.foreach_set(
+            np.column_stack([grey, grey, grey, np.ones_like(grey)]).ravel()
+        )
+        out.file_format = "PNG"
+        out.filepath_raw = str(png)
+        out.save()
+    finally:
+        # Datablocks go whatever happened; the float render survives a failure, so a
+        # conversion that raised can be retried without paying for the render again.
+        bpy.data.images.remove(source)
+        bpy.data.images.remove(out)
     exr.unlink()
 
 
@@ -68,8 +74,7 @@ def render(scenario: Scenario, into: Path) -> list[Path]:
     outputs = scenario.outputs
     written: list[Path] = []
     for band in outputs.bands:
-        # An EO-only rig is legitimate, and the default bands ask for both. Selecting
-        # first means such a rig renders its EO cameras instead of raising on IR.
+        # The default bands ask for both, so an EO-only rig must skip ir, not fail.
         specs = [c for c in scenario.rig.cameras if c.kind == band]
         if not specs:
             continue
@@ -78,16 +83,21 @@ def render(scenario: Scenario, into: Path) -> list[Path]:
         _settings(scenario, band, "exr" if thermal_png else outputs.format)
         sc = bpy.context.scene
         for spec in specs:
-            name = scene.camera_name(spec)
-            sc.camera = bpy.data.objects[name]
+            sc.camera = bpy.data.objects[spec.name]
             sc.render.resolution_x, sc.render.resolution_y = (
                 spec.width_px,
                 spec.height_px,
             )
-            sc.render.filepath = str(into / name)
+            sc.render.filepath = str(into / spec.name)
             bpy.ops.render.render(write_still=True)
-            image = into / f"{name}.{outputs.format}"
+            image = into / f"{spec.name}.{outputs.format}"
             if thermal_png:
-                _thermal_png(into / f"{name}.exr", image, outputs.ir_window_k)
+                _thermal_png(into / f"{spec.name}.exr", image, outputs.ir_window_k)
             written.append(image)
+    if not written:
+        # Skipping a band the default asked for is right; writing nothing at all
+        # means the scenario names only bands its rig has no camera for.
+        raise ValueError(
+            f"the rig has no camera in any of {outputs.bands}: nothing to render"
+        )
     return written

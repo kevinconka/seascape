@@ -13,6 +13,7 @@ include = [
     "seascape/scene.py",
     "seascape/cli.py",
     "tests/test_scene.py",
+    "tests/test_render.py",
     "tests/test_render_drift.py",
 ]
 

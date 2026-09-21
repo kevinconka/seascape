@@ -226,11 +226,11 @@ def band_radiance(t_k: float) -> float:
     return float(np.trapezoid(planck(_BAND_LAM, t_k), _BAND_LAM))
 
 
-# Coarse enough to interpolate, wide enough for anything a scenario allows.
+# 200-400 K spans every temperature the scenario schema admits.
 _TB_GRID = np.linspace(200.0, 400.0, 1024)
-_TB_RADIANCE = np.array(
-    [np.trapezoid(planck(_BAND_LAM, t), _BAND_LAM) for t in _TB_GRID]
-)
+# Through band_radiance, not a second copy of its integral: the two must stay
+# inverses, and a microbolometer's spectral response would be swapped in there.
+_TB_RADIANCE = np.array([band_radiance(t) for t in _TB_GRID])
 
 
 def brightness_temperature(radiance: npt.ArrayLike) -> FloatArray:

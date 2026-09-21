@@ -97,7 +97,7 @@
     },
     "Outputs": {
       "additionalProperties": false,
-      "description": "What a render writes.\n\nEvery camera of every listed band is rendered, so `bands` is the whole selection:\na scene is built per band, and within one there is nothing to choose between.\n\nCycles renders everything. EEVEE is not bit-reproducible and its Metal driver\ncannot be pinned, so it is not an option rather than an option nobody should take.\n\nEXR by default: it is float, so an LWIR pixel stays the radiance in W m^-2 sr^-1\nthat the render produced. PNG is 8-bit and needs a mapping onto it -- for EO the\nexposure below and Blender's AgX film curve, for LWIR `ir_window_k`.",
+      "description": "What a render writes.\n\nEvery camera of a listed band is rendered; a scene is built per band.\n\nCycles only: EEVEE is not bit-reproducible and its Metal driver cannot be pinned.\n\nEXR by default: it is float, so an LWIR pixel stays the radiance in W m^-2 sr^-1\nthat the render produced. PNG is 8-bit and needs a mapping onto it -- for EO the\nexposure below and Blender's AgX film curve, for LWIR `ir_window_k`.",
       "properties": {
         "bands": {
           "default": [

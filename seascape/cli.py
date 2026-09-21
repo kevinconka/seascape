@@ -52,7 +52,9 @@ def main(argv: list[str] | None = None) -> int:
 
     shoot = commands.add_parser("render", help="write one image per camera")
     shoot.add_argument("scenario", type=Path)
-    shoot.add_argument("-o", "--output", type=Path, help="default: alongside the input")
+    shoot.add_argument(
+        "-o", "--output", type=Path, help="directory, default: alongside the input"
+    )
 
     commands.add_parser("schema", help="print the scenario JSON schema on stdout")
 
@@ -69,6 +71,7 @@ def main(argv: list[str] | None = None) -> int:
         OSError,
         ValueError,
         TypeError,
+        RuntimeError,  # bpy.ops.render.render, e.g. an unwritable output directory
     ):  # pydantic and tomllib both raise ValueError
         # A scenario mistake is the user's, not a crash; a traceback buries the line.
         print(sys.exception(), file=sys.stderr)
