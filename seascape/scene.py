@@ -18,6 +18,16 @@ CURVE_SAMPLES = 256
 
 GRAVITY_MS2 = 9.81
 
+# Waves, end to end. Each step is a published relation or follows from one:
+#
+#   wavelength      2 pi U^2 / (0.877^2 g)          Pierson-Moskowitz
+#   total slope     sqrt(0.003 + 0.00512 U)         Cox & Munk 1954
+#   resolved share  sqrt(octaves / log2(lam/1.7cm)) Phillips equilibrium range
+#   bump relief     resolved share x slope x lam    what the noise node draws
+#   unresolved      sqrt(total^2 - resolved^2)      variances subtract
+#   emissivity      Fresnel over unresolved slopes  Masuda 1988, in lwir.py
+#   lobe roughness  sqrt(sqrt(2) x unresolved)      GGX alpha = roughness^2
+#
 # Cox & Munk 1954, mean square surface slope of a clean sea against wind speed,
 # measured off sun glitter photographs. Slope is what decides how rough water looks,
 # and it comes mostly from waves far shorter than the dominant one, so it is measured

@@ -41,6 +41,29 @@ def test_a_named_substream_is_reproducible_and_local_to_its_name() -> None:
     assert draw(7, "sea/surface") != draw(7, "sky/haze")
 
 
+def test_published_values_have_not_drifted() -> None:
+    """The figures the wave chain is built on, checked against their sources.
+
+    Every one is a number someone else measured. A refactor that moves any of them has
+    changed the physics, not the code.
+    """
+    # Cox & Munk 1954: RMS slope of a clean sea at 7 m/s, off sun glitter photographs.
+    assert scene.wave_slope(7.0) == pytest.approx(0.197, abs=5e-4)
+    # Pierson-Moskowitz: a fully developed sea at 7 m/s peaks near 41 m.
+    assert scene.wave_length_m(7.0) == pytest.approx(40.8, abs=0.2)
+    # Minimum phase speed of a surface wave, where surface tension takes over.
+    assert abs(scene.CAPILLARY_WAVELENGTH_M - 0.0173) < 1e-4
+    # Masuda 1988 at this wind speed: near nadir, and at 80 deg where roughness has
+    # taken hold. Flat Fresnel reads 0.66 at 80, which is the error being corrected.
+    theta, eps = lwir.emissivity_curve(
+        t_sea_k=291.0, slope_sigma=scene.unresolved_slope(7.0)
+    )
+    assert float(np.interp(0.0, theta, eps)) == pytest.approx(0.985, abs=0.005)
+    assert float(np.interp(math.radians(80.0), theta, eps)) == pytest.approx(
+        0.76, abs=0.03
+    )
+
+
 class TestGeometry:
     """Everything the band does not change: where things are and where cameras look."""
 

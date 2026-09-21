@@ -113,6 +113,12 @@ These produce wrong output with no error. They are the reason this file exists.
 
 - **Degrees at the boundary, radians inside.** Config and ground truth are `*_deg`; internals
   are radians, converted exactly once. Degrees-versus-radians is the live bug class here.
+- **Every physical number cites a source or a derivation**, in a comment beside it. A
+  published relation first; failing that, derive it from one. Never fit a constant to a
+  render -- the reference renders live outside the repo, so a fitted number cannot be
+  checked by anyone reading the diff. `tests/test_lwir.py` pins the published values so
+  they cannot drift quietly. When measurement disagrees with the model, record the
+  disagreement and its size rather than tuning until it goes away.
 - **Units in field names.** `height_m`, `t_sea_k`, `range_m`. No units library.
 - **Randomness comes from named substreams** off the scenario seed — `substream(seed,
   "sea/surface")`. Never `np.random` module functions. Named streams mean adding a component
