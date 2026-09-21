@@ -100,7 +100,7 @@ def test_a_preset_outranks_an_inherited_value(tmp_path) -> None:
     assert [camera.kind for camera in scenario.rig.cameras] == ["ir"]
 
 
-def test_tables_merge_and_lists_replace(tmp_path) -> None:
+def test_tables_merge_and_lists_replace(tmp_path, baseline) -> None:
     """A variant changes one key; siblings survive, a list does not."""
     scenario = load(
         variant(
@@ -110,7 +110,8 @@ def test_tables_merge_and_lists_replace(tmp_path) -> None:
         )
     )
     assert scenario.sea.choppiness == 0.2
-    assert scenario.sea.t_sea_k == 288.0  # sibling key survived the merge
+    # Read off the parent, not written out: this is about the merge, not the value.
+    assert scenario.sea.t_sea_k == baseline.sea.t_sea_k
     assert scenario.rig.height_m == 12.0  # sibling table survived it too
     assert len(scenario.rig.cameras) == 1  # the list did not
 

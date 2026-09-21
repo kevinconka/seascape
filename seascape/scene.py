@@ -29,6 +29,9 @@ SLOPE_VARIANCE_PER_MPS = 0.00512
 PM_PEAK = 0.877
 MIN_WAVELENGTH_M = 1.0
 
+# How much of Cox & Munk's slope a four-octave noise field actually carries.
+RESOLVED_SLOPE_FRACTION = 0.68
+
 # Relief fades out with camera distance. Perspective already smooths distant water;
 # this takes the last of the stipple off the approach to the horizon.
 WAVE_FADE_M = 30000.0
@@ -41,8 +44,21 @@ def wave_length_m(wind_speed_mps: float) -> float:
 
 
 def wave_slope(wind_speed_mps: float) -> float:
-    """RMS surface slope, Cox & Munk. Dimensionless, a tangent."""
+    """Total RMS surface slope, Cox & Munk. Dimensionless, a tangent."""
     return math.sqrt(SLOPE_VARIANCE_INTERCEPT + SLOPE_VARIANCE_PER_MPS * wind_speed_mps)
+
+
+def bump_slope(wind_speed_mps: float) -> float:
+    """The part of that slope the noise field can carry.
+
+    Cox & Munk measured the whole spectrum down to capillaries. The bump runs four
+    octaves below the dominant wave and stops, so it cannot hold the short-wave slope,
+    and asking it to reproduce the full figure makes the sea about twice as textured as
+    the reference renders. The fraction is calibrated against those renders, not
+    derived: it is the one number here that a spectrum integral should eventually
+    replace.
+    """
+    return RESOLVED_SLOPE_FRACTION * wave_slope(wind_speed_mps)
 
 
 def sea_reach_m(rig: Rig, band: Band) -> float:
@@ -223,8 +239,7 @@ def _wave_normals(
     fade.inputs[0].default_value = math.e
 
     bump = tree.nodes.new("ShaderNodeBump")
-    # Relief over a wavelength is the slope, which is what Cox & Munk measured.
-    bump.inputs["Distance"].default_value = wave_slope(sea.wind_speed_mps) * length_m
+    bump.inputs["Distance"].default_value = bump_slope(sea.wind_speed_mps) * length_m
 
     link = tree.links.new
     link(geometry.outputs["Position"], scale.inputs[0])
@@ -283,6 +298,12 @@ def _thermal_sea(sea: Sea, seed: int) -> bpy.types.Material:
     tree = material.node_tree
     tree.nodes.clear()
     mirror = tree.nodes.new("ShaderNodeBsdfGlossy")
+    # Specular, and it has to stay that way while emissivity comes from flat Fresnel.
+    # Roughing the lobe to Cox & Munk's slope spreads the reflection into colder sky
+    # and drops the sea at the horizon from 0.99 of ambient to 0.65, against 0.985 in
+    # the reference. A rough surface really does emit more at grazing, which is what
+    # Masuda and Wu & Smith compute and what would pay that back, but none of it is in
+    # the curve here. Half the correction is worse than neither.
     mirror.inputs["Roughness"].default_value = 0.0
     # Glossy BSDF ships at 0.8 grey. The Mix Shader already applies the 1 - eps
     # weighting, so anything but white here absorbs a fifth of the reflected sky and

@@ -92,6 +92,9 @@ These produce wrong output with no error. They are the reason this file exists.
   when they must differ.
 - **Shader node trees leak.** If you build a chain, cleanup must remove the whole chain, not
   just the node you tagged. Re-running a build should leave the node count unchanged.
+- **A sea at air temperature has no LWIR waves.** Emission and reflected sky are then
+  the same radiance, so tilting a facet changes nothing and the surface renders as a flat
+  plate. `t_sea_k - t_air_k` is the wave signal, not a refinement of it.
 - **The engine identifier is version-dependent.** `BLENDER_EEVEE` means EEVEE Legacy on ≤4.1
   and EEVEE Next on ≥5.0, with `BLENDER_EEVEE_NEXT` in between. Assert against the enum. The Sky
   Texture moved the same way: `NISHITA` is `SINGLE_SCATTERING` and `MULTIPLE_SCATTERING` on ≥5.0.

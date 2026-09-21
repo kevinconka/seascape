@@ -134,7 +134,7 @@ class TestGeometry:
         )
         bump = next(n for n in tree.nodes if n.bl_idname == "ShaderNodeBump")
         assert bump.inputs["Distance"].default_value == pytest.approx(
-            scene.wave_slope(wind) * scene.wave_length_m(wind)
+            scene.bump_slope(wind) * scene.wave_length_m(wind)
         )
 
     def test_the_sea_edge_falls_inside_a_pixel(self) -> None:
@@ -231,6 +231,20 @@ class TestIrBand:
         # ShaderNodeBsdfGlossy still reports its pre-4.0 bl_idname.
         assert mix.inputs[1].links[0].from_node.bl_idname == "ShaderNodeBsdfAnisotropic"
         assert mix.inputs[2].links[0].from_node.bl_idname == "ShaderNodeEmission"
+
+    def test_the_sea_reflects_specularly(self) -> None:
+        """Emissivity here is flat Fresnel, so the lobe has to match it.
+
+        Roughening it to Cox & Munk's slope spreads the reflection into colder sky and
+        drops the sea at the horizon to 0.65 of ambient, where the reference holds
+        0.985. The emissivity rise that would pay that back is not modelled.
+        """
+        mirror = next(
+            n
+            for n in bpy.data.materials["sea"].node_tree.nodes
+            if n.bl_idname == "ShaderNodeBsdfAnisotropic"
+        )
+        assert mirror.inputs["Roughness"].default_value == 0.0
 
     def test_a_target_radiates_at_its_own_temperature(self) -> None:
         """`t_k` is in the scenario; a target rendering at its albedo ignores it."""
