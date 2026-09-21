@@ -14,29 +14,51 @@ from seascape import lwir
 from seascape.assets import fetch, manifest
 from seascape.config import Band, Object, Rig, Scenario, Sea, Sky
 
-# An ocean tile is `spatial_size` across with `resolution**2` samples, so spacing is
-# spatial_size / resolution**2, and the whole grid spans spatial_size * repeat.
-# 4 m resolves the ~34 m dominant wave of a 7 m/s sea. Reaching the 12.4 km horizon of
-# a 12 m mast at that spacing would take 157 M vertices, so the grid stops short and a
-# flat ring carries the sea the rest of the way.
-OCEAN_RESOLUTION = 7
-OCEAN_SPACING_M = 4.0
-
-# No target sits closer to that edge than this, and an empty scenario still gets a sea.
-REACH_MARGIN = 1.5
-MIN_REACH_M = 2000.0
-
 CURVE_SAMPLES = 256
 
-# Mean Earth radius. The sea is displaced geometry on a flat plane, so it has no
-# curvature of its own and would otherwise run to the vanishing point of an infinite
-# plane rather than to a horizon a 12 m mast can actually see.
-EARTH_RADIUS_M = 6.371e6
+GRAVITY_MS2 = 9.81
+
+# Cox & Munk 1954, mean square surface slope of a clean sea against wind speed,
+# measured off sun glitter photographs. Slope is what decides how rough water looks,
+# and it comes mostly from waves far shorter than the dominant one, so it is measured
+# rather than derived from wave height.
+SLOPE_VARIANCE_INTERCEPT = 0.003
+SLOPE_VARIANCE_PER_MPS = 0.00512
+
+# Pierson-Moskowitz peak frequency is 0.877 g / U, which fixes the dominant wavelength.
+PM_PEAK = 0.877
+MIN_WAVELENGTH_M = 1.0
+
+# Relief fades out with camera distance. Perspective already smooths distant water;
+# this takes the last of the stipple off the approach to the horizon.
+WAVE_FADE_M = 30000.0
 
 
-def horizon_m(height_m: float) -> float:
-    """Distance to the geometric horizon from `height_m` above the sea."""
-    return math.sqrt(2.0 * EARTH_RADIUS_M * height_m)
+def wave_length_m(wind_speed_mps: float) -> float:
+    """Dominant wavelength of a fully developed sea, Pierson-Moskowitz."""
+    length = 2 * math.pi * wind_speed_mps**2 / (PM_PEAK**2 * GRAVITY_MS2)
+    return max(length, MIN_WAVELENGTH_M)
+
+
+def wave_slope(wind_speed_mps: float) -> float:
+    """RMS surface slope, Cox & Munk. Dimensionless, a tangent."""
+    return math.sqrt(SLOPE_VARIANCE_INTERCEPT + SLOPE_VARIANCE_PER_MPS * wind_speed_mps)
+
+
+def sea_reach_m(rig: Rig, band: Band) -> float:
+    """Half-width of the sea plane: far enough that its edge lands inside a pixel.
+
+    The sea is flat, so it has no horizon of its own and runs to the vanishing point.
+    Pushing the edge under the angular resolution of the sharpest camera in the band is
+    what makes that vanishing point read as a horizon. Earth curvature is not modelled,
+    so a target past the true horizon shows when it should be hull-down.
+    """
+    ifov_rad = min(
+        math.radians(camera.hfov_deg) / camera.width_px
+        for camera in rig.cameras
+        if camera.kind == band
+    )
+    return rig.height_m / math.tan(ifov_rad / 2)
 
 
 def _yaw(bearing_deg: float) -> float:
@@ -162,13 +184,68 @@ def _blackbody_material(name: str, radiance: float) -> bpy.types.Material:
     return material
 
 
-def _incidence_lookup(
-    tree: bpy.types.NodeTree, curve: bpy.types.Image
+def _wave_normals(
+    tree: bpy.types.NodeTree, sea: Sea, seed: int
 ) -> bpy.types.NodeSocket:
-    """Sample `curve` at |cos(theta)| between the surface normal and the viewing ray.
+    """Wave normals from world position, fading out with camera distance.
 
-    The normal is the Ocean modifier's displaced geometry, so the angle follows real
-    waves rather than an assumed flat surface.
+    Shading, not geometry, and that is the whole point. A bump normal is evaluated per
+    pixel and varies continuously, so distant water averages smooth. Displaced geometry
+    at any affordable spacing goes sub-pixel before the horizon and aliases instead --
+    measured against the reference renders at nine times the texture it should have,
+    and unchanged between 48 and 512 samples, so not the renderer.
+
+    Being shader-only also means coverage is unbounded and circular, with no patch edge
+    to hide, and it costs no vertices.
+    """
+    length_m = wave_length_m(sea.wind_speed_mps)
+    scale = tree.nodes.new("ShaderNodeVectorMath")
+    scale.operation = "SCALE"
+    scale.inputs["Scale"].default_value = 1.0 / length_m
+    geometry = tree.nodes.new("ShaderNodeNewGeometry")
+    noise = tree.nodes.new("ShaderNodeTexNoise")
+    noise.noise_dimensions = "4D"
+    # Scale stays 1 so the vector above carries the wavelength in metres. W is the
+    # fourth axis, which moves the field without moving the sea.
+    noise.inputs["Scale"].default_value = 1.0
+    noise.inputs["Detail"].default_value = 4.0
+    noise.inputs["Roughness"].default_value = 0.55
+    noise.inputs["W"].default_value = float(
+        _substream(seed, "sea/surface").random() * 1e3
+    )
+
+    camera = tree.nodes.new("ShaderNodeCameraData")
+    rate = tree.nodes.new("ShaderNodeMath")
+    rate.operation = "MULTIPLY"
+    rate.inputs[1].default_value = -1.0 / WAVE_FADE_M
+    fade = tree.nodes.new("ShaderNodeMath")
+    fade.operation = "POWER"
+    fade.inputs[0].default_value = math.e
+
+    bump = tree.nodes.new("ShaderNodeBump")
+    # Relief over a wavelength is the slope, which is what Cox & Munk measured.
+    bump.inputs["Distance"].default_value = wave_slope(sea.wind_speed_mps) * length_m
+
+    link = tree.links.new
+    link(geometry.outputs["Position"], scale.inputs[0])
+    link(scale.outputs["Vector"], noise.inputs["Vector"])
+    link(noise.outputs["Fac"], bump.inputs["Height"])
+    link(camera.outputs["View Distance"], rate.inputs[0])
+    link(rate.outputs["Value"], fade.inputs[1])
+    link(fade.outputs["Value"], bump.inputs["Strength"])
+    return bump.outputs["Normal"]
+
+
+def _incidence_lookup(
+    tree: bpy.types.NodeTree,
+    curve: bpy.types.Image,
+    normal: bpy.types.NodeSocket,
+) -> bpy.types.NodeSocket:
+    """Sample `curve` at |cos(theta)| between the wave normal and the viewing ray.
+
+    Against the wave normal, not the plane's: emissivity has to follow the surface a
+    ray actually meets, or a flat sea's worth of emissivity gets applied to water that
+    is visibly not flat.
     """
     geometry = tree.nodes.new("ShaderNodeNewGeometry")
     dot = tree.nodes.new("ShaderNodeVectorMath")
@@ -183,14 +260,14 @@ def _incidence_lookup(
     link = tree.links.new
     link(geometry.outputs["Incoming"], dot.inputs[0])
     # Vector Math names both inputs "Vector", so the second one can only be indexed.
-    link(geometry.outputs["Normal"], dot.inputs[1])
+    link(normal, dot.inputs[1])
     link(dot.outputs["Value"], facing.inputs[0])
     link(facing.outputs["Value"], lookup.inputs["X"])
     link(lookup.outputs["Vector"], texture.inputs["Vector"])
     return texture.outputs["Color"]
 
 
-def _thermal_sea(sea: Sea) -> bpy.types.Material:
+def _thermal_sea(sea: Sea, seed: int) -> bpy.types.Material:
     """eps(theta) of the sea emitted, the remaining 1 - eps reflected from the sky.
 
     Emission and reflection are complements, so the two very nearly cancel: the sea
@@ -217,86 +294,48 @@ def _thermal_sea(sea: Sea) -> bpy.types.Material:
     output = tree.nodes.new("ShaderNodeOutputMaterial")
 
     link = tree.links.new
+    normal = _wave_normals(tree, sea, seed)
+    link(normal, mirror.inputs["Normal"])
     # Mix Shader names both shader inputs "Shader", so they can only be indexed. Factor
     # is emissivity: 0 at grazing incidence takes the mirror, 1 head-on takes emission.
     link(mirror.outputs["BSDF"], mix.inputs[1])
     link(emission.outputs["Emission"], mix.inputs[2])
-    link(_incidence_lookup(tree, _emissivity_image(sea.t_sea_k)), mix.inputs["Factor"])
+    link(
+        _incidence_lookup(tree, _emissivity_image(sea.t_sea_k), normal),
+        mix.inputs["Factor"],
+    )
     link(mix.outputs["Shader"], output.inputs["Surface"])
     return material
 
 
-def _water_material() -> bpy.types.Material:
+def _water_material(sea: Sea, seed: int) -> bpy.types.Material:
     """Daylight water: rough enough to catch the sun, refracting at seawater's IOR."""
     material = bpy.data.materials.new("sea")
-    principled = material.node_tree.nodes["Principled BSDF"]
+    tree = material.node_tree
+    principled = tree.nodes["Principled BSDF"]
     principled.inputs["Base Color"].default_value = (0.004, 0.02, 0.035, 1.0)
     principled.inputs["Roughness"].default_value = 0.05
     principled.inputs["IOR"].default_value = 1.33
+    tree.links.new(_wave_normals(tree, sea, seed), principled.inputs["Normal"])
     return material
 
 
-def _sea_material(sea: Sea, band: Band) -> bpy.types.Material:
-    return _water_material() if band == "eo" else _thermal_sea(sea)
+def _sea_material(sea: Sea, seed: int, band: Band) -> bpy.types.Material:
+    return _water_material(sea, seed) if band == "eo" else _thermal_sea(sea, seed)
 
 
-def _far_sea(
-    material: bpy.types.Material, inner_m: float, outer_m: float
-) -> list[bpy.types.Object]:
-    """Flat sea from the wave grid's edge out to the horizon.
+def _sea(sea: Sea, seed: int, reach_m: float, band: Band) -> bpy.types.Object:
+    """One flat plane. The waves are in its material.
 
-    Past a few kilometres a wave stands about a pixel tall and the surface is a
-    near-perfect mirror, so a flat ring carries the same radiance as the displaced grid
-    and puts the horizon where it belongs, instead of an edge partway up the frame.
-
-    Four rectangles rather than one plane with a hole in it: they tile the ring exactly,
-    so no two faces are coplanar and nothing z-fights.
+    Nothing is displaced, so the sea costs four vertices and covers every range the
+    camera can see without a patch edge, a tiling seam, or a grid to alias.
     """
-    if outer_m <= inner_m:
-        return []
-    mid = (inner_m + outer_m) / 2
-    span = outer_m - inner_m
-    ring = []
-    for name, (x, y, sx, sy) in {
-        "sea_far_north": (0.0, mid, 2 * outer_m, span),
-        "sea_far_south": (0.0, -mid, 2 * outer_m, span),
-        "sea_far_east": (mid, 0.0, span, 2 * inner_m),
-        "sea_far_west": (-mid, 0.0, span, 2 * inner_m),
-    }.items():
-        bpy.ops.mesh.primitive_plane_add(size=1.0)
-        panel = bpy.context.object
-        panel.name = name
-        _place(panel, x, y, 0.0)
-        panel.scale = (sx, sy, 1.0)
-        panel.data.materials.append(material)
-        ring.append(panel)
-    return ring
-
-
-def _sea(
-    sea: Sea, seed: int, reach_m: float, horizon_m: float, band: Band
-) -> bpy.types.Object:
-    material = _sea_material(sea, band)
-    tile_m = OCEAN_SPACING_M * OCEAN_RESOLUTION**2
     bpy.ops.mesh.primitive_plane_add(size=1.0)
     water = bpy.context.object
     water.name = "sea"
     _place(water, 0.0, 0.0, 0.0)
-
-    ocean = water.modifiers.new("ocean", "OCEAN")
-    ocean.geometry_mode = "GENERATE"
-    ocean.resolution = ocean.viewport_resolution = OCEAN_RESOLUTION
-    ocean.spatial_size = round(tile_m)
-    ocean.repeat_x = ocean.repeat_y = math.ceil(2 * reach_m / tile_m)
-    # Pierson-Moskowitz is the fully developed wind sea, which is what a single wind
-    # speed describes. Phillips is the graphics default; JONSWAP needs a fetch length.
-    ocean.spectrum = "PIERSON_MOSKOWITZ"
-    ocean.wind_velocity = sea.wind_speed_mps
-    ocean.choppiness = sea.choppiness
-    ocean.random_seed = int(_substream(seed, "sea/surface").integers(2**31))
-
-    water.data.materials.append(material)
-    _far_sea(material, ocean.spatial_size * ocean.repeat_x / 2, horizon_m)
+    water.scale = (2 * reach_m, 2 * reach_m, 1.0)
+    water.data.materials.append(_sea_material(sea, seed, band))
     return water
 
 
@@ -399,13 +438,10 @@ def build(scenario: Scenario, band: Band = "eo") -> None:
         view.view_transform, view.look = "Standard", "None"
         view.exposure, view.gamma = 0.0, 1.0
     bpy.context.scene.world = _sky(scenario.sky, band)
-    reach_m = REACH_MARGIN * max(
-        MIN_REACH_M, *(o.range_m for o in scenario.objects), 0.0
-    )
-    horizon = horizon_m(scenario.rig.height_m)
-    _sea(scenario.sea, scenario.seed, reach_m, horizon, band)
-    # The sea's far corner is horizon * sqrt(2) away, so the clip plane has to clear it.
-    cameras = _cameras(scenario.rig, 1.5 * horizon)
+    reach_m = sea_reach_m(scenario.rig, band)
+    _sea(scenario.sea, scenario.seed, reach_m, band)
+    # The sea's far corner is reach * sqrt(2) away, so the clip plane has to clear it.
+    cameras = _cameras(scenario.rig, 1.5 * reach_m)
     for spec in scenario.objects:
         _object(spec, band)
     bpy.context.scene.camera = cameras[0]

@@ -7,9 +7,24 @@ is, how to install it, how to run it — lives in [README.md](README.md).
 
 **Blender does anything it can do. Code is a liability.**
 
-Before writing a module, check whether Blender already has the feature. The sea is the Ocean
-modifier, not a noise shader. The sky is the Sky Texture. Panoramas are a panoramic camera.
-Depth and segmentation are render passes.
+Before writing a module, check whether Blender already has the feature. The sky is the Sky
+Texture. Panoramas are a panoramic camera. Depth and segmentation are render passes.
+
+**The sea is the exception, and it was decided by measurement, not preference.** Waves are
+bump normals on a flat plane, not the Ocean modifier. Displaced geometry goes sub-pixel
+before the horizon, and sub-pixel geometry aliases instead of averaging: against the
+reference renders it left the far field thirteen times rougher than it should be, at 2.3 M
+vertices, and the number did not move between 48 and 512 samples, so it was not the
+renderer. A bump normal is evaluated per pixel and varies continuously, so distant water
+settles on its own.
+
+The fade that keeps it settled has to live in the shader. A geometry fade would depend on
+camera distance, which would make the sea a different shape for each camera on the rig and
+break ground truth. Shader normals do not move geometry, so they are safe.
+
+The cost is real and was accepted: a bump normal cannot occlude, so a wave can never hide a
+target. `tests/test_render_drift.py` is what holds this in place -- run it with `--render`
+before changing anything in the sea shader.
 
 There is exactly **one** exception, and it is documented so nobody helpfully removes it: LWIR
 radiometry lives in numpy because Blender is an RGB renderer with no concept of an 8–14 µm

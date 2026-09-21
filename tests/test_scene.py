@@ -116,46 +116,56 @@ class TestGeometry:
             # 1 mm: the fit runs through float32 mesh coordinates.
             assert min(axes[2]) == pytest.approx(0.0, abs=1e-3), "keel on the waterline"
 
-    def test_the_ocean_takes_its_wind_from_the_scenario(self) -> None:
-        ocean = bpy.data.objects["sea"].modifiers["ocean"]
-        assert ocean.wind_velocity == pytest.approx(SCENARIO.sea.wind_speed_mps)
-        assert ocean.choppiness == pytest.approx(SCENARIO.sea.choppiness)
-        assert ocean.spectrum == "PIERSON_MOSKOWITZ"
+    def test_the_sea_takes_its_wind_from_the_scenario(self) -> None:
+        """Wind reaches the waves through wavelength and slope, or it is a dead knob.
 
-    def test_the_sea_reaches_past_the_furthest_target(self) -> None:
+        Both are derived, so this checks the shader carries what the derivation gives
+        rather than restating the formulas.
+        """
+        tree = bpy.data.materials["sea"].node_tree
+        wind = SCENARIO.sea.wind_speed_mps
+        scaling = next(
+            n
+            for n in tree.nodes
+            if n.bl_idname == "ShaderNodeVectorMath" and n.operation == "SCALE"
+        )
+        assert scaling.inputs["Scale"].default_value == pytest.approx(
+            1.0 / scene.wave_length_m(wind)
+        )
+        bump = next(n for n in tree.nodes if n.bl_idname == "ShaderNodeBump")
+        assert bump.inputs["Distance"].default_value == pytest.approx(
+            scene.wave_slope(wind) * scene.wave_length_m(wind)
+        )
+
+    def test_the_sea_edge_falls_inside_a_pixel(self) -> None:
+        """A flat sea has no horizon of its own; it runs to a vanishing point.
+
+        What makes that read as a horizon is the edge being finer than the sharpest
+        camera can resolve. Checked as an angle, because that is the thing that has to
+        be small -- a distance in metres says nothing without the optics.
+        """
+        corners = [
+            bpy.data.objects["sea"].matrix_world @ Vector(c)
+            for c in bpy.data.objects["sea"].bound_box
+        ]
+        reach = min(max(abs(v.x), abs(v.y)) for v in corners)
+        edge_rad = math.atan(SCENARIO.rig.height_m / reach)
+        sharpest = min(
+            math.radians(c.hfov_deg) / c.width_px for c in SCENARIO.rig.cameras
+        )
+        assert edge_rad <= sharpest / 2
+        assert reach > max(spec.range_m for spec in SCENARIO.objects)
+
+    def test_the_sea_costs_no_geometry(self) -> None:
+        """Waves are shading. Displacing them instead aliases past the range their own
+        relief covers a pixel, which is most of the frame, and costs millions of
+        vertices to do it."""
         mesh = (
             bpy.data.objects["sea"]
             .evaluated_get(bpy.context.evaluated_depsgraph_get())
             .to_mesh()
         )
-        reach = max(abs(vertex.co.x) for vertex in mesh.vertices)
-        assert reach > max(spec.range_m for spec in SCENARIO.objects)
-
-    def test_the_sea_reaches_the_horizon(self) -> None:
-        """A sea that stops short puts its own edge in frame, above the true horizon.
-
-        The displaced grid cannot get there at 4 m spacing, so the flat ring has to.
-        Measured on the ring's own vertices, not the wave grid's.
-        """
-        horizon = scene.horizon_m(SCENARIO.rig.height_m)
-        ring = [o for o in bpy.data.objects if o.name.startswith("sea_far_")]
-        assert ring, "no flat sea beyond the wave grid"
-        corners = [o.matrix_world @ Vector(c) for o in ring for c in o.bound_box]
-        # Mesh coordinates are float32, which resolves to about a millimetre at 12 km.
-        assert max(abs(v.y) for v in corners) >= horizon - 1.0
-
-    def test_the_flat_sea_does_not_overlap_the_wave_grid(self) -> None:
-        """Coplanar faces z-fight, and the ring shares the wave grid's plane exactly.
-
-        The four panels tile the ring rather than covering it, so each one has to start
-        outside the grid it surrounds.
-        """
-        grid = bpy.data.objects["sea"].modifiers["ocean"]
-        inner = grid.spatial_size * grid.repeat_x / 2
-        for panel in (o for o in bpy.data.objects if o.name.startswith("sea_far_")):
-            corners = [panel.matrix_world @ Vector(c) for c in panel.bound_box]
-            near = min(max(abs(v.x), abs(v.y)) for v in corners)
-            assert near >= inner - 1e-6, f"{panel.name} laps over the wave grid"
+        assert len(mesh.vertices) == 4
 
     def test_building_twice_leaves_the_same_scene(self) -> None:
         """Node trees leak when a build appends to what is already there."""
