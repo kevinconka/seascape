@@ -20,7 +20,7 @@ Real footage can't put a vessel at exactly 7 NM, hold the visibility constant, o
 ## Highlights
 
 - **Ground truth by construction.** Rigs are built from code, so camera extrinsics and intrinsics are known rather than estimated. Writing them out alongside the images is the step being built now.
-- **LWIR as well as EO.** Thermal scenes use measured seawater optical constants, emissivity averaged over the wave slopes, and a band-integrated sky. Path extinction is not modelled.
+- **LWIR as well as EO.** Thermal scenes use measured seawater optical constants, emissivity averaged over the wave slopes, and a band-integrated sky. Path extinction is not modelled, the atmospheric profile is fixed, and waves neither occlude nor shadow each other. Good enough to look at and to regression-test against; not a radiometric reference, so a detection-range or contrast figure taken off a render needs review before anyone acts on it.
 - **Multi-sensor rigs.** Several cameras, each with its own resolution, optics and modality, in one scene with known relative geometry.
 
 ## Install
