@@ -17,6 +17,12 @@ the thermal infrared derived from data archaeology", Optics Continuum 1(4) 738, 
 Downing & Williams 1975 extended across 271-311 K using Pinkley et al. 1977. The table
 ships as data/water_nk.csv, which carries the same citation.
 
+Facet averaging: Masuda, Takashima & Takayama, "Emissivity of pure and sea waters
+for the model sea surface in the infrared window regions", Remote Sensing of Environment
+24(2) 313, 1988 (doi:10.1016/0034-4257(88)90032-6). The inter-facet reflection term it
+omits is in Wu & Smith, "Emissivity of rough sea surface for 8-13 um: modeling and
+verification", Applied Optics 36(12) 2609, 1997 (doi:10.1364/AO.36.002609).
+
 Sky emissivity: one LOWTRAN7 run, midlatitude summer profile with the navy maritime
 aerosol, observer at 12 m, integrated over the band. LOWTRAN7 is public-domain
 (AFGL-TR-88-0177); the run is reproducible with `lowtran` on PyPI, which needs gfortran.

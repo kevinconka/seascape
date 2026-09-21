@@ -2,6 +2,24 @@
 
 The scene is written to a `.blend` and opened separately, so this module runs in its
 own process and never inside Blender.
+
+Sources
+-------
+Dominant wavelength: Pierson & Moskowitz, "A proposed spectral form for fully developed
+wind seas based on the similarity theory of S. A. Kitaigorodskii", Journal of
+Geophysical Research 69(24) 5181, 1964 (doi:10.1029/JZ069i024p05181).
+
+Slope variance: Cox & Munk, "Measurement of the roughness of the sea surface from
+photographs of the sun's glitter", JOSA 44(11) 838, 1954 (doi:10.1364/JOSA.44.000838),
+clean-sea fit, equation 13.
+
+Slope spectrum: Phillips, "The equilibrium range in the spectrum of wind-generated
+waves", Journal of Fluid Mechanics 4(4) 426, 1958 (doi:10.1017/S0022112058000550).
+
+Microfacet lobe: Walter, Marschner, Li & Torrance, "Microfacet models for refraction
+through rough surfaces", EGSR 2007 (doi:10.2312/EGWR/EGSR07/195-206) for GGX; Burley,
+"Physically-based shading at Disney", SIGGRAPH 2012 course notes, for the alpha =
+roughness^2 convention Cycles follows.
 """
 
 import math
@@ -20,9 +38,9 @@ GRAVITY_MS2 = 9.81
 
 # Waves, end to end. Each step is a published relation or follows from one:
 #
-#   wavelength      2 pi U^2 / (0.877^2 g)          Pierson-Moskowitz
-#   total slope     sqrt(0.003 + 0.00512 U)         Cox & Munk 1954
-#   resolved share  sqrt(octaves / log2(lam/1.7cm)) Phillips equilibrium range
+#   wavelength      2 pi U^2 / (0.877^2 g)          Pierson-Moskowitz 1964
+#   total slope     sqrt(0.003 + 0.00512 U)         Cox & Munk 1954, eq. 13
+#   resolved share  sqrt(octaves / log2(lam/1.7cm)) Phillips 1958 equilibrium range
 #   bump relief     resolved share x slope x lam    over the noise transfer below
 #   unresolved      sqrt(total^2 - resolved^2)      variances subtract
 #   emissivity      Fresnel over unresolved slopes  Masuda 1988, in lwir.py
@@ -32,8 +50,9 @@ SLOPE_VARIANCE_PER_MPS = 0.00512
 PM_PEAK = 0.877
 MIN_WAVELENGTH_M = 1.0
 
-# 1.73 cm is the minimum phase speed of a surface wave, where surface tension takes over
-# from gravity: the bottom of the slope spectrum, not a chosen resolution.
+# 2 pi sqrt(gamma / rho g) = 1.73 cm at gamma = 0.074 N/m: the wavelength of minimum
+# phase speed, where surface tension takes over from gravity. The bottom of the slope
+# spectrum, not a chosen resolution.
 NOISE_DETAIL = 4.0
 CAPILLARY_WAVELENGTH_M = 0.0173
 
