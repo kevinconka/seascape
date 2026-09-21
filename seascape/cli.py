@@ -37,7 +37,8 @@ def _render(scenario_path: Path, output: Path | None) -> None:
     written = render.render(scenario, into)
     for path in written:
         print(path)
-    print(f"{len(written)} images in {into}")
+    images = sum(path.suffix == ".exr" for path in written)
+    print(f"{images} images and {len(written) - images} sidecars in {into}")
 
 
 def main(argv: list[str] | None = None) -> int:
