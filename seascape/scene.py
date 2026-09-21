@@ -255,8 +255,8 @@ def _wave_normals(
     Shading, not geometry, and that is the whole point. A bump normal is evaluated per
     pixel and varies continuously, so distant water averages smooth. Displaced geometry
     at any affordable spacing goes sub-pixel before the horizon and aliases instead --
-    measured against the reference renders at nine times the texture it should have,
-    and unchanged between 48 and 512 samples, so not the renderer.
+    unchanged between 48 and 512 samples, so not the renderer.
+    `tests/test_render_drift.py` carries the figure and holds this in place.
 
     Being shader-only also means coverage is unbounded and circular, with no patch edge
     to hide, and it costs no vertices.
@@ -271,7 +271,7 @@ def _wave_normals(
     # Scale stays 1 so the vector above carries the wavelength in metres. W is the
     # fourth axis, which moves the field without moving the sea.
     noise.inputs["Scale"].default_value = 1.0
-    noise.inputs["Detail"].default_value = 4.0
+    noise.inputs["Detail"].default_value = NOISE_DETAIL
     noise.inputs["Roughness"].default_value = 0.55
     noise.inputs["W"].default_value = float(
         _substream(seed, "sea/surface").random() * 1e3
@@ -337,9 +337,9 @@ def _thermal_sea(sea: Sea, seed: int) -> bpy.types.Material:
     that by 2 km, because emissivity collapses at grazing incidence and nothing fills
     the gap.
 
-    Blender does the reflection. A Glossy BSDF against the displaced ocean surface
-    reflects the real sky in the real mirror direction, and reflects a warm hull in the
-    swell too, which a baked sky curve cannot.
+    Blender does the reflection. A Glossy BSDF against the wave normals reflects the
+    real sky in the real mirror direction, and a warm hull with it, which a baked sky
+    curve cannot.
     """
     material = bpy.data.materials.new("sea")
     tree = material.node_tree

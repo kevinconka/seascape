@@ -5,7 +5,7 @@ shows that it is plausible.
 
 Each assertion names what it is measured against. Every function in the module is
 exercised by one, planck and fresnel_emissivity through emissivity_curve.
-See "Where the numbers come from" in seascape/lwir.py.
+See "Sources" in seascape/lwir.py.
 """
 
 import numpy as np

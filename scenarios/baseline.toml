@@ -15,7 +15,6 @@ height_m = 12.0
 # waves disappear. The difference is the entire wave signal.
 t_sea_k = 291.0
 wind_speed_mps = 7.0
-choppiness = 1.0
 
 [sky]
 sun_elevation_deg = 30.0

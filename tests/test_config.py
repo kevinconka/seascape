@@ -105,11 +105,11 @@ def test_tables_merge_and_lists_replace(tmp_path, baseline) -> None:
     scenario = load(
         variant(
             tmp_path,
-            "[sea]\nchoppiness = 0.2\n\n"
+            "[sea]\nwind_speed_mps = 3.0\n\n"
             '[[rig.cameras]]\npreset = "ir"\npod = "bow"\nbearing_deg = 0.0\n',
         )
     )
-    assert scenario.sea.choppiness == 0.2
+    assert scenario.sea.wind_speed_mps == 3.0
     # Read off the parent, not written out: this is about the merge, not the value.
     assert scenario.sea.t_sea_k == baseline.sea.t_sea_k
     assert scenario.rig.height_m == 12.0  # sibling table survived it too

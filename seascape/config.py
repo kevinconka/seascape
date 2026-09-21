@@ -57,7 +57,7 @@ class Rig(Model):
 
 
 class Sea(Model):
-    """Blender's Ocean modifier is driven by wind, so the config is too.
+    """Sea state. Wind reaches the waves through wavelength and slope; see `scene`.
 
     271-311 K is the span of the shipped optical-constant table. `lwir` clamps to it;
     here it is an error.
@@ -65,7 +65,6 @@ class Sea(Model):
 
     t_sea_k: float = Field(default=lwir.T_SEA_K, ge=271.0, le=311.0)
     wind_speed_mps: float = Field(default=7.0, ge=0.0)
-    choppiness: float = Field(default=1.0, ge=0.0, le=4.0)
 
 
 class Sky(Model):

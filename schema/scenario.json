@@ -119,7 +119,7 @@
     },
     "Sea": {
       "additionalProperties": false,
-      "description": "Blender's Ocean modifier is driven by wind, so the config is too.\n\n271-311 K is the span of the shipped optical-constant table. `lwir` clamps to it;\nhere it is an error.",
+      "description": "Sea state. Wind reaches the waves through wavelength and slope; see `scene`.\n\n271-311 K is the span of the shipped optical-constant table. `lwir` clamps to it;\nhere it is an error.",
       "properties": {
         "t_sea_k": {
           "default": 288.0,
@@ -132,13 +132,6 @@
           "default": 7.0,
           "minimum": 0.0,
           "title": "Wind Speed Mps",
-          "type": "number"
-        },
-        "choppiness": {
-          "default": 1.0,
-          "maximum": 4.0,
-          "minimum": 0.0,
-          "title": "Choppiness",
           "type": "number"
         }
       },
