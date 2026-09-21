@@ -2,7 +2,7 @@
 
 EO reaches 8 bits through the exposure and Blender's film curve. LWIR cannot: its
 pixels are radiance in W m^-2 sr^-1, which Blender would clip to white, so an ir png
-is rendered float and mapped here through the scenario's temperature window.
+is rendered float and auto-contrasted here.
 """
 
 from pathlib import Path
