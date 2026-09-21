@@ -121,7 +121,11 @@ class Outputs(Model):
     An 8-bit image needs a mapping onto it, which is a separate decision per band.
     """
 
-    bands: tuple[Band, ...] = Field(default=("eo", "ir"), min_length=1)
+    # uniqueItems so an editor validating against the schema catches a repeat too,
+    # not just `load`. `_bands_are_distinct` is what actually enforces it.
+    bands: tuple[Band, ...] = Field(
+        default=("eo", "ir"), min_length=1, json_schema_extra={"uniqueItems": True}
+    )
     samples: int = Field(default=64, gt=0)
 
     @model_validator(mode="after")
