@@ -23,7 +23,7 @@ GRAVITY_MS2 = 9.81
 #   wavelength      2 pi U^2 / (0.877^2 g)          Pierson-Moskowitz
 #   total slope     sqrt(0.003 + 0.00512 U)         Cox & Munk 1954
 #   resolved share  sqrt(octaves / log2(lam/1.7cm)) Phillips equilibrium range
-#   bump relief     resolved share x slope x lam    what the noise node draws
+#   bump relief     resolved share x slope x lam    scaled by the noise transfer
 #   unresolved      sqrt(total^2 - resolved^2)      variances subtract
 #   emissivity      Fresnel over unresolved slopes  Masuda 1988, in lwir.py
 #   lobe roughness  sqrt(sqrt(2) x unresolved)      GGX alpha = roughness^2
@@ -45,6 +45,17 @@ MIN_WAVELENGTH_M = 1.0
 # resolution. NOISE_DETAIL has to match the Detail input on the noise node.
 NOISE_DETAIL = 4.0
 CAPILLARY_WAVELENGTH_M = 0.0173
+
+# RMS gradient of the noise node's Fac over one noise unit, at the Detail and Roughness
+# below. It is not 1, so a Bump Distance of slope x wavelength delivers 0.61 of the
+# slope asked for. Measured by baking Fac to an orthographic render at a known world
+# scale and differencing it; `test_the_noise_delivers_the_slope_it_is_asked_for` pins
+# it. Quoted at 2 cm sampling: finer sampling keeps finding more gradient, so the
+# figure is a property of the measurement as much as of the noise. The octave model
+# above describes the ocean's spectrum, not this field -- adding octaves here barely
+# moves the gradient -- which is why the amplitude comes from this measurement rather
+# than from counting them.
+NOISE_SLOPE_PER_UNIT = 0.61
 
 # Relief fades out with camera distance. Perspective already smooths distant water;
 # this takes the last of the stipple off the approach to the horizon.
@@ -286,7 +297,9 @@ def _wave_normals(
     fade.inputs[0].default_value = math.e
 
     bump = tree.nodes.new("ShaderNodeBump")
-    bump.inputs["Distance"].default_value = bump_slope(sea.wind_speed_mps) * length_m
+    bump.inputs["Distance"].default_value = (
+        bump_slope(sea.wind_speed_mps) * length_m / NOISE_SLOPE_PER_UNIT
+    )
 
     link = tree.links.new
     link(geometry.outputs["Position"], scale.inputs[0])
@@ -388,10 +401,6 @@ def _water_material(sea: Sea, seed: int) -> bpy.types.Material:
     return material
 
 
-def _sea_material(sea: Sea, seed: int, band: Band) -> bpy.types.Material:
-    return _water_material(sea, seed) if band == "eo" else _thermal_sea(sea, seed)
-
-
 def _sea(sea: Sea, seed: int, reach_m: float, band: Band) -> bpy.types.Object:
     """One flat plane. The waves are in its material.
 
@@ -403,7 +412,9 @@ def _sea(sea: Sea, seed: int, reach_m: float, band: Band) -> bpy.types.Object:
     water.name = "sea"
     _place(water, 0.0, 0.0, 0.0)
     water.scale = (2 * reach_m, 2 * reach_m, 1.0)
-    water.data.materials.append(_sea_material(sea, seed, band))
+    water.data.materials.append(
+        _water_material(sea, seed) if band == "eo" else _thermal_sea(sea, seed)
+    )
     return water
 
 
@@ -458,21 +469,17 @@ def _object(spec: Object, band: Band) -> bpy.types.Object:
     bpy.ops.import_scene.fbx(filepath=str(fetch(spec.asset)))
     parts = [o for o in set(bpy.data.objects) - before if o.parent is None]
 
+    asset = manifest()[spec.asset]
     low, high = _bounds(parts)
-    fit = Matrix.Scale(manifest()[spec.asset].length_m / (high.y - low.y), 4)
+    scale = asset.length_m / (high.y - low.y)
+    # A uniform scale about the origin, so the fitted bounds follow without remeasuring
+    # -- and without reading matrix_world back on the line after writing it.
+    low, high = low * scale, high * scale
+    fit = Matrix.Translation(
+        (-(low.x + high.x) / 2, -(low.y + high.y) / 2, -low.z - asset.draught_m)
+    ) @ Matrix.Scale(scale, 4)
     for part in parts:
         part.matrix_world = fit @ part.matrix_world
-
-    low, high = _bounds(parts)
-    centre = Matrix.Translation(
-        (
-            -(low.x + high.x) / 2,
-            -(low.y + high.y) / 2,
-            -low.z - manifest()[spec.asset].draught_m,
-        )
-    )
-    for part in parts:
-        part.matrix_world = centre @ part.matrix_world
 
     if band == "ir":
         # The asset's own materials are albedo, which says nothing about 8-14 um.

@@ -166,13 +166,13 @@ def fresnel_emissivity(
     return 1.0 - 0.5 * (np.abs(r_s) ** 2 + np.abs(r_p) ** 2)
 
 
+# Angles the curve is sampled at, and facets drawn per angle to average over.
+CURVE_ANGLES = 91
+FACET_SAMPLES = 4096
+
+
 def emissivity_curve(
-    *,
-    t_sea_k: float = T_SEA_K,
-    n_angles: int = 91,
-    slope_sigma: float = 0.0,
-    facets: int = 4096,
-    seed: int = 0,
+    *, t_sea_k: float = T_SEA_K, slope_sigma: float = 0.0
 ) -> tuple[FloatArray, FloatArray]:
     """Planck-weighted, band-integrated emissivity against viewing zenith (rad).
 
@@ -192,7 +192,7 @@ def emissivity_curve(
     lam, n, k = optical_constants(t_sea_k)
     weight = planck(lam, t_sea_k)
     band = np.trapezoid(weight, lam)
-    theta = np.linspace(0.0, np.pi / 2, n_angles)
+    theta = np.linspace(0.0, np.pi / 2, CURVE_ANGLES)
 
     flat = np.trapezoid(fresnel_emissivity(theta[:, None], n, k) * weight, lam, -1)
     if slope_sigma <= 0.0:
@@ -201,29 +201,31 @@ def emissivity_curve(
     # One table over incidence, interpolated per facet: the band integral is the
     # expensive part and it does not depend on which facet asked for it.
     table = flat / band
-    rng = np.random.default_rng(seed)
-    slope = rng.normal(0.0, slope_sigma, size=(facets, 2))
-    normal = np.stack([-slope[:, 0], -slope[:, 1], np.ones(facets)], axis=-1)
+    rng = np.random.default_rng(0)
+    slope = rng.normal(0.0, slope_sigma, size=(FACET_SAMPLES, 2))
+    normal = np.stack([-slope[:, 0], -slope[:, 1], np.ones(FACET_SAMPLES)], axis=-1)
     normal /= np.linalg.norm(normal, axis=-1, keepdims=True)
 
-    view = np.stack([np.sin(theta), np.zeros(n_angles), np.cos(theta)], axis=-1)
+    view = np.stack([np.sin(theta), np.zeros(CURVE_ANGLES), np.cos(theta)], axis=-1)
     cos_i = view @ normal.T  # (angle, facet)
     # A facet turned away from the viewer contributes no area and is not visible.
     area = np.clip(cos_i, 0.0, None)
     eps = np.interp(np.arccos(np.clip(cos_i, -1.0, 1.0)), theta, table)
-    total = area.sum(axis=1)
-    rough = np.divide(
-        (eps * area).sum(axis=1), total, out=np.zeros(n_angles), where=total > 0
-    )
-    # At exactly 90 deg no facet has area and the average is undefined; the flat curve
-    # is 0 there and so is the rough one in the limit.
-    return theta, rough
+    return theta, (eps * area).sum(axis=1) / area.sum(axis=1)
+
+
+# The seawater table is on a 20 cm^-1 wavenumber grid, which lands inside the band at
+# both ends. Fine for a weighted average over that same grid; 2.6% low as an integral.
+_BAND_LAM = np.linspace(*BAND_M, 512)
 
 
 def band_radiance(t_k: float) -> float:
-    """Blackbody radiance integrated over the band, W m^-2 sr^-1."""
-    lam, _, _ = optical_constants(t_k)
-    return float(np.trapezoid(planck(lam, t_k), lam))
+    """Blackbody radiance integrated over the band, W m^-2 sr^-1.
+
+    On its own grid, not the optical-constant table's: this is a blackbody and has no
+    business being clamped to the temperatures seawater was measured at.
+    """
+    return float(np.trapezoid(planck(_BAND_LAM, t_k), _BAND_LAM))
 
 
 def sky_radiance(elev_rad: npt.ArrayLike, t_air_k: float = T_AIR_K) -> FloatArray:

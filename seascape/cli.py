@@ -6,10 +6,7 @@
 import argparse
 import json
 import sys
-import tomllib
 from pathlib import Path
-
-from pydantic import ValidationError
 
 from seascape.config import Band, Scenario, load
 
@@ -50,7 +47,11 @@ def main(argv: list[str] | None = None) -> int:
         return 0
     try:
         _build(args.scenario, args.output, args.band)
-    except (ValidationError, OSError, ValueError, TypeError, tomllib.TOMLDecodeError):
+    except (
+        OSError,
+        ValueError,
+        TypeError,
+    ):  # pydantic and tomllib both raise ValueError
         # A scenario mistake is the user's, not a crash; a traceback buries the line.
         print(sys.exception(), file=sys.stderr)
         return 1

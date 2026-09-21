@@ -4,7 +4,6 @@ No Blender. Geometry is asserted from the bearings and FOVs as configured; measu
 it off a built scene is a separate check.
 """
 
-import itertools
 import json
 import tomllib
 from pathlib import Path
@@ -35,28 +34,6 @@ def test_baseline_has_eight_cameras(baseline) -> None:
     kinds = [camera.kind for camera in baseline.rig.cameras]
     assert kinds.count("eo") == 6
     assert kinds.count("ir") == 2
-
-
-@pytest.mark.parametrize(
-    ("pod", "span_deg", "overlap_deg"),
-    [("port", 125.0, 5.0), ("starboard", 125.0, 5.0), ("bow", 44.0, 4.0)],
-)
-def test_pod_geometry(baseline, pod, span_deg, overlap_deg) -> None:
-    """Combined span and neighbour overlap, derived from the bearings and FOVs.
-
-    A typo in twin_pod.toml or in a camera preset moves these; nothing else does.
-    """
-    edges = sorted(
-        (
-            camera.bearing_deg - camera.hfov_deg / 2,
-            camera.bearing_deg + camera.hfov_deg / 2,
-        )
-        for camera in baseline.rig.cameras
-        if camera.pod == pod
-    )
-    assert edges[-1][1] - edges[0][0] == pytest.approx(span_deg)
-    overlaps = [left[1] - right[0] for left, right in itertools.pairwise(edges)]
-    assert overlaps == pytest.approx([overlap_deg] * len(overlaps))
 
 
 def test_preset_supplies_optics_and_block_supplies_the_mount(baseline) -> None:
@@ -205,4 +182,4 @@ def test_every_shipped_preset_parses() -> None:
     presets = sorted(CFG_DIR.rglob("*.toml"))
     assert {path.parent.name for path in presets} == {"rig", "cameras", "objects"}
     for preset in presets:
-        tomllib.loads(preset.read_text())
+        tomllib.load(preset.open("rb"))

@@ -24,8 +24,22 @@ SCENARIO = load(Path(__file__).parent.parent / "scenarios" / "baseline.toml")
 SAMPLES = 48
 
 
+def shoot(size: tuple[int, int], name: str) -> np.ndarray:
+    """Render the current scene and return its radiance, top row first."""
+    sc = bpy.context.scene
+    sc.render.image_settings.file_format = "OPEN_EXR"
+    sc.render.resolution_x, sc.render.resolution_y = size
+    sc.render.filepath = str(Path(bpy.app.tempdir) / name)
+    bpy.ops.render.render(write_still=True)
+
+    image = bpy.data.images.load(sc.render.filepath + ".exr")
+    pixels = np.empty(len(image.pixels), dtype=np.float32)
+    image.pixels.foreach_get(pixels)
+    return pixels.reshape(size[1], size[0], 4)[::-1, :, 0]
+
+
 def radiance(band: Band, kind: str, size: tuple[int, int]) -> np.ndarray:
-    """Render one camera and return its radiance, top row first."""
+    """Build for a band, render the named camera, return its radiance."""
     scene.build(SCENARIO, band)
     sc = bpy.context.scene
     sc.camera = next(
@@ -34,15 +48,7 @@ def radiance(band: Band, kind: str, size: tuple[int, int]) -> np.ndarray:
     sc.render.engine = "CYCLES"
     sc.cycles.samples = SAMPLES
     sc.cycles.use_denoising = True
-    sc.render.resolution_x, sc.render.resolution_y = size
-    sc.render.image_settings.file_format = "OPEN_EXR"
-    sc.render.filepath = str(Path(bpy.app.tempdir) / f"drift_{band}")
-    bpy.ops.render.render(write_still=True)
-
-    image = bpy.data.images.load(sc.render.filepath + ".exr")
-    pixels = np.empty(len(image.pixels), dtype=np.float32)
-    image.pixels.foreach_get(pixels)
-    return pixels.reshape(size[1], size[0], 4)[::-1, :, 0]
+    return shoot(size, f"drift_{band}")
 
 
 def texture(rows: np.ndarray) -> float:
@@ -95,3 +101,50 @@ def test_sea_texture_fades_with_range(frame) -> None:
     assert far_to_near[0] == min(far_to_near), (
         f"the far field has to settle, not sparkle: {far_to_near}"
     )
+
+
+@pytest.mark.render
+def test_the_noise_delivers_the_slope_it_is_asked_for() -> None:
+    """`NOISE_SLOPE_PER_UNIT` against the node itself.
+
+    Bump Distance is set in metres of relief per wavelength, which only becomes the
+    slope the wave chain asked for if the noise's own gradient is known. It is not 1.
+    Baked flat here and differenced, so a Blender change to the noise or to Normalize
+    shows up as a number rather than as a sea that looks slightly wrong.
+    """
+    span, px = 20.0, 1024  # 2 cm sampling; see the constant's comment
+    bpy.ops.wm.read_factory_settings(use_empty=True)
+    frame = bpy.context.scene
+    bpy.ops.mesh.primitive_plane_add(size=span)
+    material = bpy.data.materials.new("probe")
+    material.use_nodes = True
+    tree = material.node_tree
+    tree.nodes.clear()
+    noise = tree.nodes.new("ShaderNodeTexNoise")
+    noise.inputs["Scale"].default_value = 1.0  # one noise unit is one metre
+    noise.inputs["Detail"].default_value = scene.NOISE_DETAIL
+    noise.inputs["Roughness"].default_value = 0.55
+    emission = tree.nodes.new("ShaderNodeEmission")
+    output = tree.nodes.new("ShaderNodeOutputMaterial")
+    position = tree.nodes.new("ShaderNodeNewGeometry").outputs["Position"]
+    tree.links.new(position, noise.inputs["Vector"])
+    tree.links.new(noise.outputs["Fac"], emission.inputs["Color"])
+    tree.links.new(emission.outputs["Emission"], output.inputs["Surface"])
+    bpy.context.object.data.materials.append(material)
+
+    lens = bpy.data.cameras.new("probe")
+    lens.type, lens.ortho_scale = "ORTHO", span
+    camera = bpy.data.objects.new("probe", lens)
+    frame.collection.objects.link(camera)
+    camera.location = (0.0, 0.0, 10.0)
+    frame.camera = camera
+    frame.render.engine = "CYCLES"
+    frame.cycles.samples = 1
+    frame.cycles.use_denoising = False
+    frame.render.resolution_x = frame.render.resolution_y = px
+    frame.view_settings.view_transform = "Standard"
+
+    fac = shoot((px, px), "noise_probe")
+    gradient_y, gradient_x = np.gradient(fac.astype(np.float64), span / px)
+    measured = float(np.sqrt(np.mean(gradient_x**2 + gradient_y**2)))
+    assert measured == pytest.approx(scene.NOISE_SLOPE_PER_UNIT, abs=0.03)

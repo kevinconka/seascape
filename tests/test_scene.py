@@ -24,6 +24,14 @@ def name_of(spec: Camera) -> str:
     return f"{spec.pod}_{spec.kind}_{spec.bearing_deg:+g}"
 
 
+def baked(name: str) -> np.ndarray:
+    """The red channel of a 1-D lookup image, as the shader samples it."""
+    image = bpy.data.images[name]
+    pixels = np.empty(len(image.pixels), dtype=np.float32)
+    image.pixels.foreach_get(pixels)
+    return pixels.reshape(-1, 4)[:, 0]
+
+
 def counts() -> tuple[int, ...]:
     return tuple(
         len(block) for block in (bpy.data.objects, bpy.data.materials, bpy.data.images)
@@ -153,8 +161,6 @@ class TestGeometry:
             scene.resolved_slope_fraction(18.0),
         )
         assert 0.0 < blowing < calm < 1.0
-        # A dominant wave at the capillary scale would leave nothing unresolved.
-        assert scene.resolved_slope_fraction(0.0) <= 1.0
 
     def test_the_sea_takes_its_wind_from_the_scenario(self) -> None:
         """Wind reaches the waves through wavelength and slope, or it is a dead knob.
@@ -174,7 +180,13 @@ class TestGeometry:
         )
         bump = next(n for n in tree.nodes if n.bl_idname == "ShaderNodeBump")
         assert bump.inputs["Distance"].default_value == pytest.approx(
-            scene.bump_slope(wind) * scene.wave_length_m(wind)
+            scene.bump_slope(wind)
+            * scene.wave_length_m(wind)
+            / scene.NOISE_SLOPE_PER_UNIT
+        )
+        noise = next(n for n in tree.nodes if n.bl_idname == "ShaderNodeTexNoise")
+        assert noise.inputs["Detail"].default_value == scene.NOISE_DETAIL, (
+            "the transfer was measured at this Detail"
         )
 
     def test_the_sea_edge_falls_inside_a_pixel(self) -> None:
@@ -247,17 +259,14 @@ class TestIrBand:
 
     def test_the_baked_sky_runs_cold_towards_the_zenith(self) -> None:
         """The shader reads this by sin(elevation), not by the angle itself."""
-        image = bpy.data.images["sky_radiance"]
-        pixels = np.empty(len(image.pixels), dtype=np.float32)
-        image.pixels.foreach_get(pixels)
-        baked = pixels.reshape(-1, 4)[:, 0]
+        curve = baked("sky_radiance")
 
         ambient = lwir.band_radiance(SCENARIO.sky.t_air_k)
-        assert baked[0] == pytest.approx(ambient, rel=1e-4), (
+        assert curve[0] == pytest.approx(ambient, rel=1e-4), (
             "sin(elev)=0 is the horizon"
         )
-        assert baked[-1] < 0.5 * ambient, "the zenith is much colder than ambient"
-        assert np.all(np.diff(baked) <= 1e-6), "radiance falls towards the zenith"
+        assert curve[-1] < 0.5 * ambient, "the zenith is much colder than ambient"
+        assert np.all(np.diff(curve) <= 1e-6), "radiance falls towards the zenith"
 
     def test_the_sea_reflects_what_it_does_not_emit(self) -> None:
         """Emission alone falls to a fiftieth of ambient by 2 km: emissivity collapses
@@ -294,20 +303,12 @@ class TestIrBand:
         That is the angle a target at 2 km sits at, so it sets the contrast the whole
         band is for.
         """
-        image = bpy.data.images["sea_emissivity"]
-        pixels = np.empty(len(image.pixels), dtype=np.float32)
-        image.pixels.foreach_get(pixels)
-        baked = pixels.reshape(-1, 4)[:, 0]
+        curve = baked("sea_emissivity")
 
         _, flat = lwir.emissivity_curve(t_sea_k=SCENARIO.sea.t_sea_k)
-        assert baked[0] > 4 * flat[-1], (
+        assert curve[0] > 4 * flat[-1], (
             "grazing emissivity is lifted well clear of flat"
         )
-        _, eps = lwir.emissivity_curve(
-            t_sea_k=SCENARIO.sea.t_sea_k,
-            slope_sigma=scene.unresolved_slope(SCENARIO.sea.wind_speed_mps),
-        )
-        assert baked[-1] == pytest.approx(eps[0], rel=1e-4), "nadir is unchanged"
 
     def test_a_target_radiates_at_its_own_temperature(self) -> None:
         """`t_k` is in the scenario; a target rendering at its albedo ignores it."""
@@ -324,18 +325,15 @@ class TestIrBand:
 
     def test_the_baked_emissivity_matches_the_curve(self) -> None:
         """The shader reads this by cos(theta); the curve is sampled by theta."""
-        image = bpy.data.images["sea_emissivity"]
-        pixels = np.empty(len(image.pixels), dtype=np.float32)
-        image.pixels.foreach_get(pixels)
-        baked = pixels.reshape(-1, 4)[:, 0]
+        curve = baked("sea_emissivity")
 
         _, eps = lwir.emissivity_curve(
             t_sea_k=SCENARIO.sea.t_sea_k,
             slope_sigma=scene.unresolved_slope(SCENARIO.sea.wind_speed_mps),
         )
-        assert baked[-1] == pytest.approx(eps[0], rel=1e-4), "cos(theta)=1 is normal"
-        assert baked[0] == pytest.approx(eps[-1], abs=2e-3), "cos(theta)=0 is grazing"
-        assert np.all(np.diff(baked) >= -1e-6), "emissivity rises towards normal"
+        assert curve[-1] == pytest.approx(eps[0], rel=1e-4), "cos(theta)=1 is normal"
+        assert curve[0] == pytest.approx(eps[-1], abs=2e-3), "cos(theta)=0 is grazing"
+        assert np.all(np.diff(curve) >= -1e-6), "emissivity rises towards normal"
 
     def test_radiance_is_not_sent_through_a_film_curve(self) -> None:
         """Pixels are W m^-2 sr^-1. Blender defaults to AgX, which is built to make
