@@ -121,7 +121,8 @@ class Outputs(Model):
 
     EXR by default: it is float, so an LWIR pixel stays the radiance in W m^-2 sr^-1
     that the render produced. PNG is 8-bit and needs a mapping onto it -- for EO the
-    exposure below and Blender's AgX film curve, for LWIR `ir_window_k`.
+    exposure below and Blender's AgX film curve, for LWIR an auto-contrast over the
+    frame, which is a picture rather than a measurement.
     """
 
     bands: tuple[Band, ...] = Field(default=("eo", "ir"), min_length=1)
@@ -134,23 +135,6 @@ class Outputs(Model):
     # the exr keeps its radiance and ir ignores this. Blender clamps to +/-32 in
     # silence, so -50 would read back as -32.
     exposure_ev: float = Field(default=-5.0, ge=-32.0, le=32.0)
-    # Brightness temperature at black and at white in an ir png. Fixed, not stretched
-    # per frame: a stretch makes two frames incomparable. 270-300 K spans the shipped
-    # sea, sky and hull.
-    ir_window_k: tuple[float, float] = (270.0, 300.0)
-
-    @model_validator(mode="after")
-    def _window_is_a_usable_span(self) -> "Outputs":
-        """Reversed inverts every frame; too narrow quantises it to one bit."""
-        low, high = self.ir_window_k
-        if not 200.0 <= low < high <= 400.0:
-            raise ValueError(
-                f"ir_window_k must be low to high within 200-400 K, the range "
-                f"`lwir.brightness_temperature` resolves: {self.ir_window_k}"
-            )
-        if high - low < 1.0:
-            raise ValueError(f"ir_window_k spans less than 1 K: {self.ir_window_k}")
-        return self
 
     @model_validator(mode="after")
     def _bands_are_distinct(self) -> "Outputs":

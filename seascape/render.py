@@ -38,16 +38,28 @@ def _settings(scenario: Scenario, band: Band, writing: ImageFormat) -> None:
     sc.render.image_settings.color_depth = depth
 
 
-def _thermal_png(exr: Path, png: Path, window_k: tuple[float, float]) -> None:
-    """Rewrite a float LWIR render as 8-bit grey, linear in brightness temperature."""
+def _thermal_png(exr: Path, png: Path) -> None:
+    """Rewrite a float LWIR render as 8-bit grey, auto-contrasted over the frame.
+
+    Black is the coldest pixel and white the hottest, so the frame uses the whole
+    range whatever the scene. The cost is that the scale is the frame's own: two
+    images are not comparable and a pixel is not a temperature. The exr beside it is
+    where both of those live.
+    """
     source = bpy.data.images.load(str(exr))
     width, height = source.size
     out = bpy.data.images.new(png.stem, width, height)
     try:
         buffer = np.empty(width * height * 4, dtype=np.float32)
         source.pixels.foreach_get(buffer)
-        low, high = window_k
         t_k = lwir.brightness_temperature(buffer.reshape(-1, 4)[:, 0])
+        # Full span, not a percentile: a target is a small fraction of the frame and
+        # trimming the tails is what flattens it to white. A render has no dead
+        # pixels; a real sensor would need the tails trimmed here.
+        low, high = float(t_k.min()), float(t_k.max())
+        # A frame of one temperature has no contrast to stretch; mid-grey, not NaN.
+        if high - low < 1e-6:
+            low, high = low - 0.5, low + 0.5
         # float32: foreach_set takes the buffer's type literally and rejects a double.
         grey = np.clip((t_k - low) / (high - low), 0.0, 1.0).astype(np.float32)
 
@@ -92,7 +104,7 @@ def render(scenario: Scenario, into: Path) -> list[Path]:
             bpy.ops.render.render(write_still=True)
             image = into / f"{spec.name}.{outputs.format}"
             if thermal_png:
-                _thermal_png(into / f"{spec.name}.exr", image, outputs.ir_window_k)
+                _thermal_png(into / f"{spec.name}.exr", image)
             written.append(image)
     if not written:
         # Skipping a band the default asked for is right; writing nothing at all

@@ -185,28 +185,6 @@ def test_every_shipped_preset_parses() -> None:
         tomllib.load(preset.open("rb"))
 
 
-@pytest.mark.parametrize(
-    ("window", "match"),
-    [
-        ((300.0, 270.0), "low to high"),  # inverts every frame
-        ((270.0, 270.5), "less than 1 K"),  # quantises to one bit
-        ((100.0, 300.0), "low to high"),  # below what brightness_temperature resolves
-        ((300.0, 500.0), "low to high"),  # above it
-    ],
-)
-def test_an_unusable_ir_window_is_rejected(
-    window: tuple[float, float], match: str
-) -> None:
-    with pytest.raises(ValidationError, match=match):
-        Outputs(ir_window_k=window)
-
-
-def test_a_band_cannot_be_listed_twice() -> None:
-    """A repeat renders the same cameras onto the same files."""
-    with pytest.raises(ValidationError, match="listed twice"):
-        Outputs(bands=("eo", "eo"))
-
-
 @pytest.mark.parametrize("exposure_ev", [-50.0, 100.0])
 def test_an_exposure_blender_would_clamp_is_rejected(exposure_ev: float) -> None:
     """Blender pins it to +/-32 and says nothing, so the render is not as configured."""

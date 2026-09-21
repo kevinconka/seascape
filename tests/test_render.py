@@ -50,38 +50,58 @@ def grey_of(png: Path) -> np.ndarray:
 
 
 class TestThermalPng:
-    """Black at the window's low end, white at its high end, linear between.
+    """Coldest pixel black, hottest white, linear in brightness temperature between.
 
-    An inverted, flipped or sRGB-encoded image is a plausible-looking picture, so
-    only the numbers catch it.
+    An inverted, flipped or sRGB-encoded frame is still a plausible-looking picture,
+    so only the numbers catch it.
     """
 
-    WINDOW = (270.0, 300.0)
-
-    def test_the_window_ends_map_to_black_and_white(self, tmp_path: Path) -> None:
+    def test_the_frame_is_stretched_to_the_full_range(self, tmp_path: Path) -> None:
         from seascape import lwir
 
-        exr = exr_of(tmp_path, [lwir.band_radiance(t) for t in (270.0, 300.0)])
+        exr = exr_of(tmp_path, [lwir.band_radiance(t) for t in (272.0, 295.0)])
         png = tmp_path / "out.png"
-        render._thermal_png(exr, png, self.WINDOW)
+        render._thermal_png(exr, png)
         low, high = grey_of(png)
         assert low == pytest.approx(0.0, abs=0.01)
         assert high == pytest.approx(1.0, abs=0.01)
 
-    def test_the_middle_of_the_window_is_mid_grey(self, tmp_path: Path) -> None:
+    def test_the_middle_temperature_is_mid_grey(self, tmp_path: Path) -> None:
         """Catches an sRGB encode, which puts 0.5 at 0.74."""
         from seascape import lwir
 
-        exr = exr_of(tmp_path, [lwir.band_radiance(285.0)])
+        exr = exr_of(tmp_path, [lwir.band_radiance(t) for t in (270.0, 285.0, 300.0)])
         png = tmp_path / "out.png"
-        render._thermal_png(exr, png, self.WINDOW)
-        assert grey_of(png)[0] == pytest.approx(0.5, abs=0.01)
+        render._thermal_png(exr, png)
+        assert grey_of(png)[1] == pytest.approx(0.5, abs=0.01)
+
+    def test_a_target_is_not_flattened_to_white(self, tmp_path: Path) -> None:
+        """A percentile stretch would trim the few rows a distant hull occupies."""
+        from seascape import lwir
+
+        sea = [lwir.band_radiance(285.0)] * 40
+        exr = exr_of(tmp_path, [*sea, lwir.band_radiance(300.0)])
+        png = tmp_path / "out.png"
+        render._thermal_png(exr, png)
+        grey = grey_of(png)
+        assert grey[-1] == pytest.approx(1.0, abs=0.01)  # the hull
+        assert grey[0] == pytest.approx(0.0, abs=0.01)  # the sea
+
+    def test_a_frame_of_one_temperature_does_not_divide_by_zero(
+        self, tmp_path: Path
+    ) -> None:
+        from seascape import lwir
+
+        exr = exr_of(tmp_path, [lwir.band_radiance(290.0)] * 4)
+        png = tmp_path / "out.png"
+        render._thermal_png(exr, png)
+        assert np.isfinite(grey_of(png)).all()
 
     def test_the_float_render_is_removed_on_success(self, tmp_path: Path) -> None:
         from seascape import lwir
 
-        exr = exr_of(tmp_path, [lwir.band_radiance(285.0)])
-        render._thermal_png(exr, tmp_path / "out.png", self.WINDOW)
+        exr = exr_of(tmp_path, [lwir.band_radiance(285.0), lwir.band_radiance(295.0)])
+        render._thermal_png(exr, tmp_path / "out.png")
         assert not exr.exists()
 
     def test_a_failure_keeps_the_float_render_and_leaks_nothing(
@@ -92,9 +112,9 @@ class TestThermalPng:
 
         exr = exr_of(tmp_path, [lwir.band_radiance(285.0)])
         before = len(bpy.data.images)
-        monkeypatch.setattr(render.lwir, "brightness_temperature", _raise, raising=True)
+        monkeypatch.setattr(render.lwir, "brightness_temperature", _raise)
         with pytest.raises(RuntimeError):
-            render._thermal_png(exr, tmp_path / "out.png", self.WINDOW)
+            render._thermal_png(exr, tmp_path / "out.png")
         assert exr.exists()
         assert len(bpy.data.images) == before
 
