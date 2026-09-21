@@ -142,6 +142,44 @@ class Object(Model):
     t_k: float = Field(default=293.0, ge=250.0, le=400.0)
 
 
+class Ownship(Model):
+    """The vessel the rig is bolted to. Its own cameras see it, which is the point:
+    the forecastle occludes the lower frame and the bow has a blind wedge."""
+
+    asset: str
+    t_k: float = Field(default=296.0, ge=250.0, le=400.0)
+
+
+class Targets(Model):
+    """A ring of vessels in the world, at one range, spread over a span of bearings.
+
+    World objects, not a per-camera construct: nothing here refers to the rig. That
+    every camera ends up with one in frame is a property of the two geometries, so it
+    is asserted in a test rather than guaranteed by the placement.
+    """
+
+    asset: str
+    count: int = Field(gt=0)
+    range_m: float = Field(gt=0.0)
+    # Inclusive span, spread evenly. Both ends are used, so `count` targets sit at
+    # `count - 1` intervals across it.
+    bearing_deg: tuple[float, float]
+    # Spread evenly too, so aspect varies between targets and projected size with it.
+    heading_deg: tuple[float, float] = (0.0, 315.0)
+    t_k: float = Field(default=293.0, ge=250.0, le=400.0)
+
+    def _spread(self, span: tuple[float, float], i: int) -> float:
+        low, high = span
+        return low + (high - low) * i / max(self.count - 1, 1)
+
+    def poses(self) -> list[tuple[float, float]]:
+        """Bearing and heading per target, in degrees."""
+        return [
+            (self._spread(self.bearing_deg, i), self._spread(self.heading_deg, i))
+            for i in range(self.count)
+        ]
+
+
 class Outputs(Model):
     """What a render writes.
 
@@ -180,6 +218,8 @@ class Outputs(Model):
 class Scenario(Model):
     seed: int = 0
     rig: Rig
+    ownship: Ownship | None = None
+    targets: Targets | None = None
     sea: Sea = Field(default_factory=Sea)
     sky: Sky = Field(default_factory=Sky)
     objects: list[Object] = Field(default_factory=list)

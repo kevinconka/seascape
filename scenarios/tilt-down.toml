@@ -1,0 +1,14 @@
+#:schema ../schema/scenario.json
+
+# The installed rig, pitched 5 deg down.
+#
+# Tilt is fixed at manufacture and still an open item in the pod spec, so it belongs
+# in a variant rather than in the rig preset: the nominal scene stays level and this
+# is one point of a sweep.
+
+extends = "twin-pod.toml"
+
+[rig]
+# Negative is down. Blender's +X rotation lifts a camera's view, so `scene` builds the
+# camera at 90 + tilt and the sign survives exactly one negation.
+tilt_deg = -5.0

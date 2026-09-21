@@ -27,6 +27,10 @@ class Asset(Model):
     # A real figure for the vessel, not a proportion of the mesh: assets are stylised.
     # Required, because defaulting it to zero floats the hull and looks almost right.
     draught_m: float = Field(ge=0.0)
+    # Which way the mesh's bow points before anything rotates it, as a bearing. The
+    # build turns it to +Y, so a heading in a scenario means the same thing whatever
+    # convention the author used.
+    bow_deg: float = 0.0
     licence: str = Field(min_length=1)
     attribution: str = Field(min_length=1)
 

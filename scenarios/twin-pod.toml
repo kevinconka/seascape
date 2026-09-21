@@ -1,0 +1,29 @@
+#:schema ../schema/scenario.json
+
+# The rig as it is actually installed: two pods on the bridge wings of a container
+# ship, looking out over their own deck, with a ring of merchant traffic at 7 NM.
+#
+# The rig preset already carries the pods and the height of the bridge wings they sit
+# on. What this adds is the ship under them and the traffic around them; the baseline
+# keeps the same rig lowered to 12 m, which is all the shader tests need.
+
+extends = "baseline.toml"
+
+[rig]
+# The rig preset carries this, but baseline lowers it to 12 m for the shader tests
+# and `extends` brings that override along. Stated again so the pods stand on the
+# bridge wings rather than 40 m below them.
+height_m = 51.8
+
+[ownship]
+asset = "container_ship"
+
+[targets]
+asset = "container_ship"
+# 7 NM, the EO detection range the pod is specified against.
+range_m = 12964.0
+# One per camera, which is a consequence of the two geometries rather than the rule
+# used to place them: eight bearings 35 deg apart across the rig's 245 deg of EO, and
+# the IR pair at +-10 deg picks up the two innermost. A test holds that.
+count = 8
+bearing_deg = [-120.0, 120.0]
