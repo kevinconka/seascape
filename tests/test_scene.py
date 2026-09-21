@@ -246,3 +246,10 @@ class TestIrBand:
         assert baked[-1] == pytest.approx(eps[0], rel=1e-4), "cos(theta)=1 is normal"
         assert baked[0] == pytest.approx(eps[-1], abs=2e-3), "cos(theta)=0 is grazing"
         assert np.all(np.diff(baked) >= -1e-6), "emissivity rises towards normal"
+
+    def test_radiance_is_not_sent_through_a_film_curve(self) -> None:
+        """Pixels are W m^-2 sr^-1. Blender defaults to AgX, which is built to make
+        photographs pleasant and would leave nothing measurable behind."""
+        view = bpy.context.scene.view_settings
+        assert (view.view_transform, view.look) == ("Standard", "None")
+        assert (view.exposure, view.gamma) == (0.0, 1.0)

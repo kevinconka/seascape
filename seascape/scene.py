@@ -207,6 +207,10 @@ def _thermal_sea(sea: Sea) -> bpy.types.Material:
     tree.nodes.clear()
     mirror = tree.nodes.new("ShaderNodeBsdfGlossy")
     mirror.inputs["Roughness"].default_value = 0.0
+    # Glossy BSDF ships at 0.8 grey. The Mix Shader already applies the 1 - eps
+    # weighting, so anything but white here absorbs a fifth of the reflected sky and
+    # cuts a dark notch along the horizon.
+    mirror.inputs["Color"].default_value = (1.0, 1.0, 1.0, 1.0)
     emission = tree.nodes.new("ShaderNodeEmission")
     emission.inputs["Strength"].default_value = lwir.band_radiance(sea.t_sea_k)
     mix = tree.nodes.new("ShaderNodeMixShader")
@@ -387,6 +391,13 @@ def build(scenario: Scenario, band: Band = "eo") -> None:
     units. Rendering both bands means building twice, which costs seconds.
     """
     bpy.ops.wm.read_factory_settings(use_empty=True)
+    if band == "ir":
+        # Pixels are radiance in W m^-2 sr^-1, not a picture. Blender defaults to the
+        # AgX film curve, which is a lookup built to make photographs pleasant and
+        # destroys the one property these pixels have. Any AGC belongs in post.
+        view = bpy.context.scene.view_settings
+        view.view_transform, view.look = "Standard", "None"
+        view.exposure, view.gamma = 0.0, 1.0
     bpy.context.scene.world = _sky(scenario.sky, band)
     reach_m = REACH_MARGIN * max(
         MIN_REACH_M, *(o.range_m for o in scenario.objects), 0.0
