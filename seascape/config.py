@@ -19,7 +19,7 @@ import tomllib
 from pathlib import Path
 from typing import Any, Literal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from seascape import lwir
 
@@ -41,11 +41,18 @@ class Model(BaseModel):
 
 class Camera(Model):
     kind: Band
-    pod: str
+    # A camera's name is built from these three and used as a filename, so a pod that
+    # is path text writes the render outside the output directory.
+    pod: str = Field(pattern=r"^[A-Za-z0-9_-]+$")
     bearing_deg: float  # relative to the bow, positive to starboard
     hfov_deg: float = Field(gt=0.0, lt=180.0)
     width_px: int = Field(gt=0)
     height_px: int = Field(gt=0)
+
+    @property
+    def name(self) -> str:
+        """The .blend datablock name, and the render's filename."""
+        return f"{self.pod}_{self.kind}_{self.bearing_deg:+g}"
 
 
 class Rig(Model):
@@ -54,6 +61,14 @@ class Rig(Model):
     height_m: float = Field(gt=0.0)
     tilt_deg: float = 0.0
     cameras: list[Camera] = Field(min_length=1)
+
+    @model_validator(mode="after")
+    def _names_are_unique(self) -> "Rig":
+        """Two cameras of one name share a datablock and overwrite each other's file."""
+        names = [c.name for c in self.cameras]
+        if len(set(names)) != len(names):
+            raise ValueError(f"two cameras share a name: {sorted(names)}")
+        return self
 
 
 class Sea(Model):
@@ -95,12 +110,35 @@ class Object(Model):
     t_k: float = Field(default=293.0, ge=250.0, le=400.0)
 
 
+class Outputs(Model):
+    """What a render writes.
+
+    Every camera of a listed band is rendered; a scene is built per band.
+
+    Cycles only: EEVEE is not bit-reproducible and its Metal driver cannot be pinned.
+
+    EXR because an LWIR pixel is radiance in W m^-2 sr^-1 and float is what holds it.
+    An 8-bit image needs a mapping onto it, which is a separate decision per band.
+    """
+
+    bands: tuple[Band, ...] = Field(default=("eo", "ir"), min_length=1)
+    samples: int = Field(default=64, gt=0)
+
+    @model_validator(mode="after")
+    def _bands_are_distinct(self) -> "Outputs":
+        """A repeat renders the same cameras twice, onto the same files."""
+        if len(set(self.bands)) != len(self.bands):
+            raise ValueError(f"a band is listed twice: {self.bands}")
+        return self
+
+
 class Scenario(Model):
     seed: int = 0
     rig: Rig
     sea: Sea = Field(default_factory=Sea)
     sky: Sky = Field(default_factory=Sky)
     objects: list[Object] = Field(default_factory=list)
+    outputs: Outputs = Field(default_factory=Outputs)
 
 
 def _merge(base: dict[str, Any], over: dict[str, Any]) -> dict[str, Any]:

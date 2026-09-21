@@ -61,10 +61,12 @@ These produce wrong output with no error. They are the reason this file exists.
 - **Objects can share a mesh datablock.** Material slots link to mesh data by default, so assigning a material to one object silently changes the other. Use `slot.link = "OBJECT"` when they must differ.
 - **Shader node trees leak.** If you build a chain, cleanup must remove the whole chain, not just the node you tagged. Re-running a build should leave the node count unchanged.
 - **A sea at air temperature has no LWIR waves.** Emission and reflected sky are then the same radiance, so tilting a facet changes nothing and the surface renders as a flat plate. `t_sea_k - t_air_k` is the wave signal, not a refinement of it.
-- **The engine identifier is version-dependent.** `BLENDER_EEVEE` means EEVEE Legacy on ≤4.1 and EEVEE Next on ≥5.0, with `BLENDER_EEVEE_NEXT` in between. Assert against the enum. The Sky Texture moved the same way: `NISHITA` is `SINGLE_SCATTERING` and `MULTIPLE_SCATTERING` on ≥5.0.
+- **The engine identifier is version-dependent.** `BLENDER_EEVEE` means EEVEE Legacy on ≤4.1 and EEVEE Next on ≥5.0, with `BLENDER_EEVEE_NEXT` in between. The Sky Texture moved the same way: `NISHITA` is `SINGLE_SCATTERING` and `MULTIPLE_SCATTERING` on ≥5.0.
+- **Do not validate an engine against the enum.** Under the `bpy` module `render.engine` reports only `['BLENDER_EEVEE']`, on the class and the instance alike, because Cycles registers as an add-on. Assigning `CYCLES` works anyway and reads back. Assign it and let Blender raise: an identifier it does not know is a `TypeError`.
 - **A camera's `clip_end` defaults to 1000 m.** A target at 2 km renders as sky and the clip boundary reads as a convincing horizon. Nothing warns. Set it from the scene's reach.
 - **`matrix_world` is stale until the depsgraph runs.** Parent an object, move the parent, read a child's `matrix_world`, and you get where it used to be. `view_layer.update()` first, or every measurement quietly describes the wrong scene.
 - **An empty's `bound_box` is a unit cube at its origin.** An imported FBX is largely empties, so measuring the extent of "everything I just imported" inflates it and the fit comes out wrong.
+- **Cycles denoising is on by default and is not radiometric.** OIDN is an edge-aware image filter. On a world flat at 290.00 K it returns 282.43-293.00 K, worst at the frame border, and it breaks the R=G=B that an LWIR scene guarantees. Turn it off for the `ir` band; EO is a picture and keeps it.
 - **The Sky Texture's `turbidity` does nothing under the scattering models.** It belongs to Preetham and Hosek-Wilkie. Haze there is `aerosol_density`. Setting the wrong one is accepted in silence and changes no pixel, which was verified by rendering both.
 
 ## Conventions

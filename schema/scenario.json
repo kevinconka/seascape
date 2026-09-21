@@ -14,6 +14,7 @@
           "$ref": "#/$defs/Band"
         },
         "pod": {
+          "pattern": "^[A-Za-z0-9_-]+$",
           "title": "Pod",
           "type": "string"
         },
@@ -85,6 +86,32 @@
         "bearing_deg"
       ],
       "title": "Object",
+      "type": "object"
+    },
+    "Outputs": {
+      "additionalProperties": false,
+      "description": "What a render writes.\n\nEvery camera of a listed band is rendered; a scene is built per band.\n\nCycles only: EEVEE is not bit-reproducible and its Metal driver cannot be pinned.\n\nEXR because an LWIR pixel is radiance in W m^-2 sr^-1 and float is what holds it.\nAn 8-bit image needs a mapping onto it, which is a separate decision per band.",
+      "properties": {
+        "bands": {
+          "default": [
+            "eo",
+            "ir"
+          ],
+          "items": {
+            "$ref": "#/$defs/Band"
+          },
+          "minItems": 1,
+          "title": "Bands",
+          "type": "array"
+        },
+        "samples": {
+          "default": 64,
+          "exclusiveMinimum": 0,
+          "title": "Samples",
+          "type": "integer"
+        }
+      },
+      "title": "Outputs",
       "type": "object"
     },
     "Rig": {
@@ -195,6 +222,9 @@
       },
       "title": "Objects",
       "type": "array"
+    },
+    "outputs": {
+      "$ref": "#/$defs/Outputs"
     }
   },
   "required": [
