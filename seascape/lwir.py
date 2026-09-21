@@ -1,10 +1,15 @@
-"""Band-integrated LWIR emissivity of a water surface.
+"""Band-integrated LWIR emissivity of a water surface, and the sky it reflects.
 
 Blender is an RGB renderer with no concept of the 8-14 um band, and its Fresnel node
 takes a scalar IOR where water needs a complex one (n + i*k). So the emissivity curve is
-evaluated here and the shader consumes it as a 1D lookup. Nothing else belongs in this
-module: path extinction is Blender's volume nodes, and the sky term stays a guess until
-someone brings a real model. Angles are radians.
+evaluated here and the shader consumes it as a 1D lookup. The sky curve is here for the
+same reason: the Sky Texture is a visible-band scattering model with nothing to say
+about 8-14 um. Path extinction is not here, because that is Blender's volume nodes.
+Angles are radians.
+
+A sea surface emits and reflects, and the two are complements: `1 - eps` of what it does
+not emit comes back as reflected sky. Leave the reflection out and the sea goes black at
+grazing incidence, which is most of a maritime image.
 
 Sources
 -------
@@ -13,6 +18,12 @@ the thermal infrared derived from data archaeology", Optics Continuum 1(4) 738, 
 (doi:10.1364/OPTCON.450833); data doi:10.6084/m9.figshare.19341533, CC BY 4.0. That is
 Downing & Williams 1975 extended across 271-311 K using Pinkley et al. 1977. The table
 ships as data/water_nk.csv, which carries the same citation.
+
+Sky emissivity: one LOWTRAN7 run, midlatitude summer profile with the navy maritime
+aerosol, observer at 12 m, integrated over the band. LOWTRAN7 is public-domain
+(AFGL-TR-88-0177); the run is reproducible with `lowtran` on PyPI, which needs gfortran.
+It is a band model, not line-by-line, and the profile is fixed: good to a few percent,
+not a radiometric reference.
 
 h, c and k_B are the SI defining constants, exact since the 2019 redefinition.
 
@@ -43,6 +54,28 @@ LIGHT_C = 2.99792458e8  # m s^-1
 BOLTZMANN_K = 1.380649e-23  # J K^-1
 
 T_SEA_K = 288.0
+T_AIR_K = 288.0
+
+# Downwelling sky emissivity against elevation above the horizon, in degrees for
+# legibility and converted once below. Normalised by the horizon value, which is ambient
+# by construction: a horizontal path is optically thick, so the sky at the horizon is a
+# blackbody at air temperature. That normalisation is what lets one curve serve any air
+# temperature -- the shape belongs to the atmosphere, the scale to Planck.
+_SKY_EPS = (
+    (0.0, 1.0000),
+    (1.0, 0.9898),
+    (2.0, 0.9863),
+    (3.0, 0.9789),
+    (5.0, 0.9507),
+    (7.0, 0.9129),
+    (10.0, 0.8535),
+    (15.0, 0.7663),
+    (20.0, 0.6973),
+    (30.0, 0.6001),
+    (45.0, 0.5143),
+    (60.0, 0.4671),
+    (90.0, 0.4352),
+)
 
 
 def _checked_kelvin(t_k: float) -> float:
@@ -148,3 +181,19 @@ def band_radiance(t_k: float) -> float:
     """Blackbody radiance integrated over the band, W m^-2 sr^-1."""
     lam, _, _ = optical_constants(t_k)
     return float(np.trapezoid(planck(lam, t_k), lam))
+
+
+def sky_radiance(elev_rad: npt.ArrayLike, t_air_k: float = T_AIR_K) -> FloatArray:
+    """Downwelling in-band sky radiance at an elevation above the horizon.
+
+    The sky cools from ambient at the horizon, where the slant path is optically thick,
+    to roughly 0.44 of it at the zenith. That convergence is what makes a thermal
+    horizon read correctly: sea and sky meet at the same radiance, so contrast collapses
+    exactly where a target is hardest to see.
+
+    Below the horizon the curve holds at ambient, which is what a ray that misses the
+    sea should see.
+    """
+    elev, eps = np.array(_SKY_EPS, dtype=np.float64).T
+    fraction = np.interp(np.asarray(elev_rad, dtype=np.float64), np.radians(elev), eps)
+    return fraction * band_radiance(t_air_k)

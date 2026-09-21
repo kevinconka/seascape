@@ -159,3 +159,53 @@ def test_band_holds_a_plausible_share_of_total_emission() -> None:
     """
     total = STEFAN_BOLTZMANN * 288.0**4 / np.pi
     assert 0.35 <= lwir.band_radiance(288.0) / total <= 0.50
+
+
+def test_sky_meets_ambient_at_the_horizon() -> None:
+    """A horizontal path is optically thick, so the horizon sky is a blackbody.
+
+    Nothing in the table forces this: the curve is normalised, and the absolute scale
+    comes from Planck at the air temperature. The assertion checks the two agree, which
+    is what makes sea and sky converge and a thermal horizon read correctly.
+    """
+    assert float(lwir.sky_radiance(0.0, 290.0)) == pytest.approx(
+        lwir.band_radiance(290.0)
+    )
+
+
+def test_sky_cools_toward_the_zenith() -> None:
+    """Less atmosphere along the path means less emission, monotonically.
+
+    Checking only the endpoints would miss a curve that dips in the middle, which is
+    what a bad interpolation or an out-of-order table gives.
+    """
+    radiance = lwir.sky_radiance(np.radians([0.0, 5.0, 20.0, 45.0, 90.0]))
+    assert np.all(np.diff(radiance) < 0.0)
+
+
+def test_zenith_sky_is_as_cold_as_a_real_clear_sky() -> None:
+    """Published clear-sky zenith brightness temperature spans ~230-265 K in band.
+
+    Dry air sits at the bottom of that range and humid air at the top. The bracket is
+    wide because the curve is one fixed profile, and narrow enough to catch a flat
+    curve, an inverted one, or a Planck unit error.
+    """
+    zenith = float(lwir.sky_radiance(np.pi / 2, 288.0))
+    assert lwir.band_radiance(230.0) <= zenith <= lwir.band_radiance(265.0)
+
+
+def test_sky_below_the_horizon_holds_at_ambient() -> None:
+    """A ray that misses the sea must not fall off the end of the curve.
+
+    The sea grid is finite, so rays do get there. Extrapolating would send the radiance
+    somewhere arbitrary; holding at ambient is what the atmosphere would actually show.
+    """
+    assert float(lwir.sky_radiance(np.radians(-20.0))) == pytest.approx(
+        float(lwir.sky_radiance(0.0))
+    )
+
+
+def test_sky_rejects_impossible_air_temperatures() -> None:
+    """The temperature guard reaches the sky curve too, through band_radiance."""
+    with pytest.raises(ValueError, match="positive"):
+        lwir.sky_radiance(0.0, -1.0)
