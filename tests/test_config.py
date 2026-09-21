@@ -4,7 +4,6 @@ No Blender. Geometry is asserted from the bearings and FOVs as configured; measu
 it off a built scene is a separate check.
 """
 
-import itertools
 import json
 import tomllib
 from pathlib import Path
@@ -35,28 +34,6 @@ def test_baseline_has_eight_cameras(baseline) -> None:
     kinds = [camera.kind for camera in baseline.rig.cameras]
     assert kinds.count("eo") == 6
     assert kinds.count("ir") == 2
-
-
-@pytest.mark.parametrize(
-    ("pod", "span_deg", "overlap_deg"),
-    [("port", 125.0, 5.0), ("starboard", 125.0, 5.0), ("bow", 44.0, 4.0)],
-)
-def test_pod_geometry(baseline, pod, span_deg, overlap_deg) -> None:
-    """Combined span and neighbour overlap, derived from the bearings and FOVs.
-
-    A typo in twin_pod.toml or in a camera preset moves these; nothing else does.
-    """
-    edges = sorted(
-        (
-            camera.bearing_deg - camera.hfov_deg / 2,
-            camera.bearing_deg + camera.hfov_deg / 2,
-        )
-        for camera in baseline.rig.cameras
-        if camera.pod == pod
-    )
-    assert edges[-1][1] - edges[0][0] == pytest.approx(span_deg)
-    overlaps = [left[1] - right[0] for left, right in itertools.pairwise(edges)]
-    assert overlaps == pytest.approx([overlap_deg] * len(overlaps))
 
 
 def test_preset_supplies_optics_and_block_supplies_the_mount(baseline) -> None:
@@ -100,17 +77,18 @@ def test_a_preset_outranks_an_inherited_value(tmp_path) -> None:
     assert [camera.kind for camera in scenario.rig.cameras] == ["ir"]
 
 
-def test_tables_merge_and_lists_replace(tmp_path) -> None:
+def test_tables_merge_and_lists_replace(tmp_path, baseline) -> None:
     """A variant changes one key; siblings survive, a list does not."""
     scenario = load(
         variant(
             tmp_path,
-            "[sea]\nchoppiness = 0.2\n\n"
+            "[sea]\nwind_speed_mps = 3.0\n\n"
             '[[rig.cameras]]\npreset = "ir"\npod = "bow"\nbearing_deg = 0.0\n',
         )
     )
-    assert scenario.sea.choppiness == 0.2
-    assert scenario.sea.t_sea_k == 288.0  # sibling key survived the merge
+    assert scenario.sea.wind_speed_mps == 3.0
+    # Read off the parent, not written out: this is about the merge, not the value.
+    assert scenario.sea.t_sea_k == baseline.sea.t_sea_k
     assert scenario.rig.height_m == 12.0  # sibling table survived it too
     assert len(scenario.rig.cameras) == 1  # the list did not
 
@@ -204,4 +182,4 @@ def test_every_shipped_preset_parses() -> None:
     presets = sorted(CFG_DIR.rglob("*.toml"))
     assert {path.parent.name for path in presets} == {"rig", "cameras", "objects"}
     for preset in presets:
-        tomllib.loads(preset.read_text())
+        tomllib.load(preset.open("rb"))

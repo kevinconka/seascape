@@ -25,6 +25,9 @@ from seascape import lwir
 
 CFG_DIR = Path(__file__).parent / "cfg"
 
+# A camera's kind is the band it sees in, and a scene is built for one band at a time.
+type Band = Literal["eo", "ir"]
+
 
 class Model(BaseModel):
     """Strictness shared by everything this package parses from TOML."""
@@ -37,7 +40,7 @@ class Model(BaseModel):
 
 
 class Camera(Model):
-    kind: Literal["eo", "ir"]
+    kind: Band
     pod: str
     bearing_deg: float  # relative to the bow, positive to starboard
     hfov_deg: float = Field(gt=0.0, lt=180.0)
@@ -54,7 +57,7 @@ class Rig(Model):
 
 
 class Sea(Model):
-    """Blender's Ocean modifier is driven by wind, so the config is too.
+    """Sea state. Wind reaches the waves through wavelength and slope; see `scene`.
 
     271-311 K is the span of the shipped optical-constant table. `lwir` clamps to it;
     here it is an error.
@@ -62,15 +65,24 @@ class Sea(Model):
 
     t_sea_k: float = Field(default=lwir.T_SEA_K, ge=271.0, le=311.0)
     wind_speed_mps: float = Field(default=7.0, ge=0.0)
-    choppiness: float = Field(default=1.0, ge=0.0, le=4.0)
 
 
 class Sky(Model):
-    """Blender's Sky Texture (Nishita). Turbidity's 1-10 is the node's own range."""
+    """Blender's Sky Texture in EO, and the downwelling radiance the sea reflects in IR.
+
+    Haze is `aerosol_density`, the node's own parameter. Its `turbidity` belongs to the
+    Preetham and Hosek-Wilkie models and is ignored by this one, so naming it that would
+    be a knob that changes nothing.
+
+    `t_air_k` scales the IR sky and nothing in EO. Its bound is where the fixed sky
+    profile stays credible; a colder or hotter sea needs a new profile, not a wider
+    bound.
+    """
 
     sun_elevation_deg: float = Field(default=30.0, ge=-90.0, le=90.0)
     sun_bearing_deg: float = 0.0
-    turbidity: float = Field(default=2.0, ge=1.0, le=10.0)
+    aerosol_density: float = Field(default=1.0, ge=0.0, le=10.0)
+    t_air_k: float = Field(default=lwir.T_AIR_K, ge=250.0, le=320.0)
 
 
 class Object(Model):

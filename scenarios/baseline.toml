@@ -10,14 +10,15 @@ preset = "twin_pod"
 height_m = 12.0
 
 [sea]
-t_sea_k = 288.0
+# Above the air on purpose: at the same temperature a tilted facet trades emission for
+# reflected sky of equal radiance and the LWIR waves vanish.
+t_sea_k = 291.0
 wind_speed_mps = 7.0
-choppiness = 1.0
 
 [sky]
 sun_elevation_deg = 30.0
 sun_bearing_deg = 135.0
-turbidity = 2.0
+aerosol_density = 1.0
 
 [[objects]]
 preset = "container_ship"

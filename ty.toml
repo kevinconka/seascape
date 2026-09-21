@@ -3,3 +3,18 @@ python-version = "3.13"
 
 [src]
 include = ["seascape", "tests"]
+
+# bpy and mathutils are compiled modules that ship no stubs, so every attribute on them
+# is unresolved. Scoped to the files that touch Blender so the rule still applies
+# everywhere else.
+[[overrides]]
+include = [
+    "seascape/scene.py",
+    "seascape/cli.py",
+    "tests/test_scene.py",
+    "tests/test_render_drift.py",
+]
+
+[overrides.rules]
+unresolved-attribute = "ignore"
+unresolved-import = "ignore"

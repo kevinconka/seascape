@@ -1,15 +1,17 @@
 {
   "$defs": {
+    "Band": {
+      "enum": [
+        "eo",
+        "ir"
+      ],
+      "type": "string"
+    },
     "Camera": {
       "additionalProperties": false,
       "properties": {
         "kind": {
-          "enum": [
-            "eo",
-            "ir"
-          ],
-          "title": "Kind",
-          "type": "string"
+          "$ref": "#/$defs/Band"
         },
         "pod": {
           "title": "Pod",
@@ -117,7 +119,7 @@
     },
     "Sea": {
       "additionalProperties": false,
-      "description": "Blender's Ocean modifier is driven by wind, so the config is too.\n\n271-311 K is the span of the shipped optical-constant table. `lwir` clamps to it;\nhere it is an error.",
+      "description": "Sea state. Wind reaches the waves through wavelength and slope; see `scene`.\n\n271-311 K is the span of the shipped optical-constant table. `lwir` clamps to it;\nhere it is an error.",
       "properties": {
         "t_sea_k": {
           "default": 288.0,
@@ -131,13 +133,6 @@
           "minimum": 0.0,
           "title": "Wind Speed Mps",
           "type": "number"
-        },
-        "choppiness": {
-          "default": 1.0,
-          "maximum": 4.0,
-          "minimum": 0.0,
-          "title": "Choppiness",
-          "type": "number"
         }
       },
       "title": "Sea",
@@ -145,7 +140,7 @@
     },
     "Sky": {
       "additionalProperties": false,
-      "description": "Blender's Sky Texture (Nishita). Turbidity's 1-10 is the node's own range.",
+      "description": "Blender's Sky Texture in EO, and the downwelling radiance the sea reflects in IR.\n\nHaze is `aerosol_density`, the node's own parameter. Its `turbidity` belongs to the\nPreetham and Hosek-Wilkie models and is ignored by this one, so naming it that would\nbe a knob that changes nothing.\n\n`t_air_k` scales the IR sky and nothing in EO. Its bound is where the fixed sky\nprofile stays credible; a colder or hotter sea needs a new profile, not a wider\nbound.",
       "properties": {
         "sun_elevation_deg": {
           "default": 30.0,
@@ -159,11 +154,18 @@
           "title": "Sun Bearing Deg",
           "type": "number"
         },
-        "turbidity": {
-          "default": 2.0,
+        "aerosol_density": {
+          "default": 1.0,
           "maximum": 10.0,
-          "minimum": 1.0,
-          "title": "Turbidity",
+          "minimum": 0.0,
+          "title": "Aerosol Density",
+          "type": "number"
+        },
+        "t_air_k": {
+          "default": 288.0,
+          "maximum": 320.0,
+          "minimum": 250.0,
+          "title": "T Air K",
           "type": "number"
         }
       },

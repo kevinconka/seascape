@@ -15,19 +15,13 @@
 > [!NOTE]
 > Early days. The scaffolding is landing first — see [Status](#status).
 
-Real footage can't put a vessel at exactly 7 NM, hold the visibility constant, or show you the
-same ship from eight aspects. `seascape` renders maritime scenes where you choose all of that,
-and tells you exactly where everything was.
+Real footage can't put a vessel at exactly 7 NM, hold the visibility constant, or show you the same ship from eight aspects. `seascape` renders maritime scenes where you choose all of that, and tells you exactly where everything was.
 
 ## Highlights
 
-- **Ground truth you can trust.** Rigs are built from code, so camera extrinsics and intrinsics
-  are known by construction rather than estimated. Every target comes back with its true range,
-  bearing and pixel extent.
-- **LWIR as well as EO.** Thermal renders use real seawater emissivity, angle-dependent sky
-  reflection and atmospheric attenuation across the 8–14 µm band.
-- **Multi-sensor rigs.** Several cameras, each with its own resolution, optics and modality,
-  in one scene with known relative geometry.
+- **Ground truth by construction.** Rigs are built from code, so camera extrinsics and intrinsics are known rather than estimated. Writing them out alongside the images is the step being built now.
+- **LWIR as well as EO.** Thermal scenes use measured seawater optical constants, emissivity averaged over the wave slopes, and a band-integrated sky. Path extinction is not modelled, the atmospheric profile is fixed, and waves neither occlude nor shadow each other. Good enough to look at and to regression-test against; not a radiometric reference, so a detection-range or contrast figure taken off a render needs review before anyone acts on it.
+- **Multi-sensor rigs.** Several cameras, each with its own resolution, optics and modality, in one scene with known relative geometry.
 
 ## Install
 
@@ -39,20 +33,16 @@ cd seascape
 uv sync
 ```
 
-Only touching the radiometry or the scenario config? `uv sync --no-group blender` skips the
-Blender wheel — 245 MB on Apple silicon, 402 MB on Linux. Those parts are plain NumPy and run
-without it.
+Only touching the radiometry or the scenario config? `uv sync --no-group blender` skips the Blender wheel — 245 MB on Apple silicon, 402 MB on Linux. Those parts are plain NumPy and run without it.
 
 ## Quickstart
 
 ```bash
-uv run seascape render scenarios/baseline.toml            # images + ground truth
-uv run seascape render scenarios/baseline.toml --set rig.tilt_deg=-5
-uv run seascape build  scenarios/baseline.toml --open     # a .blend, opened in Blender
+uv run seascape build scenarios/baseline.toml            # scenarios/baseline.eo.blend
+uv run seascape build scenarios/baseline.toml -o /tmp/look.blend
 ```
 
-A scenario is a TOML file describing the world, the platform, the sensors and the targets.
-Variants are diffs:
+A scenario is a TOML file describing the world, the platform, the sensors and the targets. Variants are diffs:
 
 ```toml
 # scenarios/tilt-down.toml
@@ -62,31 +52,20 @@ extends = "baseline.toml"
 tilt_deg = -5.0
 ```
 
-Scenarios carry a `#:schema` line, so editors with a TOML language server give you key
-completion, inline validation and hover docs. `seascape schema` regenerates
-`schema/scenario.json` from the models.
+Scenarios carry a `#:schema` line, so editors with a TOML language server give you key completion, inline validation and hover docs. `seascape schema` regenerates `schema/scenario.json` from the models.
 
-Meshes are never committed. `seascape/assets.toml` records each one's source, sha256,
-licence and credit; they download on first use to `~/.cache/seascape`, or to
-`$XDG_CACHE_HOME/seascape` when that is set to an absolute path. Every run re-checks
-the digest.
+Meshes are never committed. `seascape/assets.toml` records each one's source, sha256, licence and credit; they download on first use to `~/.cache/seascape`, or to `$XDG_CACHE_HOME/seascape` when that is set to an absolute path. Every run re-checks the digest.
 
 > [!NOTE]
-> `seascape build` validates a scenario and summarises it; `render` doesn't exist yet.
-> The Blender scene lands next.
+> `seascape build` writes the `.blend`. There is no `render` yet, and no ground-truth file: open the scene in Blender to look at it.
 
 ## Blender MCP (optional)
 
-Lets an AI agent inspect and edit whatever scene you have open in Blender. Rendering from the
-CLI never touches it — skip this unless you want the interactive workflow.
+Lets an AI agent inspect and edit whatever scene you have open in Blender. Rendering from the CLI never touches it — skip this unless you want the interactive workflow.
 
-1. **Add the connector.** In Claude Desktop: **Customize → Connectors**, search *Blender*,
-   click **Add**. It's first-party, so there's no config file and no `.mcpb`.
-2. **Install the Blender add-on.** Open the [add-on install page](https://www.blender.org/lab/mcp-server/#add-on)
-   next to Blender and drag the install link onto the Blender window — **twice**. The first
-   drop allows the Blender Lab extension repository, the second installs the add-on.
-3. **Start it.** In Blender: **Edit → Preferences → Add-ons**, find *BlenderMCP*, enable
-   **start MCP server**. Then **Save Preferences**, or it's gone on restart.
+1. **Add the connector.** In Claude Desktop: **Customize → Connectors**, search *Blender*, click **Add**. It's first-party, so there's no config file and no `.mcpb`.
+2. **Install the Blender add-on.** Open the [add-on install page](https://www.blender.org/lab/mcp-server/#add-on) next to Blender and drag the install link onto the Blender window — **twice**. The first drop allows the Blender Lab extension repository, the second installs the add-on.
+3. **Start it.** In Blender: **Edit → Preferences → Add-ons**, find *BlenderMCP*, enable **start MCP server**. Then **Save Preferences**, or it's gone on restart.
 
 Check it's listening:
 
@@ -95,8 +74,7 @@ lsof -nP -iTCP:9876 -sTCP:LISTEN
 ```
 
 > [!WARNING]
-> The add-on runs generated code in your Blender session with no sandbox, and the port is
-> unauthenticated. Changes only persist when you save in Blender.
+> The add-on runs generated code in your Blender session with no sandbox, and the port is unauthenticated. Changes only persist when you save in Blender.
 
 <details>
 <summary>Troubleshooting</summary>
@@ -120,7 +98,8 @@ lsof -nP -iTCP:9876 -sTCP:LISTEN
 | LWIR radiometry | done |
 | Scenario config and schema | done |
 | Asset manifest and cache | done |
-| Scene build and rendering | porting |
+| Scene build | done |
+| Rendering and ground truth | porting |
 | Multi-frame sequences | planned |
 | Vessel motion | planned |
 | COCO labels | planned |
@@ -131,9 +110,6 @@ lsof -nP -iTCP:9876 -sTCP:LISTEN
 
 ## Licence
 
-MIT — see [LICENSE](LICENSE). Bundled 3D assets carry their own licences, recorded in
-`seascape/assets.toml`; some require attribution, which travels with any released dataset.
+MIT — see [LICENSE](LICENSE). Bundled 3D assets carry their own licences, recorded in `seascape/assets.toml`; some require attribution, which travels with any released dataset.
 
-`seascape/data/water_nk.csv` is CC BY 4.0, from
-[Nalli et al. 2022](https://doi.org/10.6084/m9.figshare.19341533); the citation travels in
-the file's own header.
+`seascape/data/water_nk.csv` is CC BY 4.0, from [Nalli et al. 2022](https://doi.org/10.6084/m9.figshare.19341533); the citation travels in the file's own header.
