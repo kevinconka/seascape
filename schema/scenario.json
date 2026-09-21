@@ -49,6 +49,13 @@
       "title": "Camera",
       "type": "object"
     },
+    "Engine": {
+      "enum": [
+        "cycles",
+        "eevee"
+      ],
+      "type": "string"
+    },
     "Object": {
       "additionalProperties": false,
       "description": "Something to detect.",
@@ -85,6 +92,36 @@
         "bearing_deg"
       ],
       "title": "Object",
+      "type": "object"
+    },
+    "Outputs": {
+      "additionalProperties": false,
+      "description": "What a render writes.\n\nEvery camera of every listed band is rendered, so `bands` is the whole selection:\na scene is built per band, and within one there is nothing to choose between.\n\nCycles by default. EEVEE is not bit-reproducible and its Metal driver cannot be\npinned, so anything that has to be defensible renders in Cycles.\n\nThere is no image format. LWIR pixels are radiance in W m^-2 sr^-1 and EXR is the\nonly format that holds them; an 8-bit image needs the sensor's gain curve, which\nnothing here knows yet.",
+      "properties": {
+        "bands": {
+          "default": [
+            "eo",
+            "ir"
+          ],
+          "items": {
+            "$ref": "#/$defs/Band"
+          },
+          "minItems": 1,
+          "title": "Bands",
+          "type": "array"
+        },
+        "samples": {
+          "default": 64,
+          "exclusiveMinimum": 0,
+          "title": "Samples",
+          "type": "integer"
+        },
+        "engine": {
+          "$ref": "#/$defs/Engine",
+          "default": "cycles"
+        }
+      },
+      "title": "Outputs",
       "type": "object"
     },
     "Rig": {
@@ -195,6 +232,9 @@
       },
       "title": "Objects",
       "type": "array"
+    },
+    "outputs": {
+      "$ref": "#/$defs/Outputs"
     }
   },
   "required": [

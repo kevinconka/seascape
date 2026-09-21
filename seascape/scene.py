@@ -31,7 +31,7 @@ from mathutils import Matrix, Vector
 
 from seascape import lwir
 from seascape.assets import fetch, manifest
-from seascape.config import Band, Object, Rig, Scenario, Sea, Sky
+from seascape.config import Band, Camera, Object, Rig, Scenario, Sea, Sky
 
 CURVE_SAMPLES = 256
 
@@ -399,10 +399,15 @@ def _sea(sea: Sea, seed: int, reach_m: float, band: Band) -> bpy.types.Object:
     return water
 
 
+def camera_name(spec: Camera) -> str:
+    """What a camera is called in the .blend, and what its render is filed under."""
+    return f"{spec.pod}_{spec.kind}_{spec.bearing_deg:+g}"
+
+
 def _cameras(rig: Rig, far_m: float) -> list[bpy.types.Object]:
     cameras = []
     for spec in rig.cameras:
-        data = bpy.data.cameras.new(f"{spec.pod}_{spec.kind}_{spec.bearing_deg:+g}")
+        data = bpy.data.cameras.new(camera_name(spec))
         # AUTO fits the field of view to whichever image dimension is larger, so a
         # portrait sensor would silently reinterpret hfov as a vertical angle.
         data.sensor_fit = "HORIZONTAL"

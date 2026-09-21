@@ -1,6 +1,6 @@
 """Command line entry point.
 
-`build` writes a .blend from a scenario; `schema` prints the JSON schema.
+`build` writes a .blend, `render` writes the images, `schema` prints the JSON schema.
 """
 
 import argparse
@@ -29,6 +29,17 @@ def _build(scenario_path: Path, output: Path | None, band: Band) -> None:
     )
 
 
+def _render(scenario_path: Path, output: Path | None) -> None:
+    scenario = load(scenario_path)
+    from seascape import render
+
+    into = output or scenario_path.with_suffix("")
+    written = render.render(scenario, into)
+    for path in written:
+        print(path)
+    print(f"{len(written)} images in {into}")
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="seascape")
     commands = parser.add_subparsers(dest="command", required=True)
@@ -39,6 +50,10 @@ def main(argv: list[str] | None = None) -> int:
     # A scene is one band or the other: EO and LWIR share no units.
     build.add_argument("--band", choices=("eo", "ir"), default="eo")
 
+    shoot = commands.add_parser("render", help="write one EXR per camera")
+    shoot.add_argument("scenario", type=Path)
+    shoot.add_argument("-o", "--output", type=Path, help="default: alongside the input")
+
     commands.add_parser("schema", help="print the scenario JSON schema on stdout")
 
     args = parser.parse_args(argv)
@@ -46,7 +61,10 @@ def main(argv: list[str] | None = None) -> int:
         print(json.dumps(Scenario.model_json_schema(), indent=2))
         return 0
     try:
-        _build(args.scenario, args.output, args.band)
+        if args.command == "render":
+            _render(args.scenario, args.output)
+        else:
+            _build(args.scenario, args.output, args.band)
     except (
         OSError,
         ValueError,

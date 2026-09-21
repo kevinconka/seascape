@@ -28,6 +28,10 @@ CFG_DIR = Path(__file__).parent / "cfg"
 # A camera's kind is the band it sees in, and a scene is built for one band at a time.
 type Band = Literal["eo", "ir"]
 
+# Lower case, because Blender's own identifiers move between versions: BLENDER_EEVEE
+# meant Legacy on 4.1 and Next on 5.0. The renderer maps these and asserts on the enum.
+type Engine = Literal["cycles", "eevee"]
+
 
 class Model(BaseModel):
     """Strictness shared by everything this package parses from TOML."""
@@ -95,12 +99,33 @@ class Object(Model):
     t_k: float = Field(default=293.0, ge=250.0, le=400.0)
 
 
+class Outputs(Model):
+    """What a render writes.
+
+    Every camera of every listed band is rendered, so `bands` is the whole selection:
+    a scene is built per band, and within one there is nothing to choose between.
+
+    Cycles by default. EEVEE is not bit-reproducible and its Metal driver cannot be
+    pinned, so anything that has to be defensible renders in Cycles.
+
+    There is no image format. LWIR pixels are radiance in W m^-2 sr^-1 and EXR is the
+    only format that holds them; an 8-bit image needs the sensor's gain curve, which
+    nothing here knows yet.
+    """
+
+    # A tuple, so the default cannot be a list shared between scenarios.
+    bands: tuple[Band, ...] = Field(default=("eo", "ir"), min_length=1)
+    samples: int = Field(default=64, gt=0)
+    engine: Engine = "cycles"
+
+
 class Scenario(Model):
     seed: int = 0
     rig: Rig
     sea: Sea = Field(default_factory=Sea)
     sky: Sky = Field(default_factory=Sky)
     objects: list[Object] = Field(default_factory=list)
+    outputs: Outputs = Field(default_factory=Outputs)
 
 
 def _merge(base: dict[str, Any], over: dict[str, Any]) -> dict[str, Any]:
