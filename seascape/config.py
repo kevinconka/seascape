@@ -28,10 +28,6 @@ CFG_DIR = Path(__file__).parent / "cfg"
 # A camera's kind is the band it sees in, and a scene is built for one band at a time.
 type Band = Literal["eo", "ir"]
 
-# Lower case, because Blender's own identifiers move between versions: BLENDER_EEVEE
-# meant Legacy on 4.1 and Next on 5.0. The renderer maps these to the build's own.
-type Engine = Literal["cycles", "eevee"]
-
 type ImageFormat = Literal["exr", "png"]
 
 
@@ -107,8 +103,8 @@ class Outputs(Model):
     Every camera of every listed band is rendered, so `bands` is the whole selection:
     a scene is built per band, and within one there is nothing to choose between.
 
-    Cycles by default. EEVEE is not bit-reproducible and its Metal driver cannot be
-    pinned, so anything that has to be defensible renders in Cycles.
+    Cycles renders everything. EEVEE is not bit-reproducible and its Metal driver
+    cannot be pinned, so it is not an option rather than an option nobody should take.
 
     EXR by default: it is float, so an LWIR pixel stays the radiance in W m^-2 sr^-1
     that the render produced. PNG is 8-bit, which for EO means Blender's AgX film
@@ -119,7 +115,6 @@ class Outputs(Model):
     # A tuple, so the default cannot be a list shared between scenarios.
     bands: tuple[Band, ...] = Field(default=("eo", "ir"), min_length=1)
     samples: int = Field(default=64, gt=0)
-    engine: Engine = "cycles"
     format: ImageFormat = "exr"
     # Stops. Blender hands back scene radiance, which for a sunlit sea is 3 to 13
     # where a display wants 1, so without this every EO pixel clips to white. A real

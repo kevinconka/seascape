@@ -49,13 +49,6 @@
       "title": "Camera",
       "type": "object"
     },
-    "Engine": {
-      "enum": [
-        "cycles",
-        "eevee"
-      ],
-      "type": "string"
-    },
     "ImageFormat": {
       "enum": [
         "exr",
@@ -103,7 +96,7 @@
     },
     "Outputs": {
       "additionalProperties": false,
-      "description": "What a render writes.\n\nEvery camera of every listed band is rendered, so `bands` is the whole selection:\na scene is built per band, and within one there is nothing to choose between.\n\nCycles by default. EEVEE is not bit-reproducible and its Metal driver cannot be\npinned, so anything that has to be defensible renders in Cycles.\n\nEXR by default: it is float, so an LWIR pixel stays the radiance in W m^-2 sr^-1\nthat the render produced. PNG is 8-bit, which for EO means Blender's AgX film\ncurve and for LWIR would mean a gain curve nobody has specified, so `png` is\nrejected for the `ir` band rather than written as a white frame.",
+      "description": "What a render writes.\n\nEvery camera of every listed band is rendered, so `bands` is the whole selection:\na scene is built per band, and within one there is nothing to choose between.\n\nCycles renders everything. EEVEE is not bit-reproducible and its Metal driver\ncannot be pinned, so it is not an option rather than an option nobody should take.\n\nEXR by default: it is float, so an LWIR pixel stays the radiance in W m^-2 sr^-1\nthat the render produced. PNG is 8-bit, which for EO means Blender's AgX film\ncurve and for LWIR would mean a gain curve nobody has specified, so `png` is\nrejected for the `ir` band rather than written as a white frame.",
       "properties": {
         "bands": {
           "default": [
@@ -122,10 +115,6 @@
           "exclusiveMinimum": 0,
           "title": "Samples",
           "type": "integer"
-        },
-        "engine": {
-          "$ref": "#/$defs/Engine",
-          "default": "cycles"
         },
         "format": {
           "$ref": "#/$defs/ImageFormat",
