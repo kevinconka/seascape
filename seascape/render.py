@@ -3,13 +3,20 @@
 Nothing here decides what a pixel looks like. The scene already sets the LWIR view
 transform, because those pixels are radiance rather than a picture, and turning them
 into something viewable needs the sensor's gain curve.
+
+Beside the images go the ground truth, which `truth` computes without Blender, and a
+provenance record. A render nobody can reproduce or attribute is not evidence.
 """
 
+import subprocess
+from datetime import UTC, datetime
+from importlib.metadata import version
 from pathlib import Path
 
 import bpy
+from pydantic import BaseModel
 
-from seascape import scene
+from seascape import scene, truth
 from seascape.config import Engine, Scenario
 
 # The scenario names engines in lower case because Blender's identifiers move between
@@ -47,6 +54,48 @@ def _settings(scenario: Scenario) -> None:
     render.image_settings.color_depth = "32"
 
 
+class Provenance(BaseModel):
+    """Enough to reproduce a render, or to know why it cannot be reproduced."""
+
+    rendered_at: datetime
+    seascape_version: str
+    git_sha: str | None
+    blender_version: str
+    blender_build_hash: str
+    engine: str
+    device: str
+
+
+def _git_sha() -> str | None:
+    """The checkout this ran from, or None when it ran from an installed wheel."""
+    try:
+        finished = subprocess.run(
+            ("git", "-C", str(Path(__file__).parent), "rev-parse", "HEAD"),
+            capture_output=True,
+            text=True,
+            timeout=5,
+            check=False,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return None
+    return finished.stdout.strip() or None
+
+
+def provenance(scenario: Scenario) -> Provenance:
+    cycles = bpy.context.scene.cycles
+    return Provenance(
+        rendered_at=datetime.now(UTC),
+        seascape_version=version("seascape"),
+        git_sha=_git_sha(),
+        blender_version=bpy.app.version_string,
+        blender_build_hash=bpy.app.build_hash.decode(),
+        engine=scenario.outputs.engine,
+        # Cycles reports CPU until a compute device is configured; on a machine with
+        # none this is the whole story, and on one with a GPU it says which was used.
+        device=f"{cycles.device}:{bpy.context.preferences.addons['cycles'].preferences.compute_device_type}",
+    )
+
+
 def render(scenario: Scenario, into: Path) -> list[Path]:
     """Write one EXR per camera into `into`, building each band's scene once."""
     into.mkdir(parents=True, exist_ok=True)
@@ -65,4 +114,12 @@ def render(scenario: Scenario, into: Path) -> list[Path]:
             sc.render.filepath = str(into / name)
             bpy.ops.render.render(write_still=True)
             written.append(into / f"{name}.exr")
+
+    for name, record in (
+        ("ground_truth.json", truth.ground_truth(scenario)),
+        ("provenance.json", provenance(scenario)),
+    ):
+        path = into / name
+        path.write_text(record.model_dump_json(indent=2))
+        written.append(path)
     return written
