@@ -185,10 +185,11 @@ def test_every_shipped_preset_parses() -> None:
         tomllib.load(preset.open("rb"))
 
 
-def test_a_band_cannot_be_listed_twice() -> None:
-    """A repeat renders the same cameras onto the same files."""
-    with pytest.raises(ValidationError, match="listed twice"):
-        Outputs(bands=("eo", "eo"))
+@pytest.mark.parametrize("exposure_ev", [-50.0, 100.0])
+def test_an_exposure_blender_would_clamp_is_rejected(exposure_ev: float) -> None:
+    """Blender pins it to +/-32 and says nothing, so the render is not as configured."""
+    with pytest.raises(ValidationError, match="exposure_ev"):
+        Outputs(exposure_ev=exposure_ev)
 
 
 @pytest.mark.parametrize("pod", ["../escaped", "/tmp/absolute", "sub/dir"])

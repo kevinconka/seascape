@@ -28,6 +28,8 @@ CFG_DIR = Path(__file__).parent / "cfg"
 # A camera's kind is the band it sees in, and a scene is built for one band at a time.
 type Band = Literal["eo", "ir"]
 
+type ImageFormat = Literal["exr", "png"]
+
 
 class Model(BaseModel):
     """Strictness shared by everything this package parses from TOML."""
@@ -117,8 +119,10 @@ class Outputs(Model):
 
     Cycles only: EEVEE is not bit-reproducible and its Metal driver cannot be pinned.
 
-    EXR because an LWIR pixel is radiance in W m^-2 sr^-1 and float is what holds it.
-    An 8-bit image needs a mapping onto it, which is a separate decision per band.
+    EXR by default: it is float, so an LWIR pixel stays the radiance in W m^-2 sr^-1
+    that the render produced. PNG is 8-bit and needs a mapping onto it -- for EO the
+    exposure below and Blender's AgX film curve, for LWIR an auto-contrast over the
+    frame, which is a picture rather than a measurement.
     """
 
     # uniqueItems so an editor validating against the schema catches a repeat too,
@@ -127,6 +131,14 @@ class Outputs(Model):
         default=("eo", "ir"), min_length=1, json_schema_extra={"uniqueItems": True}
     )
     samples: int = Field(default=64, gt=0)
+    format: ImageFormat = "exr"
+    # Stops, and EO clips to white without them: a sunlit sea renders at 3 to 13 where
+    # a display wants 1. -5 puts the frame's median luminance on the 18% grey card
+    # every light meter is calibrated to -- the baseline reads 7.0, and
+    # log2(0.18 / 7.0) = -5.3, rounded to the nearest stop. Display transform only, so
+    # the exr keeps its radiance and ir ignores this. Blender clamps to +/-32 in
+    # silence, so -50 would read back as -32.
+    exposure_ev: float = Field(default=-5.0, ge=-32.0, le=32.0)
 
     @model_validator(mode="after")
     def _bands_are_distinct(self) -> "Outputs":
