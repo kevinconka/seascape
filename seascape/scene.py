@@ -70,6 +70,22 @@ def unresolved_slope(wind_speed_mps: float) -> float:
     return math.sqrt(max(wave_slope(u) ** 2 - bump_slope(u) ** 2, 0.0))
 
 
+def specular_roughness(wind_speed_mps: float) -> float:
+    """Blender roughness for a reflection lobe matching the unresolved slope.
+
+    Cycles' GGX takes alpha = roughness^2, and a Gaussian slope of sigma maps to
+    alpha = sqrt(2) sigma. This is the consistent partner to an emissivity curve
+    averaged over the same slopes: the surface cannot be rough enough to change how
+    much it reflects and still be smooth enough to reflect sharply.
+
+    It is expensive. Measured at 12 m against a hull at 2 km, the reflection in the
+    water goes from +1.2 W m^-2 sr^-1 over the surrounding sea to nothing, and the sea
+    just below the horizon from 1.03 of ambient to 0.90. Both are the physics working,
+    not a defect, but a target's wake in the water is not available as a cue.
+    """
+    return math.sqrt(min(math.sqrt(2.0) * unresolved_slope(wind_speed_mps), 1.0))
+
+
 def sea_reach_m(rig: Rig, band: Band) -> float:
     """Half-width of the sea plane: far enough that its edge lands inside a pixel.
 
@@ -307,13 +323,9 @@ def _thermal_sea(sea: Sea, seed: int) -> bpy.types.Material:
     tree = material.node_tree
     tree.nodes.clear()
     mirror = tree.nodes.new("ShaderNodeBsdfGlossy")
-    # Specular, though the emissivity curve is averaged over facet slopes. Formally
-    # those should match, and the mismatch is benign here: within a lobe's width of the
-    # horizon the sky is flat at ambient, so averaging it changes nothing, and near the
-    # zenith where the sky does vary fast, eps is 0.985 and the reflection is 1.5% of
-    # the signal. Widening the lobe to the slope it implies costs 13% of horizon
-    # convergence and erases a target's reflection outright, both measured.
-    mirror.inputs["Roughness"].default_value = 0.0
+    # The same unresolved slope the emissivity curve is averaged over. Leaving this
+    # specular while eps is not would be the cheaper picture and the inconsistent one.
+    mirror.inputs["Roughness"].default_value = specular_roughness(sea.wind_speed_mps)
     # Glossy BSDF ships at 0.8 grey. The Mix Shader already applies the 1 - eps
     # weighting, so anything but white here absorbs a fifth of the reflected sky and
     # cuts a dark notch along the horizon.

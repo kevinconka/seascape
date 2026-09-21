@@ -232,19 +232,21 @@ class TestIrBand:
         assert mix.inputs[1].links[0].from_node.bl_idname == "ShaderNodeBsdfAnisotropic"
         assert mix.inputs[2].links[0].from_node.bl_idname == "ShaderNodeEmission"
 
-    def test_the_sea_reflects_specularly(self) -> None:
-        """Wide enough and a target stops reflecting at all.
+    def test_the_reflection_lobe_matches_the_emissivity_curve(self) -> None:
+        """Both come from the slope the bump does not carry, and must move together.
 
-        Measured at 2 km: a lobe matching the unresolved slope takes the reflection of a
-        hull from +1.2 W m^-2 sr^-1 over the water beside it to nothing, and the sea at
-        the horizon from 1.03 of ambient to 0.90.
+        Roughening one alone spreads the reflection into colder sky with nothing to pay
+        it back: eps flat and the lobe rough put the sea at the horizon at 0.65 of
+        ambient, against 0.985 in the reference.
         """
         mirror = next(
             n
             for n in bpy.data.materials["sea"].node_tree.nodes
             if n.bl_idname == "ShaderNodeBsdfAnisotropic"
         )
-        assert mirror.inputs["Roughness"].default_value == 0.0
+        assert mirror.inputs["Roughness"].default_value == pytest.approx(
+            scene.specular_roughness(SCENARIO.sea.wind_speed_mps)
+        )
 
     def test_emissivity_is_averaged_over_the_slopes_the_bump_misses(self) -> None:
         """Flat Fresnel reads 0.11 at 89 deg where a 7 m/s sea is nearer 0.63.
