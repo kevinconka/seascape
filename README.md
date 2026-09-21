@@ -21,11 +21,11 @@ and tells you exactly where everything was.
 
 ## Highlights
 
-- **Ground truth you can trust.** Rigs are built from code, so camera extrinsics and intrinsics
-  are known by construction rather than estimated. Every target comes back with its true range,
-  bearing and pixel extent.
-- **LWIR as well as EO.** Thermal renders use real seawater emissivity, angle-dependent sky
-  reflection and atmospheric attenuation across the 8–14 µm band.
+- **Ground truth by construction.** Rigs are built from code, so camera extrinsics and
+  intrinsics are known rather than estimated. Writing them out alongside the images is the
+  step being built now.
+- **LWIR as well as EO.** Thermal scenes use measured seawater optical constants, emissivity
+  averaged over the wave slopes, and a band-integrated sky. Path extinction is not modelled.
 - **Multi-sensor rigs.** Several cameras, each with its own resolution, optics and modality,
   in one scene with known relative geometry.
 
@@ -46,9 +46,8 @@ without it.
 ## Quickstart
 
 ```bash
-uv run seascape build  scenarios/baseline.toml            # scenarios/baseline.blend
-uv run seascape build  scenarios/baseline.toml -o /tmp/look.blend
-uv run seascape render scenarios/baseline.toml            # images + ground truth
+uv run seascape build scenarios/baseline.toml            # scenarios/baseline.blend
+uv run seascape build scenarios/baseline.toml -o /tmp/look.blend
 ```
 
 A scenario is a TOML file describing the world, the platform, the sensors and the targets.
@@ -72,8 +71,8 @@ licence and credit; they download on first use to `~/.cache/seascape`, or to
 the digest.
 
 > [!NOTE]
-> `seascape build` writes the `.blend`; `render` doesn't exist yet. Open the file in
-> Blender to look at it.
+> `seascape build` writes the `.blend`. There is no `render` yet, and no ground-truth
+> file: open the scene in Blender to look at it.
 
 ## Blender MCP (optional)
 

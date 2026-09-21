@@ -10,26 +10,18 @@ is, how to install it, how to run it — lives in [README.md](README.md).
 Before writing a module, check whether Blender already has the feature. The sky is the Sky
 Texture. Panoramas are a panoramic camera. Depth and segmentation are render passes.
 
-**The sea is the exception, and it was decided by measurement, not preference.** Waves are
-bump normals on a flat plane, not the Ocean modifier. Displaced geometry goes sub-pixel
-before the horizon, and sub-pixel geometry aliases instead of averaging: against the
-reference renders it left the far field thirteen times rougher than it should be, at 2.3 M
-vertices, and the number did not move between 48 and 512 samples, so it was not the
-renderer. A bump normal is evaluated per pixel and varies continuously, so distant water
-settles on its own.
+Two things are **not** Blender's, both documented so nobody helpfully puts them back.
 
-The fade that keeps it settled has to live in the shader. A geometry fade would depend on
-camera distance, which would make the sea a different shape for each camera on the rig and
-break ground truth. Shader normals do not move geometry, so they are safe.
+**Waves are bump normals on a flat plane, not the Ocean modifier.** Displaced geometry goes
+sub-pixel before the horizon, and sub-pixel geometry aliases instead of averaging; a bump
+normal is evaluated per pixel and settles on its own. The fade that keeps it settled has to
+stay in the shader: a geometry fade would vary with camera distance, making the sea a
+different shape for each camera on the rig. The accepted cost is that a bump normal cannot
+occlude, so a wave can never hide a target. `tests/test_render_drift.py` holds this in
+place; run it with `--render` before touching the sea shader.
 
-The cost is real and was accepted: a bump normal cannot occlude, so a wave can never hide a
-target. `tests/test_render_drift.py` is what holds this in place -- run it with `--render`
-before changing anything in the sea shader.
-
-There is exactly **one** exception, and it is documented so nobody helpfully removes it: LWIR
-radiometry lives in numpy because Blender is an RGB renderer with no concept of an 8–14 µm
-band. Its Fresnel node takes a scalar IOR; seawater emissivity needs complex IOR (n + i·k).
-Do not migrate that into shader nodes.
+**LWIR radiometry lives in numpy.** Blender has no concept of an 8–14 µm band, and its
+Fresnel node takes a scalar IOR where seawater emissivity needs complex IOR (n + i·k).
 
 If a new dependency looks necessary, say why Blender or the standard library can't do it.
 
@@ -113,12 +105,10 @@ These produce wrong output with no error. They are the reason this file exists.
 
 - **Degrees at the boundary, radians inside.** Config and ground truth are `*_deg`; internals
   are radians, converted exactly once. Degrees-versus-radians is the live bug class here.
-- **Every physical number cites a source or a derivation**, in a comment beside it. A
-  published relation first; failing that, derive it from one. Never fit a constant to a
-  render -- the reference renders live outside the repo, so a fitted number cannot be
-  checked by anyone reading the diff. `tests/test_lwir.py` pins the published values so
-  they cannot drift quietly. When measurement disagrees with the model, record the
-  disagreement and its size rather than tuning until it goes away.
+- **Every physical number cites a source**, in a comment beside it: a published relation,
+  or a derivation from one, or a measurement of Blender itself that a test pins. Never a
+  constant fitted to a render. Renders of an eyeballed scene are not a physics target, and
+  a fitted number cannot be checked by anyone reading the diff.
 - **Units in field names.** `height_m`, `t_sea_k`, `range_m`. No units library.
 - **Randomness comes from named substreams** off the scenario seed — `substream(seed,
   "sea/surface")`. Never `np.random` module functions. Named streams mean adding a component

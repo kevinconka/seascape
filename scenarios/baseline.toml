@@ -10,9 +10,8 @@ preset = "twin_pod"
 height_m = 12.0
 
 [sea]
-# 3 K above the air. A sea at exactly air temperature is degenerate in LWIR: a
-# tilted facet then trades emission for reflected sky of the same radiance and the
-# waves disappear. The difference is the entire wave signal.
+# Above the air on purpose: at the same temperature a tilted facet trades emission for
+# reflected sky of equal radiance and the LWIR waves vanish.
 t_sea_k = 291.0
 wind_speed_mps = 7.0
 
