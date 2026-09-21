@@ -1,11 +1,9 @@
 """Band-integrated LWIR emissivity of a water surface, and the sky it reflects.
 
 Blender is an RGB renderer with no concept of the 8-14 um band, and its Fresnel node
-takes a scalar IOR where water needs a complex one (n + i*k). So the emissivity curve is
-evaluated here and the shader consumes it as a 1D lookup. The sky curve is here for the
-same reason: the Sky Texture is a visible-band scattering model with nothing to say
-about 8-14 um. Path extinction is not here, because that is Blender's volume nodes.
-Angles are radians.
+takes a scalar IOR where water needs a complex one (n + i*k). So these curves are
+evaluated here and the shader consumes them as 1D lookups. Path extinction is not here:
+that is Blender's volume nodes. Angles are radians.
 
 A sea surface emits and reflects, and the two are complements: `1 - eps` of what it does
 not emit comes back as reflected sky. Leave the reflection out and the sea goes black at
@@ -120,9 +118,7 @@ def optical_constants(
     """Wavelength (m), n, k across the band at `t_k`, ascending in wavelength.
 
     Linearly interpolated between the table's 4 K steps and clamped outside 271-311 K,
-    which already spans any sea surface. Water's optical constants move little across
-    that range: emissivity shifts by 0.016 at most, peaking at 80 degrees where the
-    curve is steepest, and by 0.003 looking straight down.
+    which already spans any sea surface. Emissivity moves under 0.02 across the span.
     """
     grid, temperatures, nk = _table()
     t = float(np.clip(_checked_kelvin(t_k), temperatures[0], temperatures[-1]))
@@ -176,14 +172,12 @@ def emissivity_curve(
 ) -> tuple[FloatArray, FloatArray]:
     """Planck-weighted, band-integrated emissivity against viewing zenith (rad).
 
-    `slope_sigma` is the RMS surface slope the renderer does *not* resolve. At 0 this
+    `slope_sigma` is the RMS surface slope the renderer does *not* resolve; at 0 this
     is flat-surface Fresnel. Above 0 it averages Fresnel over facets drawn from a
-    Gaussian slope distribution -- Cox & Munk's statistics -- weighted by the area each
-    facet presents to the viewer, which is the Masuda 1988 construction.
-
-    Only the unresolved slope belongs here. Slope the wave normals already carry is
-    applied per pixel by the shader, and integrating it a second time would count it
-    twice.
+    Gaussian slope distribution, weighted by the area each presents to the viewer,
+    which is the Masuda 1988 construction. Only the unresolved slope belongs here:
+    slope the wave normals carry is applied per pixel by the shader, and integrating it
+    again would count it twice.
 
     Shadowing between facets and reflections from one facet to another are not
     included; both raise emissivity further at grazing, so this is a lower bound there.
@@ -214,16 +208,14 @@ def emissivity_curve(
     return theta, (eps * area).sum(axis=1) / area.sum(axis=1)
 
 
-# The seawater table is on a 20 cm^-1 wavenumber grid, which lands inside the band at
-# both ends. Fine for a weighted average over that same grid; 2.6% low as an integral.
 _BAND_LAM = np.linspace(*BAND_M, 512)
 
 
 def band_radiance(t_k: float) -> float:
     """Blackbody radiance integrated over the band, W m^-2 sr^-1.
 
-    On its own grid, not the optical-constant table's: this is a blackbody and has no
-    business being clamped to the temperatures seawater was measured at.
+    On its own grid, not the seawater table's, which the 20 cm^-1 spacing lands inside
+    the band at both ends -- 2.6% low as an integral.
     """
     return float(np.trapezoid(planck(_BAND_LAM, t_k), _BAND_LAM))
 
@@ -231,13 +223,10 @@ def band_radiance(t_k: float) -> float:
 def sky_radiance(elev_rad: npt.ArrayLike, t_air_k: float = T_AIR_K) -> FloatArray:
     """Downwelling in-band sky radiance at an elevation above the horizon.
 
-    The sky cools from ambient at the horizon, where the slant path is optically thick,
-    to roughly 0.44 of it at the zenith. That convergence is what makes a thermal
-    horizon read correctly: sea and sky meet at the same radiance, so contrast collapses
-    exactly where a target is hardest to see.
-
-    Below the horizon the curve holds at ambient, which is what a ray that misses the
-    sea should see.
+    Ambient at the horizon, where the slant path is optically thick, falling to roughly
+    0.44 of it at the zenith. Sea and sky meeting at the same radiance is what makes a
+    thermal horizon read correctly. Below the horizon the curve holds at ambient, which
+    is what a ray that misses the sea should see.
     """
     elev, eps = np.array(_SKY_EPS, dtype=np.float64).T
     fraction = np.interp(np.asarray(elev_rad, dtype=np.float64), np.radians(elev), eps)

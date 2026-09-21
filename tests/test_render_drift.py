@@ -107,10 +107,9 @@ def test_sea_texture_fades_with_range(frame) -> None:
 def test_the_noise_delivers_the_slope_it_is_asked_for() -> None:
     """`NOISE_SLOPE_PER_UNIT` against the node itself.
 
-    Bump Distance is set in metres of relief per wavelength, which only becomes the
-    slope the wave chain asked for if the noise's own gradient is known. It is not 1.
-    Baked flat here and differenced, so a Blender change to the noise or to Normalize
-    shows up as a number rather than as a sea that looks slightly wrong.
+    Bump Distance is metres of relief per wavelength, which is only the slope the chain
+    asked for if the noise's own gradient is known. Baked flat and differenced, so a
+    Blender change shows up as a number rather than as a sea that looks slightly wrong.
     """
     span, px = 20.0, 1024  # 2 cm sampling; see the constant's comment
     bpy.ops.wm.read_factory_settings(use_empty=True)

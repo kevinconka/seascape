@@ -74,9 +74,9 @@ class Sky(Model):
     Preetham and Hosek-Wilkie models and is ignored by this one, so naming it that would
     be a knob that changes nothing.
 
-    `t_air_k` scales the IR sky and nothing in EO. Its range is the one the sky curve's
-    own profile is credible over; the shape of that curve is fixed, so a temperature far
-    from a temperate sea would need a different profile, not a different number here.
+    `t_air_k` scales the IR sky and nothing in EO. Its bound is where the fixed sky
+    profile stays credible; a colder or hotter sea needs a new profile, not a wider
+    bound.
     """
 
     sun_elevation_deg: float = Field(default=30.0, ge=-90.0, le=90.0)

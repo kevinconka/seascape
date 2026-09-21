@@ -23,42 +23,27 @@ GRAVITY_MS2 = 9.81
 #   wavelength      2 pi U^2 / (0.877^2 g)          Pierson-Moskowitz
 #   total slope     sqrt(0.003 + 0.00512 U)         Cox & Munk 1954
 #   resolved share  sqrt(octaves / log2(lam/1.7cm)) Phillips equilibrium range
-#   bump relief     resolved share x slope x lam    scaled by the noise transfer
+#   bump relief     resolved share x slope x lam    over the noise transfer below
 #   unresolved      sqrt(total^2 - resolved^2)      variances subtract
 #   emissivity      Fresnel over unresolved slopes  Masuda 1988, in lwir.py
 #   lobe roughness  sqrt(sqrt(2) x unresolved)      GGX alpha = roughness^2
-#
-# Cox & Munk 1954, mean square surface slope of a clean sea against wind speed,
-# measured off sun glitter photographs. Slope is what decides how rough water looks,
-# and it comes mostly from waves far shorter than the dominant one, so it is measured
-# rather than derived from wave height.
 SLOPE_VARIANCE_INTERCEPT = 0.003
 SLOPE_VARIANCE_PER_MPS = 0.00512
-
-# Pierson-Moskowitz peak frequency is 0.877 g / U, which fixes the dominant wavelength.
 PM_PEAK = 0.877
 MIN_WAVELENGTH_M = 1.0
 
-# Octaves of detail on the wave noise, and the shortest wave the sea carries. 1.73 cm
-# is where the phase speed of a surface wave is at its minimum and surface tension takes
-# over from gravity, so it is the bottom of the slope spectrum rather than a chosen
-# resolution. NOISE_DETAIL has to match the Detail input on the noise node.
+# 1.73 cm is the minimum phase speed of a surface wave, where surface tension takes over
+# from gravity: the bottom of the slope spectrum, not a chosen resolution.
 NOISE_DETAIL = 4.0
 CAPILLARY_WAVELENGTH_M = 0.0173
 
-# RMS gradient of the noise node's Fac over one noise unit, at the Detail and Roughness
-# below. It is not 1, so a Bump Distance of slope x wavelength delivers 0.61 of the
-# slope asked for. Measured by baking Fac to an orthographic render at a known world
-# scale and differencing it; `test_the_noise_delivers_the_slope_it_is_asked_for` pins
-# it. Quoted at 2 cm sampling: finer sampling keeps finding more gradient, so the
-# figure is a property of the measurement as much as of the noise. The octave model
-# above describes the ocean's spectrum, not this field -- adding octaves here barely
-# moves the gradient -- which is why the amplitude comes from this measurement rather
-# than from counting them.
+# RMS gradient of the noise's Fac per noise unit, so a Distance of slope x wavelength
+# delivers 0.61 of the slope asked for. Quoted at 2 cm sampling: finer sampling finds
+# more. `test_the_noise_delivers_the_slope_it_is_asked_for` pins it.
 NOISE_SLOPE_PER_UNIT = 0.61
 
-# Relief fades out with camera distance. Perspective already smooths distant water;
-# this takes the last of the stipple off the approach to the horizon.
+# Perspective already smooths distant water; this takes the last of the stipple off the
+# approach to the horizon. Inherited from the reference blend, with no source.
 WAVE_FADE_M = 30000.0
 
 
@@ -79,11 +64,8 @@ def resolved_slope_fraction(wind_speed_mps: float) -> float:
     Cox & Munk measured the whole spectrum down to capillaries; the noise stops a few
     octaves below the dominant wave. In the Phillips equilibrium range the slope
     spectrum goes as 1/k, so mean-square slope accumulates equally per octave and the
-    captured share is a ratio of logs rather than an integral. Slope, not variance, so
-    the square root.
-
-    Wind enters through the dominant wavelength: a longer dominant wave leaves more
-    octaves below the noise, so the fraction falls as it blows harder.
+    captured share is a ratio of logs rather than an integral, square-rooted because
+    this is slope and that was variance.
     """
     octaves = math.log(wave_length_m(wind_speed_mps) / CAPILLARY_WAVELENGTH_M, 2.0)
     return math.sqrt(min(NOISE_DETAIL / octaves, 1.0))
@@ -109,12 +91,8 @@ def specular_roughness(wind_speed_mps: float) -> float:
     Cycles' GGX takes alpha = roughness^2, and a Gaussian slope of sigma maps to
     alpha = sqrt(2) sigma. This is the consistent partner to an emissivity curve
     averaged over the same slopes: the surface cannot be rough enough to change how
-    much it reflects and still be smooth enough to reflect sharply.
-
-    It is expensive. Measured at 12 m against a hull at 2 km, the reflection in the
-    water goes from +1.2 W m^-2 sr^-1 over the surrounding sea to nothing, and the sea
-    just below the horizon from 1.03 of ambient to 0.90. Both are the physics working,
-    not a defect, but a target's wake in the water is not available as a cue.
+    much it reflects and still be smooth enough to reflect sharply. At this roughness a
+    target leaves no reflection in the water, so a wake is not available as a cue.
     """
     return math.sqrt(min(math.sqrt(2.0) * unresolved_slope(wind_speed_mps), 1.0))
 
@@ -150,10 +128,10 @@ def _substream(seed: int, name: str) -> np.random.Generator:
 
 
 def _place(obj: bpy.types.Object, east_m: float, north_m: float, up_m: float) -> None:
-    """Position and orient with the rotation mode set first.
+    """Position, with the rotation mode set first.
 
-    A new object's `rotation_mode` is XYZ, but one loaded from an asset may be
-    QUATERNION, where assigning `rotation_euler` is ignored with no error.
+    `rotation_mode` is often QUATERNION, where assigning `rotation_euler` afterwards is
+    ignored with no error.
     """
     obj.rotation_mode = "XYZ"
     obj.location = (east_m, north_m, up_m)
@@ -212,11 +190,7 @@ def _sky_image(t_air_k: float) -> bpy.types.Image:
 
 
 def _thermal_sky(world: bpy.types.World, t_air_k: float) -> bpy.types.World:
-    """Downwelling radiance against elevation, as raw W m^-2 sr^-1.
-
-    This is what the sea reflects, so it is not decoration: leave it black and the sea
-    turns black with it wherever emissivity falls, which is most of a maritime image.
-    """
+    """Downwelling radiance against elevation, as raw W m^-2 sr^-1."""
     tree = world.node_tree
     tree.nodes.clear()
     link = tree.links.new
@@ -243,11 +217,7 @@ def _thermal_sky(world: bpy.types.World, t_air_k: float) -> bpy.types.World:
 
 
 def _blackbody_material(name: str, radiance: float) -> bpy.types.Material:
-    """Emission of `radiance` W m^-2 sr^-1.
-
-    Blender has no 8-14 um band, so an LWIR surface is an emission whose strength is the
-    band radiance. A target with no measured emissivity radiates as a blackbody.
-    """
+    """Emission of `radiance` W m^-2 sr^-1: a target with no measured emissivity."""
     material = bpy.data.materials.new(name)
     tree = material.node_tree
     tree.nodes.clear()
@@ -263,14 +233,10 @@ def _wave_normals(
 ) -> bpy.types.NodeSocket:
     """Wave normals from world position, fading out with camera distance.
 
-    Shading, not geometry, and that is the whole point. A bump normal is evaluated per
-    pixel and varies continuously, so distant water averages smooth. Displaced geometry
-    at any affordable spacing goes sub-pixel before the horizon and aliases instead --
-    unchanged between 48 and 512 samples, so not the renderer.
-    `tests/test_render_drift.py` carries the figure and holds this in place.
-
-    Being shader-only also means coverage is unbounded and circular, with no patch edge
-    to hide, and it costs no vertices.
+    Shading, not geometry. A bump normal is evaluated per pixel and varies
+    continuously, so distant water averages smooth; displaced geometry at any
+    affordable spacing goes sub-pixel before the horizon and aliases instead.
+    `tests/test_render_drift.py` holds this in place.
     """
     length_m = wave_length_m(sea.wind_speed_mps)
     scale = tree.nodes.new("ShaderNodeVectorMath")
@@ -318,9 +284,8 @@ def _incidence_lookup(
 ) -> bpy.types.NodeSocket:
     """Sample `curve` at |cos(theta)| between the wave normal and the viewing ray.
 
-    Against the wave normal, not the plane's: emissivity has to follow the surface a
-    ray actually meets, or a flat sea's worth of emissivity gets applied to water that
-    is visibly not flat.
+    Against the wave normal, not the plane's, or a flat sea's emissivity gets applied
+    to water that is visibly not flat.
     """
     geometry = tree.nodes.new("ShaderNodeNewGeometry")
     dot = tree.nodes.new("ShaderNodeVectorMath")
@@ -345,21 +310,16 @@ def _incidence_lookup(
 def _thermal_sea(sea: Sea, seed: int) -> bpy.types.Material:
     """eps(theta) of the sea emitted, the remaining 1 - eps reflected from the sky.
 
-    Emission and reflection are complements, so the two very nearly cancel: the sea
-    holds close to ambient at every angle. Emission alone would fall to a fiftieth of
-    that by 2 km, because emissivity collapses at grazing incidence and nothing fills
-    the gap.
-
-    Blender does the reflection. A Glossy BSDF against the wave normals reflects the
-    real sky in the real mirror direction, and a warm hull with it, which a baked sky
-    curve cannot.
+    Complements, so the two very nearly cancel and the sea holds close to ambient at
+    every angle. Blender does the reflection: a Glossy BSDF against the wave normals
+    reflects the real sky in the real mirror direction, and a warm hull with it, which
+    a baked sky curve cannot.
     """
     material = bpy.data.materials.new("sea")
     tree = material.node_tree
     tree.nodes.clear()
     mirror = tree.nodes.new("ShaderNodeBsdfGlossy")
-    # The same unresolved slope the emissivity curve is averaged over. Leaving this
-    # specular while eps is not would be the cheaper picture and the inconsistent one.
+    # The same unresolved slope the emissivity curve is averaged over.
     mirror.inputs["Roughness"].default_value = specular_roughness(sea.wind_speed_mps)
     # Glossy BSDF ships at 0.8 grey. The Mix Shader already applies the 1 - eps
     # weighting, so anything but white here absorbs a fifth of the reflected sky and
@@ -404,8 +364,8 @@ def _water_material(sea: Sea, seed: int) -> bpy.types.Material:
 def _sea(sea: Sea, seed: int, reach_m: float, band: Band) -> bpy.types.Object:
     """One flat plane. The waves are in its material.
 
-    Nothing is displaced, so the sea costs four vertices and covers every range the
-    camera can see without a patch edge, a tiling seam, or a grid to alias.
+    Nothing is displaced, so it costs four vertices and covers every range the camera
+    can see with no patch edge, tiling seam, or grid to alias.
     """
     bpy.ops.mesh.primitive_plane_add(size=1.0)
     water = bpy.context.object

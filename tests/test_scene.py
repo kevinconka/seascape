@@ -50,11 +50,7 @@ def test_a_named_substream_is_reproducible_and_local_to_its_name() -> None:
 
 
 def test_published_values_have_not_drifted() -> None:
-    """The figures the wave chain is built on, checked against their sources.
-
-    Every one is a number someone else measured. A refactor that moves any of them has
-    changed the physics, not the code.
-    """
+    """The figures the wave chain is built on. Moving one changes the physics."""
     # Cox & Munk 1954: RMS slope of a clean sea at 7 m/s, off sun glitter photographs.
     assert scene.wave_slope(7.0) == pytest.approx(0.197, abs=5e-4)
     # Pierson-Moskowitz: a fully developed sea at 7 m/s peaks near 41 m.
@@ -151,11 +147,7 @@ class TestGeometry:
             assert max(axes[2]) > 0.0, "and the rest of it is above water"
 
     def test_the_noise_carries_the_slope_its_octaves_reach(self) -> None:
-        """A ratio of octaves, so more wind means a longer dominant wave and less of it.
-
-        Measured against the reference renders it runs about 12% under, which is the
-        price of deriving it rather than fitting it.
-        """
+        """A ratio of octaves, so more wind means a longer wave and less of it."""
         calm, blowing = (
             scene.resolved_slope_fraction(2.0),
             scene.resolved_slope_fraction(18.0),
@@ -163,11 +155,7 @@ class TestGeometry:
         assert 0.0 < blowing < calm < 1.0
 
     def test_the_sea_takes_its_wind_from_the_scenario(self) -> None:
-        """Wind reaches the waves through wavelength and slope, or it is a dead knob.
-
-        Both are derived, so this checks the shader carries what the derivation gives
-        rather than restating the formulas.
-        """
+        """Wind reaches the waves through wavelength and slope, or it is a dead knob."""
         tree = bpy.data.materials["sea"].node_tree
         wind = SCENARIO.sea.wind_speed_mps
         scaling = next(
@@ -209,9 +197,8 @@ class TestGeometry:
         assert reach > max(spec.range_m for spec in SCENARIO.objects)
 
     def test_the_sea_costs_no_geometry(self) -> None:
-        """Waves are shading. Displacing them instead aliases past the range their own
-        relief covers a pixel, which is most of the frame, and costs millions of
-        vertices to do it."""
+        """Waves are shading. Displacing them costs millions of vertices and aliases
+        past the range their own relief covers a pixel."""
         mesh = (
             bpy.data.objects["sea"]
             .evaluated_get(bpy.context.evaluated_depsgraph_get())
@@ -251,8 +238,7 @@ class TestIrBand:
         """What renders is the Background node, not `World.color`.
 
         A new world already has `use_nodes` set, so assigning `World.color` changes
-        nothing a camera sees. An earlier version of this test asserted that attribute
-        and passed against a sky the renderer never read.
+        nothing a camera sees.
         """
         background = bpy.data.worlds["sky"].node_tree.nodes["Background"]
         assert background.inputs["Color"].is_linked
@@ -269,11 +255,10 @@ class TestIrBand:
         assert np.all(np.diff(curve) <= 1e-6), "radiance falls towards the zenith"
 
     def test_the_sea_reflects_what_it_does_not_emit(self) -> None:
-        """Emission alone falls to a fiftieth of ambient by 2 km: emissivity collapses
-        at grazing incidence and nothing fills the gap.
+        """Emission alone falls to a fiftieth of ambient by 2 km.
 
-        The factor is emissivity, so the mirror has to sit on the 0 input. That is the
-        grazing end, where the sea stops emitting and starts reflecting.
+        The factor is emissivity, so the mirror sits on the 0 input: the grazing end,
+        where the sea stops emitting and starts reflecting.
         """
         mix = bpy.data.materials["sea"].node_tree.nodes["Mix Shader"]
         assert mix.inputs["Factor"].is_linked
@@ -284,9 +269,8 @@ class TestIrBand:
     def test_the_reflection_lobe_matches_the_emissivity_curve(self) -> None:
         """Both come from the slope the bump does not carry, and must move together.
 
-        Roughening one alone spreads the reflection into colder sky with nothing to pay
-        it back: eps flat and the lobe rough put the sea at the horizon at 0.65 of
-        ambient, against 0.985 in the reference.
+        Rough lobe with a flat eps puts the sea at the horizon at 0.65 of ambient,
+        against 0.985 measured.
         """
         mirror = next(
             n
@@ -298,11 +282,8 @@ class TestIrBand:
         )
 
     def test_emissivity_is_averaged_over_the_slopes_the_bump_misses(self) -> None:
-        """Flat Fresnel reads 0.11 at 89 deg where a 7 m/s sea is nearer 0.63.
-
-        That is the angle a target at 2 km sits at, so it sets the contrast the whole
-        band is for.
-        """
+        """Flat Fresnel reads 0.11 at 89 deg where a 7 m/s sea is nearer 0.63, and 89
+        deg is where a target at 2 km sits."""
         curve = baked("sea_emissivity")
 
         _, flat = lwir.emissivity_curve(t_sea_k=SCENARIO.sea.t_sea_k)
@@ -336,8 +317,7 @@ class TestIrBand:
         assert np.all(np.diff(curve) >= -1e-6), "emissivity rises towards normal"
 
     def test_radiance_is_not_sent_through_a_film_curve(self) -> None:
-        """Pixels are W m^-2 sr^-1. Blender defaults to AgX, which is built to make
-        photographs pleasant and would leave nothing measurable behind."""
+        """Pixels are W m^-2 sr^-1, so no film curve. Blender defaults to AgX."""
         view = bpy.context.scene.view_settings
         assert (view.view_transform, view.look) == ("Standard", "None")
         assert (view.exposure, view.gamma) == (0.0, 1.0)

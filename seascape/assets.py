@@ -24,10 +24,8 @@ class Asset(Model):
     url: str
     sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
     length_m: float = Field(gt=0.0)  # bow to stern; the mesh arrives in arbitrary units
-    # How deep the keel sits. A real figure for the vessel, not a proportion of the
-    # mesh: assets are stylised, and this one is 43 m in the beam where a real feeder
-    # is 32. Required, because defaulting it to zero floats the hull and looks almost
-    # right.
+    # A real figure for the vessel, not a proportion of the mesh: assets are stylised.
+    # Required, because defaulting it to zero floats the hull and looks almost right.
     draught_m: float = Field(ge=0.0)
     licence: str = Field(min_length=1)
     attribution: str = Field(min_length=1)
@@ -57,8 +55,8 @@ def fetch(name: str) -> Path:
     # A killed or corrupt transfer must never take the cache name, and concurrent
     # callers must not share a scratch file. A pid is not enough: threads share one.
     part = path.with_name(f"{path.name}.{uuid.uuid4().hex}.part")
-    # urlretrieve takes no timeout and the default socket timeout is None, so a server
-    # that stops sending hangs the build forever.
+    # The default socket timeout is None, so a server that stops sending hangs the
+    # build forever. (urlretrieve, the obvious alternative, takes no timeout at all.)
     with (
         urllib.request.urlopen(asset.url, timeout=30) as response,
         part.open("wb") as out,
