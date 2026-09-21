@@ -125,7 +125,11 @@ class Outputs(Model):
     frame, which is a picture rather than a measurement.
     """
 
-    bands: tuple[Band, ...] = Field(default=("eo", "ir"), min_length=1)
+    # uniqueItems so an editor validating against the schema catches a repeat too,
+    # not just `load`. `_bands_are_distinct` is what actually enforces it.
+    bands: tuple[Band, ...] = Field(
+        default=("eo", "ir"), min_length=1, json_schema_extra={"uniqueItems": True}
+    )
     samples: int = Field(default=64, gt=0)
     format: ImageFormat = "exr"
     # Stops, and EO clips to white without them: a sunlit sea renders at 3 to 13 where

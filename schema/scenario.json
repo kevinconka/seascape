@@ -109,7 +109,8 @@
           },
           "minItems": 1,
           "title": "Bands",
-          "type": "array"
+          "type": "array",
+          "uniqueItems": true
         },
         "samples": {
           "default": 64,
