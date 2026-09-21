@@ -42,10 +42,6 @@ CAPILLARY_WAVELENGTH_M = 0.0173
 # more. `test_the_noise_delivers_the_slope_it_is_asked_for` pins it.
 NOISE_SLOPE_PER_UNIT = 0.61
 
-# Perspective already smooths distant water; this takes the last of the stipple off the
-# approach to the horizon. Inherited from the reference blend, with no source.
-WAVE_FADE_M = 30000.0
-
 
 def wave_length_m(wind_speed_mps: float) -> float:
     """Dominant wavelength of a fully developed sea, Pierson-Moskowitz."""
@@ -231,12 +227,18 @@ def _blackbody_material(name: str, radiance: float) -> bpy.types.Material:
 def _wave_normals(
     tree: bpy.types.NodeTree, sea: Sea, seed: int
 ) -> bpy.types.NodeSocket:
-    """Wave normals from world position, fading out with camera distance.
+    """Wave normals from world position.
 
     Shading, not geometry. A bump normal is evaluated per pixel and varies
     continuously, so distant water averages smooth; displaced geometry at any
     affordable spacing goes sub-pixel before the horizon and aliases instead.
     `tests/test_render_drift.py` holds this in place.
+
+    Relief does not fade with range. A fade reads as an obvious fix for the stipple
+    past the point waves go sub-pixel, and measurably is not one: at 30 km it changed
+    the far field by 3% and the aliasing not at all, because it scales amplitude
+    uniformly rather than filtering anything. Shortening it to where waves actually go
+    sub-pixel made the far field more aliased relative to its own texture, not less.
     """
     length_m = wave_length_m(sea.wind_speed_mps)
     scale = tree.nodes.new("ShaderNodeVectorMath")
@@ -254,14 +256,6 @@ def _wave_normals(
         _substream(seed, "sea/surface").random() * 1e3
     )
 
-    camera = tree.nodes.new("ShaderNodeCameraData")
-    rate = tree.nodes.new("ShaderNodeMath")
-    rate.operation = "MULTIPLY"
-    rate.inputs[1].default_value = -1.0 / WAVE_FADE_M
-    fade = tree.nodes.new("ShaderNodeMath")
-    fade.operation = "POWER"
-    fade.inputs[0].default_value = math.e
-
     bump = tree.nodes.new("ShaderNodeBump")
     bump.inputs["Distance"].default_value = (
         bump_slope(sea.wind_speed_mps) * length_m / NOISE_SLOPE_PER_UNIT
@@ -271,9 +265,6 @@ def _wave_normals(
     link(geometry.outputs["Position"], scale.inputs[0])
     link(scale.outputs["Vector"], noise.inputs["Vector"])
     link(noise.outputs["Fac"], bump.inputs["Height"])
-    link(camera.outputs["View Distance"], rate.inputs[0])
-    link(rate.outputs["Value"], fade.inputs[1])
-    link(fade.outputs["Value"], bump.inputs["Strength"])
     return bump.outputs["Normal"]
 
 
