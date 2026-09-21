@@ -123,6 +123,8 @@
         },
         "exposure_ev": {
           "default": -5.0,
+          "maximum": 32.0,
+          "minimum": -32.0,
           "title": "Exposure Ev",
           "type": "number"
         },

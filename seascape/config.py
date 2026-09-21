@@ -130,7 +130,8 @@ class Outputs(Model):
     # Stops. Scene radiance off a sunlit sea is 3 to 13 where a display wants 1, so EO
     # clips to white without it; -5 is daylight. Display transform only, so the exr is
     # unaffected and ir ignores it.
-    exposure_ev: float = -5.0
+    # Blender clamps its own exposure to +/-32 in silence: -50 reads back as -32.
+    exposure_ev: float = Field(default=-5.0, ge=-32.0, le=32.0)
     # Brightness temperature at black and at white in an ir png. Fixed, not stretched
     # per frame: a stretch makes two frames incomparable. 270-300 K spans the shipped
     # sea, sky and hull.
