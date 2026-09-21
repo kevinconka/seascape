@@ -28,6 +28,10 @@ CFG_DIR = Path(__file__).parent / "cfg"
 # A camera's kind is the band it sees in, and a scene is built for one band at a time.
 type Band = Literal["eo", "ir"]
 
+# "auto" is EEVEE for eo and Cycles for ir; "cycles" forces both. Named for intent
+# rather than for Blender's own identifiers, which move between versions.
+type Engine = Literal["auto", "cycles"]
+
 type ImageFormat = Literal["exr", "png"]
 
 
@@ -117,7 +121,12 @@ class Outputs(Model):
 
     Every camera of a listed band is rendered; a scene is built per band.
 
-    Cycles only: EEVEE is not bit-reproducible and its Metal driver cannot be pinned.
+    `engine` is per band by default, because the two bands do not ask the same thing
+    of a renderer. EO renders in EEVEE at 3.4 s against 58 s for a 4K Cycles frame and
+    loses nothing: no EO quantity depends on reflected world radiance. LWIR does, and
+    EEVEE returns a quarter of it -- see AGENTS.md -- so the thermal band is always
+    Cycles. `cycles` forces both, for a frame that has to be bit-reproducible; there is
+    no `eevee`, because that would be an option to render the thermal band wrong.
 
     EXR by default: it is float, so an LWIR pixel stays the radiance in W m^-2 sr^-1
     that the render produced. PNG is 8-bit and needs a mapping onto it -- for EO the
@@ -131,6 +140,7 @@ class Outputs(Model):
         default=("eo", "ir"), min_length=1, json_schema_extra={"uniqueItems": True}
     )
     samples: int = Field(default=64, gt=0)
+    engine: Engine = "auto"
     format: ImageFormat = "exr"
     # Stops, and EO clips to white without them: a sunlit sea renders at 3 to 13 where
     # a display wants 1. -5 puts the frame's median luminance on the 18% grey card

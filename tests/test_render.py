@@ -135,25 +135,60 @@ class TestSettings:
         self, fmt: ImageFormat
     ) -> None:
         """`render` composes its return paths from the format, not from Blender."""
-        render._settings(self.scenario, "eo", fmt)
+        render._settings(self.scenario, "eo", fmt, on_gpu=False)
         assert bpy.context.scene.render.file_extension == f".{fmt}"
 
     @pytest.mark.parametrize(("band", "denoised"), [("eo", True), ("ir", False)])
     def test_only_eo_is_denoised(self, band: Band, denoised: bool) -> None:
-        """OIDN invents 10 K of structure on a field that is flat by construction."""
-        render._settings(self.scenario, band, "exr")
+        """OIDN invents 10 K of structure on a field that is flat by construction.
+
+        Forced to Cycles: denoising is a Cycles setting, and eo renders in EEVEE by
+        default, where the knob is never read.
+        """
+        forced = self.scenario.model_copy(
+            update={
+                "outputs": self.scenario.outputs.model_copy(update={"engine": "cycles"})
+            }
+        )
+
+        render._settings(forced, band, "exr", on_gpu=False)
+
         assert bpy.context.scene.cycles.use_denoising is denoised
 
+    @pytest.mark.parametrize(
+        ("band", "choice", "expected"),
+        [
+            ("eo", "auto", "EEVEE"),
+            ("ir", "auto", "CYCLES"),
+            ("eo", "cycles", "CYCLES"),
+            ("ir", "cycles", "CYCLES"),
+        ],
+    )
+    def test_the_thermal_band_is_always_cycles(
+        self, band: Band, choice: str, expected: str
+    ) -> None:
+        """EEVEE returns a quarter of the world's reflected radiance, which leaves the
+        LWIR sea 14% cold and target contrast 79% high. eo depends on none of it."""
+        scenario = self.scenario.model_copy(
+            update={
+                "outputs": self.scenario.outputs.model_copy(update={"engine": choice})
+            }
+        )
+
+        render._settings(scenario, band, "exr", on_gpu=False)
+
+        assert expected in bpy.context.scene.render.engine
+
     def test_radiance_keeps_its_full_float(self) -> None:
-        render._settings(self.scenario, "ir", "exr")
+        render._settings(self.scenario, "ir", "exr", on_gpu=False)
         assert bpy.context.scene.render.image_settings.color_depth == "32"
 
     def test_eo_is_exposed_and_ir_is_not(self) -> None:
         """Radiance through an exposure is no longer radiance."""
-        render._settings(self.scenario, "eo", "png")
+        render._settings(self.scenario, "eo", "png", on_gpu=False)
         assert bpy.context.scene.view_settings.exposure == (
             self.scenario.outputs.exposure_ev
         )
         bpy.context.scene.view_settings.exposure = 0.0
-        render._settings(self.scenario, "ir", "exr")
+        render._settings(self.scenario, "ir", "exr", on_gpu=False)
         assert bpy.context.scene.view_settings.exposure == 0.0

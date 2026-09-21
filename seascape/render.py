@@ -11,7 +11,7 @@ import bpy
 import numpy as np
 
 from seascape import lwir, scene
-from seascape.config import Band, ImageFormat, Scenario
+from seascape.config import Band, Engine, ImageFormat, Scenario
 
 # Blender's format identifier and bit depth. 32-bit EXR, not half: an 11-bit
 # mantissa loses radiance.
@@ -21,18 +21,75 @@ _FORMATS: dict[ImageFormat, tuple[str, str]] = {
 }
 
 
-def _settings(scenario: Scenario, band: Band, writing: ImageFormat) -> None:
+def _eevee() -> str:
+    """Whichever identifier this build calls EEVEE.
+
+    `BLENDER_EEVEE` is Legacy on <=4.1 and Next on >=5.0, with `BLENDER_EEVEE_NEXT` in
+    between, so the name is asserted against the enum rather than assumed.
+    """
+    options = bpy.types.RenderSettings.bl_rna.properties["engine"].enum_items.keys()
+    for identifier in ("BLENDER_EEVEE_NEXT", "BLENDER_EEVEE"):
+        if identifier in options:
+            return identifier
+    raise ValueError(f"no EEVEE in this build: {sorted(options)}")
+
+
+def _engine_for(band: Band, choice: Engine) -> str:
+    """Cycles for the thermal band always; EEVEE for eo unless cycles is forced.
+
+    EEVEE's glossy reflection of the world returns a quarter of its radiance, which
+    leaves the LWIR sea 14% cold and target contrast 79% high. EO has nothing that
+    depends on it and renders 17x faster.
+    """
+    if choice == "cycles" or band == "ir":
+        return "CYCLES"
+    return _eevee()
+
+
+def _enable_gpu() -> bool:
+    """Point Cycles at a GPU, once, before anything renders.
+
+    `refresh_devices()` is the call that actually enables it: without it Cycles stays
+    on the CPU whatever `compute_device_type` says, silently and at a similar speed,
+    which reads as the GPU not helping. Switching device mid-process pays kernel
+    compilation instead, which reads as the GPU losing.
+    """
+    preferences = bpy.context.preferences.addons["cycles"].preferences
+    for backend in ("METAL", "OPTIX", "CUDA", "HIP", "ONEAPI"):
+        try:
+            preferences.compute_device_type = backend
+        except TypeError:
+            continue  # not compiled into this build
+        preferences.refresh_devices()
+        if any(device.type != "CPU" for device in preferences.devices):
+            for device in preferences.devices:
+                # The CPU alongside a GPU costs sync and wins nothing here.
+                device.use = device.type != "CPU"
+            return True
+    return False
+
+
+def _settings(
+    scenario: Scenario, band: Band, writing: ImageFormat, on_gpu: bool
+) -> None:
     outputs = scenario.outputs
     sc = bpy.context.scene
-    sc.render.engine = "CYCLES"
-    sc.cycles.samples = outputs.samples
+    sc.render.engine = _engine_for(band, outputs.engine)
+    if sc.render.engine == "CYCLES":
+        sc.cycles.samples = outputs.samples
+        sc.cycles.device = "GPU" if on_gpu else "CPU"
+        # OIDN runs on the CPU unless told otherwise, which is a third of a 4K frame.
+        sc.cycles.denoising_use_gpu = on_gpu
+    else:
+        sc.eevee.taa_render_samples = outputs.samples
     if band == "eo":
         # ir pixels are radiance; gain on them belongs to the display mapping.
         sc.view_settings.exposure = outputs.exposure_ev
     # OIDN is an edge-aware image filter, not a radiometric one, and it is on by
     # default. On a world flat at 290.00 K it returns 282.43-293.00 K and breaks the
     # R=G=B the scene guarantees, which is the channel `_thermal_png` reads.
-    sc.cycles.use_denoising = band == "eo"
+    if sc.render.engine == "CYCLES":
+        sc.cycles.use_denoising = band == "eo"
     file_format, depth = _FORMATS[writing]
     sc.render.image_settings.file_format = file_format
     sc.render.image_settings.color_depth = depth
@@ -84,6 +141,7 @@ def render(scenario: Scenario, into: Path) -> list[Path]:
     """Write one image per camera into `into`, building each band's scene once."""
     into.mkdir(parents=True, exist_ok=True)
     outputs = scenario.outputs
+    on_gpu = _enable_gpu()
     written: list[Path] = []
     for band in outputs.bands:
         # The default bands ask for both, so an EO-only rig must skip ir, not fail.
@@ -92,7 +150,7 @@ def render(scenario: Scenario, into: Path) -> list[Path]:
             continue
         thermal_png = band == "ir" and outputs.format == "png"
         scene.build(scenario, band)
-        _settings(scenario, band, "exr" if thermal_png else outputs.format)
+        _settings(scenario, band, "exr" if thermal_png else outputs.format, on_gpu)
         sc = bpy.context.scene
         for spec in specs:
             sc.camera = bpy.data.objects[spec.name]

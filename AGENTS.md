@@ -69,6 +69,20 @@ These produce wrong output with no error. They are the reason this file exists.
 - **Cycles denoising is on by default and is not radiometric.** OIDN is an edge-aware image filter. On a world flat at 290.00 K it returns 282.43-293.00 K, worst at the frame border, and it breaks the R=G=B that an LWIR scene guarantees. Turn it off for the `ir` band; EO is a picture and keeps it.
 - **An image's `colorspace_settings` must be set before its pixels, never after.** Assigning it second re-reads the buffer that is already there and leaves the image black, with no error.
 - **`view_settings.exposure` is part of the display transform.** A png carries it, a float EXR ignores it. Same scene, same knob, two formats, and nothing reports the difference.
+- **EEVEE cannot render the LWIR band.** Its glossy reflection of the *world* returns a
+  quarter of the radiance: a perfect mirror under a flat 40 W m^-2 sr^-1 world reads
+  9.8, while the sky itself reads 40.0. Emission is exact and on-screen objects reflect
+  fine, so nothing looks broken -- the sea just comes out 14% cold, which inflates
+  target contrast by 79% and would flatter any detection-range figure taken off it. No
+  raytracing setting changes this; `SCREEN`, `PROBE`, 4096 cubemaps, `fast_gi` off and a
+  world probe object all return the same number. EO has nothing that depends on
+  reflected world radiance and renders in EEVEE at 3.4 s against 58 s for a 4K frame.
+- **`refresh_devices()` is what actually enables the GPU.** Setting
+  `compute_device_type` and `scene.cycles.device` without it leaves Cycles on the CPU,
+  silently, at roughly the same speed -- which reads as "the GPU does not help here".
+  `denoising_use_gpu` defaults to False and is a further 1.3x. Configure the device once
+  before the first render: switching mid-process pays Metal kernel compilation, which
+  shows up as a render three times slower and is easy to misread as the device losing.
 - **The Sky Texture's `turbidity` does nothing under the scattering models.** It belongs to Preetham and Hosek-Wilkie. Haze there is `aerosol_density`. Setting the wrong one is accepted in silence and changes no pixel, which was verified by rendering both.
 
 ## Conventions

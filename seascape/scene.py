@@ -115,8 +115,11 @@ def specular_roughness(wind_speed_mps: float) -> float:
     Cycles' GGX takes alpha = roughness^2, and a Gaussian slope of sigma maps to
     alpha = sqrt(2) sigma. This is the consistent partner to an emissivity curve
     averaged over the same slopes: the surface cannot be rough enough to change how
-    much it reflects and still be smooth enough to reflect sharply. At this roughness a
-    target leaves no reflection in the water, so a wake is not available as a cue.
+    much it reflects and still be smooth enough to reflect sharply. A target at
+    detection range leaves no measurable reflection -- switching a hull at 7 NM on and
+    off changes the water by 0.000 -- but a close one very much does: a 400 K slab at
+    300 m moves the sea under it by 136 W m^-2 sr^-1, a hundred times the wave
+    variation. Reflections are a near-field cue, not an absent one.
     """
     return math.sqrt(min(math.sqrt(2.0) * unresolved_slope(wind_speed_mps), 1.0))
 
