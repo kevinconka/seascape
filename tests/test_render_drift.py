@@ -122,7 +122,7 @@ def test_the_noise_delivers_the_slope_it_is_asked_for() -> None:
     noise = tree.nodes.new("ShaderNodeTexNoise")
     noise.inputs["Scale"].default_value = 1.0  # one noise unit is one metre
     noise.inputs["Detail"].default_value = scene.NOISE_DETAIL
-    noise.inputs["Roughness"].default_value = 0.55
+    noise.inputs["Roughness"].default_value = scene.NOISE_ROUGHNESS
     emission = tree.nodes.new("ShaderNodeEmission")
     output = tree.nodes.new("ShaderNodeOutputMaterial")
     position = tree.nodes.new("ShaderNodeNewGeometry").outputs["Position"]

@@ -51,16 +51,24 @@ SLOPE_VARIANCE_PER_MPS = 0.00512
 PM_PEAK = 0.877
 MIN_WAVELENGTH_M = 1.0
 
+# Blender's Detail input, which is octaves *beyond* the first: Detail = 0 already
+# carries one, measured at 0.51 RMS slope against 0.61 at 4.
+NOISE_DETAIL = 4.0
+
+# Amplitude ratio between octaves. Slope goes as amplitude x wavenumber and wavenumber
+# doubles each octave, so 0.5 is the ratio that puts equal slope variance in each --
+# which is what the Phillips equilibrium range says a wind sea does.
+NOISE_ROUGHNESS = 0.5
+
 # 2 pi sqrt(gamma / rho g) = 1.73 cm at gamma = 0.074 N/m: the wavelength of minimum
 # phase speed, where surface tension takes over from gravity. The bottom of the slope
 # spectrum, not a chosen resolution.
-NOISE_DETAIL = 4.0
 CAPILLARY_WAVELENGTH_M = 0.0173
 
 # RMS gradient of the noise's Fac per noise unit, so a Distance of slope x wavelength
-# delivers 0.61 of the slope asked for. Quoted at 2 cm sampling: finer sampling finds
+# delivers 0.55 of the slope asked for. Quoted at 2 cm sampling: finer sampling finds
 # more. `test_the_noise_delivers_the_slope_it_is_asked_for` pins it.
-NOISE_SLOPE_PER_UNIT = 0.61
+NOISE_SLOPE_PER_UNIT = 0.55
 
 
 def wave_length_m(wind_speed_mps: float) -> float:
@@ -75,7 +83,7 @@ def wave_slope(wind_speed_mps: float) -> float:
 
 
 def resolved_slope_fraction(wind_speed_mps: float) -> float:
-    """Fraction of the RMS slope a noise field of NOISE_DETAIL octaves can carry.
+    """Fraction of the RMS slope the noise field can carry, over its octaves.
 
     Cox & Munk measured the whole spectrum down to capillaries; the noise stops a few
     octaves below the dominant wave. In the Phillips equilibrium range the slope
@@ -84,7 +92,7 @@ def resolved_slope_fraction(wind_speed_mps: float) -> float:
     this is slope and that was variance.
     """
     octaves = math.log(wave_length_m(wind_speed_mps) / CAPILLARY_WAVELENGTH_M, 2.0)
-    return math.sqrt(min(NOISE_DETAIL / octaves, 1.0))
+    return math.sqrt(min((NOISE_DETAIL + 1.0) / octaves, 1.0))
 
 
 def bump_slope(wind_speed_mps: float) -> float:
@@ -273,7 +281,7 @@ def _wave_normals(
     # fourth axis, which moves the field without moving the sea.
     noise.inputs["Scale"].default_value = 1.0
     noise.inputs["Detail"].default_value = NOISE_DETAIL
-    noise.inputs["Roughness"].default_value = 0.55
+    noise.inputs["Roughness"].default_value = NOISE_ROUGHNESS
     noise.inputs["W"].default_value = float(
         _substream(seed, "sea/surface").random() * 1e3
     )
