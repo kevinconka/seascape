@@ -10,11 +10,11 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-from seascape import truth
+from seascape import ground_truth
 from seascape.config import load
 
 SCENARIO = load(Path(__file__).parent.parent / "scenarios" / "baseline.toml")
-GROUND_TRUTH = truth.ground_truth(SCENARIO)
+GROUND_TRUTH = ground_truth.ground_truth(SCENARIO)
 FANS = {f"{c.pod}_{c.kind}_{c.bearing_deg:+g}": c for c in SCENARIO.rig.cameras}
 
 
@@ -46,7 +46,7 @@ def test_a_target_is_in_frame_exactly_when_its_bearing_is() -> None:
 
 def test_the_timestamp_is_seconds_not_a_frame_index() -> None:
     assert isinstance(GROUND_TRUTH.t_s, float)
-    assert truth.ground_truth(SCENARIO, t_s=1.5).t_s == 1.5
+    assert ground_truth.ground_truth(SCENARIO, t_s=1.5).t_s == 1.5
 
 
 def test_it_carries_the_resolved_scenario() -> None:
@@ -113,4 +113,6 @@ def test_only_the_rendered_bands_appear() -> None:
     ir_only = SCENARIO.model_copy(
         update={"outputs": SCENARIO.outputs.model_copy(update={"bands": ("ir",)})}
     )
-    assert {camera.band for camera in truth.ground_truth(ir_only).cameras} == {"ir"}
+    assert {camera.band for camera in ground_truth.ground_truth(ir_only).cameras} == {
+        "ir"
+    }

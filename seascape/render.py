@@ -16,7 +16,7 @@ from pathlib import Path
 import bpy
 from pydantic import BaseModel
 
-from seascape import scene, truth
+from seascape import ground_truth, scene
 from seascape.config import Engine, Scenario
 
 # The scenario names engines in lower case because Blender's identifiers move between
@@ -116,7 +116,7 @@ def render(scenario: Scenario, into: Path) -> list[Path]:
             written.append(into / f"{name}.exr")
 
     for name, record in (
-        ("ground_truth.json", truth.ground_truth(scenario)),
+        ("ground_truth.json", ground_truth.ground_truth(scenario)),
         ("provenance.json", provenance(scenario)),
     ):
         path = into / name
