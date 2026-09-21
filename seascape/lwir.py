@@ -226,6 +226,22 @@ def band_radiance(t_k: float) -> float:
     return float(np.trapezoid(planck(_BAND_LAM, t_k), _BAND_LAM))
 
 
+# Coarse enough to interpolate, wide enough for anything a scenario allows.
+_TB_GRID = np.linspace(200.0, 400.0, 1024)
+_TB_RADIANCE = np.array(
+    [np.trapezoid(planck(_BAND_LAM, t), _BAND_LAM) for t in _TB_GRID]
+)
+
+
+def brightness_temperature(radiance: npt.ArrayLike) -> FloatArray:
+    """Invert `band_radiance`: the blackbody temperature that emits this in-band.
+
+    What a thermal camera displays. A real surface is not a blackbody, so this reads
+    below its true temperature wherever emissivity does.
+    """
+    return np.interp(np.asarray(radiance, dtype=np.float64), _TB_RADIANCE, _TB_GRID)
+
+
 def sky_radiance(elev_rad: npt.ArrayLike, t_air_k: float = T_AIR_K) -> FloatArray:
     """Downwelling in-band sky radiance at an elevation above the horizon.
 

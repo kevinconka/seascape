@@ -117,9 +117,8 @@ class Outputs(Model):
     cannot be pinned, so it is not an option rather than an option nobody should take.
 
     EXR by default: it is float, so an LWIR pixel stays the radiance in W m^-2 sr^-1
-    that the render produced. PNG is 8-bit, which for EO means Blender's AgX film
-    curve and for LWIR would mean a gain curve nobody has specified, so `png` is
-    rejected for the `ir` band rather than written as a white frame.
+    that the render produced. PNG is 8-bit and needs a mapping onto it -- for EO the
+    exposure below and Blender's AgX film curve, for LWIR `ir_window_k`.
     """
 
     # A tuple, so the default cannot be a list shared between scenarios.
@@ -132,14 +131,18 @@ class Outputs(Model):
     # it is set for the light. It reaches the display transform only, so a png carries
     # it and an exr stays the radiance the render produced. The ir band ignores it.
     exposure_ev: float = -5.0
+    # Brightness temperature at black and at white in an ir png. Fixed rather than
+    # stretched per frame: a per-frame stretch rescales every image on its own, so two
+    # frames cannot be compared and neither carries a temperature. This is a thermal
+    # camera's level and span, with the numbers written down. The band's own limits,
+    # which hold the shipped sea, sky and hull with room either side.
+    ir_window_k: tuple[float, float] = (270.0, 300.0)
 
     @model_validator(mode="after")
-    def _png_is_eo_only(self) -> "Outputs":
-        if self.format == "png" and "ir" in self.bands:
-            raise ValueError(
-                "png cannot hold LWIR radiance: mapping it to 8 bits needs the "
-                "sensor's gain curve. Use exr, or drop 'ir' from bands."
-            )
+    def _window_is_ordered(self) -> "Outputs":
+        low, high = self.ir_window_k
+        if low >= high:
+            raise ValueError(f"ir_window_k is not low to high: {self.ir_window_k}")
         return self
 
     @model_validator(mode="after")

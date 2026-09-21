@@ -185,14 +185,10 @@ def test_every_shipped_preset_parses() -> None:
         tomllib.load(preset.open("rb"))
 
 
-def test_png_is_rejected_for_lwir() -> None:
-    """8 bits of LWIR needs a gain curve, and a white frame would not announce it."""
-    with pytest.raises(ValidationError, match="gain curve"):
-        Outputs(format="png", bands=("eo", "ir"))
-
-
-def test_png_is_fine_without_lwir() -> None:
-    assert Outputs(format="png", bands=("eo",)).format == "png"
+def test_the_ir_window_runs_low_to_high() -> None:
+    """Reversed, every thermal png comes out inverted with nothing to say so."""
+    with pytest.raises(ValidationError, match="not low to high"):
+        Outputs(ir_window_k=(300.0, 270.0))
 
 
 def test_a_band_cannot_be_listed_twice() -> None:

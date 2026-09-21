@@ -97,7 +97,7 @@
     },
     "Outputs": {
       "additionalProperties": false,
-      "description": "What a render writes.\n\nEvery camera of every listed band is rendered, so `bands` is the whole selection:\na scene is built per band, and within one there is nothing to choose between.\n\nCycles renders everything. EEVEE is not bit-reproducible and its Metal driver\ncannot be pinned, so it is not an option rather than an option nobody should take.\n\nEXR by default: it is float, so an LWIR pixel stays the radiance in W m^-2 sr^-1\nthat the render produced. PNG is 8-bit, which for EO means Blender's AgX film\ncurve and for LWIR would mean a gain curve nobody has specified, so `png` is\nrejected for the `ir` band rather than written as a white frame.",
+      "description": "What a render writes.\n\nEvery camera of every listed band is rendered, so `bands` is the whole selection:\na scene is built per band, and within one there is nothing to choose between.\n\nCycles renders everything. EEVEE is not bit-reproducible and its Metal driver\ncannot be pinned, so it is not an option rather than an option nobody should take.\n\nEXR by default: it is float, so an LWIR pixel stays the radiance in W m^-2 sr^-1\nthat the render produced. PNG is 8-bit and needs a mapping onto it -- for EO the\nexposure below and Blender's AgX film curve, for LWIR `ir_window_k`.",
       "properties": {
         "bands": {
           "default": [
@@ -125,6 +125,24 @@
           "default": -5.0,
           "title": "Exposure Ev",
           "type": "number"
+        },
+        "ir_window_k": {
+          "default": [
+            270.0,
+            300.0
+          ],
+          "maxItems": 2,
+          "minItems": 2,
+          "prefixItems": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "number"
+            }
+          ],
+          "title": "Ir Window K",
+          "type": "array"
         }
       },
       "title": "Outputs",
