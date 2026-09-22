@@ -25,8 +25,8 @@ PODS = [pytest.param(pod, id=pod.name) for pod in SCENARIO.rig.pods]
 
 
 @pytest.fixture(scope="module", autouse=True)
-def built() -> None:
-    scene.build(SCENARIO, "eo")
+def built() -> scene.Built:
+    return scene.build(SCENARIO, "eo")
 
 
 def targets() -> list[bpy.types.Object]:
@@ -173,11 +173,13 @@ def test_the_ring_is_one_mesh_however_many_targets() -> None:
 
 
 def test_the_calibration_projects_every_target_where_blender_draws_it(
-    tmp_path, monkeypatch
+    tmp_path, monkeypatch, built
 ) -> None:
     """Read back from disk, so a matrix that does not survive JSON fails here too."""
     written = Calibration(
-        cameras=[scene.calibrate(m, f"{m.name}.png") for m in SCENARIO.rig.mounts]
+        cameras=[
+            scene.calibrate(built, m, f"{m.name}.png") for m in SCENARIO.rig.mounts
+        ]
     ).write(tmp_path)
     render = bpy.context.scene.render
 
@@ -205,9 +207,11 @@ def test_the_calibration_projects_every_target_where_blender_draws_it(
     assert projected, "no target in any frame: the assertions above ran on nothing"
 
 
-def test_a_calibration_with_fields_it_does_not_know_still_reads(tmp_path) -> None:
+def test_a_calibration_with_fields_it_does_not_know_still_reads(
+    tmp_path, built
+) -> None:
     mount = SCENARIO.rig.mounts[0]
-    record = scene.calibrate(mount, "").model_dump()
+    record = scene.calibrate(built, mount, "").model_dump()
     (tmp_path / "calibration.json").write_text(
         json.dumps({"cameras": [{**record, "serial": "X"}], "rig": "Y"})
     )
@@ -218,8 +222,8 @@ def test_a_calibration_with_fields_it_does_not_know_still_reads(tmp_path) -> Non
 
 
 @pytest.mark.parametrize("mount", MOUNTS)
-def test_in_its_pod_a_camera_points_exactly_as_asked(mount) -> None:
-    axis = np.array(scene.calibrate(mount, "").extrinsics["pod"])[:3, 2]
+def test_in_its_pod_a_camera_points_exactly_as_asked(mount, built) -> None:
+    axis = np.array(scene.calibrate(built, mount, "").extrinsics["pod"])[:3, 2]
 
     bearing = math.degrees(math.atan2(axis[0], axis[1]))
     elevation = math.degrees(math.asin(axis[2]))
@@ -230,9 +234,9 @@ def test_in_its_pod_a_camera_points_exactly_as_asked(mount) -> None:
 
 
 @pytest.mark.parametrize("mount", MOUNTS)
-def test_a_panorama_puts_each_principal_point_on_its_boresight(mount) -> None:
+def test_a_panorama_puts_each_principal_point_on_its_boresight(mount, built) -> None:
     """A slip in the stitcher's frame flips or mirrors the panorama."""
-    k, r = panorama.pose(scene.calibrate(mount, ""), "world", 0.0)
+    k, r = panorama.pose(scene.calibrate(built, mount, ""), "world", 0.0)
     warper = cv2.PyRotationWarper("spherical", 1.0)
 
     # Spherical: u is the bearing, v the angle down from straight up.
@@ -243,7 +247,7 @@ def test_a_panorama_puts_each_principal_point_on_its_boresight(mount) -> None:
     )
 
 
-def test_a_panorama_lays_its_cameras_out_in_yaw_order(tmp_path) -> None:
+def test_a_panorama_lays_its_cameras_out_in_yaw_order(tmp_path, built) -> None:
     """Each frame one colour, so the stitch shows which camera landed where."""
     first = SCENARIO.rig.mounts[0]
     mounts = [
@@ -256,9 +260,9 @@ def test_a_panorama_lays_its_cameras_out_in_yaw_order(tmp_path) -> None:
         frame = np.zeros((mount.camera.height_px, mount.camera.width_px, 3), np.uint8)
         frame[..., channel] = 255
         cv2.imwrite(str(tmp_path / f"{mount.name}.png"), frame)
-    Calibration(cameras=[scene.calibrate(m, f"{m.name}.png") for m in mounts]).write(
-        tmp_path
-    )
+    Calibration(
+        cameras=[scene.calibrate(built, m, f"{m.name}.png") for m in mounts]
+    ).write(tmp_path)
 
     paths = panorama.panoramas(tmp_path, "cylindrical", "pod", max_width=400)
 
@@ -269,11 +273,11 @@ def test_a_panorama_lays_its_cameras_out_in_yaw_order(tmp_path) -> None:
     assert columns == sorted(columns)
 
 
-def test_the_width_is_capped_and_never_raised(tmp_path) -> None:
+def test_the_width_is_capped_and_never_raised(tmp_path, built) -> None:
     mount = SCENARIO.rig.mounts[0]
     frame = np.zeros((mount.camera.height_px, mount.camera.width_px, 3), np.uint8)
     cv2.imwrite(str(tmp_path / "frame.png"), frame)
-    camera = scene.calibrate(mount, "frame.png")
+    camera = scene.calibrate(built, mount, "frame.png")
 
     native = panorama.stitch(tmp_path, [camera], "cylindrical", "pod")
     capped = panorama.stitch(tmp_path, [camera], "cylindrical", "pod", 101)
@@ -283,9 +287,9 @@ def test_the_width_is_capped_and_never_raised(tmp_path) -> None:
     assert uncapped.shape == native.shape
 
 
-def test_rectilinear_refuses_a_camera_behind_its_plane() -> None:
+def test_rectilinear_refuses_a_camera_behind_its_plane(built) -> None:
     """Two cameras back to back: no plane faces both, whatever their field."""
-    camera = scene.calibrate(SCENARIO.rig.mounts[0], "")
+    camera = scene.calibrate(built, SCENARIO.rig.mounts[0], "")
     turned = Matrix.Rotation(math.pi, 4, "Z") @ Matrix(camera.extrinsics["world"])
     behind = camera.model_copy(
         update={"extrinsics": {"world": tuple(map(tuple, turned))}}
@@ -295,22 +299,22 @@ def test_rectilinear_refuses_a_camera_behind_its_plane() -> None:
         panorama.stitch(Path(), [camera, behind], "rectilinear", "world")
 
 
-def test_a_frame_the_calibration_lacks_is_named() -> None:
-    camera = scene.calibrate(SCENARIO.rig.mounts[0], "")
+def test_a_frame_the_calibration_lacks_is_named(built) -> None:
+    camera = scene.calibrate(built, SCENARIO.rig.mounts[0], "")
 
     with pytest.raises(ValueError, match="'deck'"):
         panorama.stitch(Path(), [camera], "cylindrical", "deck")
 
 
-def test_a_max_width_under_a_pixel_is_an_error() -> None:
-    camera = scene.calibrate(SCENARIO.rig.mounts[0], "")
+def test_a_max_width_under_a_pixel_is_an_error(built) -> None:
+    camera = scene.calibrate(built, SCENARIO.rig.mounts[0], "")
 
     with pytest.raises(ValueError, match="max width"):
         panorama.stitch(Path(), [camera], "cylindrical", "pod", 0)
 
 
-def test_a_shrunk_frame_keeps_its_principal_point_at_its_centre() -> None:
-    camera = scene.calibrate(SCENARIO.rig.mounts[0], "")
+def test_a_shrunk_frame_keeps_its_principal_point_at_its_centre(built) -> None:
+    camera = scene.calibrate(built, SCENARIO.rig.mounts[0], "")
     frame = np.zeros((camera.height_px, camera.width_px, 3), np.uint8)
     k, _ = panorama.pose(camera, "pod", 0.0)
 
