@@ -53,6 +53,13 @@ def test_the_caption_sits_under_the_frame_and_never_on_it(twin_pod, tmp_path) ->
     assert sheet.getpixel((0, montage.TILE_H + 2)) == montage.MATTE  # caption band
 
 
+def test_the_caption_band_holds_the_font_it_is_drawn_in() -> None:
+    """A band fixed in pixels clips the descenders as soon as the font size moves."""
+    line_box = sum(montage._font().getmetrics())
+
+    assert line_box < montage.CAPTION_H <= line_box + 8
+
+
 def test_a_missing_frame_names_itself(twin_pod, tmp_path) -> None:
     """Silently dropping it gives a montage that looks complete and is not."""
     into = frames(twin_pod, tmp_path)
@@ -66,3 +73,19 @@ def test_a_missing_frame_names_itself(twin_pod, tmp_path) -> None:
 def test_an_unrendered_scenario_is_an_error(twin_pod, tmp_path) -> None:
     with pytest.raises(FileNotFoundError):
         montage.compose(twin_pod, tmp_path)
+
+
+def test_a_sliver_of_a_frame_still_gets_a_tile(twin_pod, tmp_path) -> None:
+    """A 1:1000 camera rounds to no width at all, which Pillow refuses to resize."""
+    into = frames(twin_pod, tmp_path, size=(1, 1000))
+
+    assert Image.open(montage.compose(twin_pod, into)).width > 0
+
+
+def test_a_camera_named_montage_is_an_error(twin_pod, tmp_path) -> None:
+    """Its frame is the output file: composed in, then written over."""
+    twin_pod.rig.pods[0].cameras[0].name = "montage"
+    into = frames(twin_pod, tmp_path)
+
+    with pytest.raises(ValueError, match="montage"):
+        montage.compose(twin_pod, into)
