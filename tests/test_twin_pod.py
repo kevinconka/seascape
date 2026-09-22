@@ -10,7 +10,7 @@ from pathlib import Path
 import bpy
 import pytest
 from bpy_extras.object_utils import world_to_camera_view
-from mathutils import Vector
+from mathutils import Matrix, Vector
 
 from seascape import scene
 from seascape.config import Scenario, load
@@ -35,7 +35,7 @@ def test_a_pods_cameras_all_sit_at_its_mount_point(pod) -> None:
     expected = (pod.offset_x_m, pod.offset_y_m, SCENARIO.rig.height_m)
 
     places = {
-        tuple(bpy.data.objects[mount.name].matrix_world.translation)
+        tuple(_in_ship_frame(bpy.data.objects[mount.name]).translation)
         for mount in SCENARIO.rig.mounts
         if mount.pod.name == pod.name
     }
@@ -53,13 +53,28 @@ def test_the_ownship_is_at_the_origin() -> None:
     assert tuple(anchor.location) == pytest.approx((0.0, 0.0, 0.0))
 
 
+def test_roll_takes_starboard_down_and_pitch_the_bow_up() -> None:
+    assert SCENARIO.ownship is not None
+    assert SCENARIO.ownship.roll_deg > 0.0
+    assert SCENARIO.ownship.pitch_deg > 0.0
+    ship = bpy.data.objects["ownship"].matrix_world
+    port, starboard = (
+        bpy.data.objects[f"pod_{side}"].matrix_world.translation.z
+        for side in ("port", "starboard")
+    )
+    bow, stern = ((ship @ Vector((0.0, y, 0.0))).z for y in (1.0, -1.0))
+
+    assert starboard < port
+    assert bow > stern
+
+
 def test_pod_span_and_overlap_measured_from_the_scene() -> None:
     """The acceptance numbers, read off the built cameras rather than the config."""
     arcs: dict[tuple[str, str], list[tuple[float, float]]] = {}
     for mount in SCENARIO.rig.mounts:
         camera = bpy.data.objects[mount.name]
         half = math.degrees(camera.data.angle_x) / 2
-        centre, _ = scene.boresight_deg(camera)
+        centre = _ship_bearing_deg(camera)
         # IR is one camera per pod; its span and overlap are a rig-level property.
         pod = "rig" if mount.camera.kind == "ir" else mount.pod.name
         arcs.setdefault((pod, mount.camera.kind), []).append(
@@ -89,7 +104,9 @@ def test_a_pod_stands_on_the_ship_rather_than_beside_it(pod) -> None:
     bearings, overlaps, lens clearance and target coverage all still pass."""
     pod_at = bpy.data.objects[f"pod_{pod.name}"].matrix_world.translation
 
-    drop_m = _distance_to_geometry(pod_at, pod_at + Vector((0.0, 0.0, -1.0)))
+    down = bpy.data.objects["ownship"].matrix_world.to_3x3() @ Vector((0.0, 0.0, -1.0))
+
+    drop_m = _distance_to_geometry(pod_at, pod_at + down)
 
     assert drop_m < MAX_BRACKET_M, (
         f"nothing within {MAX_BRACKET_M} m below pod_{pod.name}: it is not mounted"
@@ -153,6 +170,16 @@ def test_the_ring_is_one_mesh_however_many_targets() -> None:
 
     assert len(hulls) == SCENARIO.targets.count
     assert len(meshes) == per_target
+
+
+def _in_ship_frame(obj: bpy.types.Object) -> Matrix:
+    """The rig is specified on the hull, so it is measured there, not on the sea."""
+    return bpy.data.objects["ownship"].matrix_world.inverted() @ obj.matrix_world
+
+
+def _ship_bearing_deg(camera: bpy.types.Object) -> float:
+    forward = _in_ship_frame(camera).to_3x3() @ Vector((0.0, 0.0, -1.0))
+    return math.degrees(math.atan2(forward.x, forward.y))
 
 
 def _distance_to_geometry(origin, through) -> float:

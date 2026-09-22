@@ -179,6 +179,8 @@ class Ownship(Model):
 
     asset: str
     t_k: float = Field(default=296.0, ge=250.0, le=400.0)
+    roll_deg: float = Field(default=0.0, gt=-90.0, lt=90.0)  # positive: starboard down
+    pitch_deg: float = Field(default=0.0, gt=-90.0, lt=90.0)  # positive: bow up
 
 
 class Targets(Model):

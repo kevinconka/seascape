@@ -158,6 +158,20 @@
           "minimum": 250.0,
           "title": "T K",
           "type": "number"
+        },
+        "roll_deg": {
+          "default": 0.0,
+          "exclusiveMaximum": 90.0,
+          "exclusiveMinimum": -90.0,
+          "title": "Roll Deg",
+          "type": "number"
+        },
+        "pitch_deg": {
+          "default": 0.0,
+          "exclusiveMaximum": 90.0,
+          "exclusiveMinimum": -90.0,
+          "title": "Pitch Deg",
+          "type": "number"
         }
       },
       "required": [

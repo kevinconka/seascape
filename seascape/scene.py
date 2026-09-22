@@ -36,6 +36,7 @@ from seascape.config import (
     ImageFormat,
     Object,
     Outputs,
+    Ownship,
     Rig,
     Scenario,
     Sea,
@@ -642,6 +643,21 @@ def _vessel(name: str, t_k: float, band: Band, sky: Sky) -> bpy.types.Object:
     return anchor
 
 
+def _ownship(ownship: Ownship, band: Band, sky: Sky) -> None:
+    """At the origin, bow to +Y, carrying the rig: its offsets are in this frame."""
+    anchor = _vessel(ownship.asset, ownship.t_k, band, sky)
+    # Named for its role, or a target on the same asset takes the name by build order.
+    anchor.name = "ownship"
+    bpy.data.objects["rig"].parent = anchor
+    # YXZ euler is Rz @ Rx @ Ry: roll about the keel, innermost.
+    anchor.rotation_mode = "YXZ"
+    anchor.rotation_euler = (
+        math.radians(ownship.pitch_deg),
+        math.radians(ownship.roll_deg),
+        0.0,
+    )
+
+
 def _pose(
     anchor: bpy.types.Object,
     range_m: float,
@@ -774,11 +790,7 @@ def build(scenario: Scenario, band: Band = "eo") -> None:
     _sea(scenario.sea, scenario.seed, reach_m, band)
     cameras = _rig(scenario.rig, far_m)
     if scenario.ownship is not None:
-        # At the origin, bow to +Y: the rig's offsets are in that frame. Named for
-        # its role, or a target on the same asset takes the name by build order.
-        _vessel(
-            scenario.ownship.asset, scenario.ownship.t_k, band, scenario.sky
-        ).name = "ownship"
+        _ownship(scenario.ownship, band, scenario.sky)
     radius_m = earth_radius_m(scenario.sea.refraction_k)
     for spec in scenario.objects:
         _object(spec, band, radius_m, scenario.sky)
