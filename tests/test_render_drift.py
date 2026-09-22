@@ -45,9 +45,9 @@ def radiance(band: Band, kind: str, size: tuple[int, int]) -> np.ndarray:
     sc.camera = next(
         o for o in bpy.data.objects if o.type == "CAMERA" and f"_{kind}_" in o.name
     )
-    sc.render.engine = "CYCLES"
+    # Build already set the band's engine and denoiser; only the sample count is the
+    # test's own. ir keeps its build default of no OIDN, which is not radiometric.
     sc.cycles.samples = SAMPLES
-    sc.cycles.use_denoising = True
     return shoot(size, f"drift_{band}")
 
 
