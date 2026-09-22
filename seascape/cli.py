@@ -8,7 +8,9 @@ import argparse
 import json
 import sys
 from pathlib import Path
+from typing import get_args
 
+from seascape import panorama
 from seascape.calibration import Frame
 from seascape.config import Band, Scenario, load
 
@@ -53,8 +55,6 @@ def _montage(scenario_path: Path, output: Path | None, overrides: list[str]) -> 
 
 
 def _panorama(folder: Path, projection: str, frame: Frame, width: int) -> None:
-    from seascape import panorama
-
     for path in panorama.panoramas(folder, projection, frame, width):
         print(path)
 
@@ -101,12 +101,12 @@ def main(argv: list[str] | None = None) -> int:
     stitch.add_argument("folder", type=Path, help="a render's output directory")
     stitch.add_argument(
         "--projection",
-        choices=("rectilinear", "cylindrical", "equirectangular"),
+        choices=list(panorama.PROJECTIONS),
         default="cylindrical",
     )
     stitch.add_argument(
         "--frame",
-        choices=("world", "vessel", "pod"),
+        choices=get_args(Frame.__value__),
         default="world",
         help="what is level: the horizon, the deck, or the enclosure",
     )

@@ -266,6 +266,35 @@ def test_a_panorama_runs_port_to_starboard(tmp_path) -> None:
     assert [int(np.argmax(pixel)) for pixel in samples] == [0, 1, 2]
 
 
+def test_rectilinear_refuses_a_span_it_would_mostly_stretch() -> None:
+    """Both pods about the bow put the outer cameras past 75 deg off axis."""
+    cameras = [
+        scene.calibrate(m, "") for m in SCENARIO.rig.mounts if m.camera.kind == "eo"
+    ]
+
+    with pytest.raises(ValueError, match="rectilinear reaches"):
+        panorama.stitch(Path(), cameras, "rectilinear", "vessel", 4000)
+
+
+def test_a_negative_width_is_an_error() -> None:
+    camera = scene.calibrate(SCENARIO.rig.mounts[0], "")
+
+    with pytest.raises(ValueError, match="width"):
+        panorama.stitch(Path(), [camera], "cylindrical", "pod", -1)
+
+
+def test_a_shrunk_frame_keeps_its_principal_point_at_its_centre() -> None:
+    camera = scene.calibrate(SCENARIO.rig.mounts[0], "")
+    frame = np.zeros((camera.height_px, camera.width_px, 3), np.uint8)
+    k, _ = panorama.pose(camera, "pod", 0.0)
+
+    small, k = panorama._shrink(frame, k, 0.25)
+
+    h, w = small.shape[:2]
+    assert (k[0, 2], k[1, 2]) == pytest.approx(((w - 1) / 2, (h - 1) / 2))
+    assert k[0, 0] == pytest.approx(camera.K[0][0] * w / camera.width_px)
+
+
 def _in_ship_frame(obj: bpy.types.Object) -> Matrix:
     """The rig is specified on the hull, so it is measured there."""
     return bpy.data.objects["ownship"].matrix_world.inverted() @ obj.matrix_world
