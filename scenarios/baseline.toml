@@ -1,27 +1,41 @@
 #:schema ../schema/scenario.json
 
-# Tests measure against these numbers. Write a variant that extends this file rather
-# than editing it.
+# The smallest useful scene: one pod, one camera per band, one ship. Tests measure
+# against these numbers, so write a variant that extends it rather than editing it.
 
 seed = 20260920
 
 [rig]
-preset = "twin_pod"
 height_m = 12.0
 
+[[rig.pods]]
+name = "bow"
+yaw_deg = 0.0
+
+[[rig.pods.cameras]]
+kind = "eo"
+hfov_deg = 45.0
+width_px = 1920
+height_px = 1080
+
+[[rig.pods.cameras]]
+kind = "ir"
+hfov_deg = 24.0
+width_px = 640
+height_px = 512
+
 [sea]
-# Above the air on purpose: at the same temperature a tilted facet trades emission for
-# reflected sky of equal radiance and the LWIR waves vanish.
+# Above the 288 K air: at equal temperatures a tilted facet trades emission for
+# reflected sky of the same radiance and the LWIR waves vanish.
 t_sea_k = 291.0
-wind_speed_mps = 7.0
 
 [sky]
-sun_elevation_deg = 30.0
+# Keeps the sun disc and its glitter out of frame.
 sun_bearing_deg = 135.0
-aerosol_density = 1.0
 
 [[objects]]
 preset = "container_ship"
 range_m = 2000.0
-bearing_deg = 15.0
+# Inside the narrower IR frame, so both cameras see it.
+bearing_deg = 8.0
 heading_deg = 250.0

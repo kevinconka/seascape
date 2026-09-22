@@ -1,13 +1,20 @@
 #:schema ../schema/scenario.json
 
 # The rig as installed: two pods on a container ship's bridge wings, a ring of
-# traffic at 7 NM.
+# traffic at 7 NM. The preset carries the pods and their 51.8 m height.
 
-extends = "baseline.toml"
+seed = 20260920
 
 [rig]
-# baseline lowers this to 12 m for the shader tests and `extends` carries it along.
-height_m = 51.8
+preset = "twin_pod"
+
+[sea]
+# Above the 288 K air, or the LWIR waves vanish.
+t_sea_k = 291.0
+
+[sky]
+# Keeps the sun disc and its glitter out of frame.
+sun_bearing_deg = 135.0
 
 [ownship]
 asset = "container_ship"

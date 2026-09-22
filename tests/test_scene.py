@@ -5,7 +5,6 @@ class rebuilds in its own band on entry, which keeps the file order-independent.
 """
 
 import math
-from itertools import pairwise
 from pathlib import Path
 
 import bpy
@@ -90,32 +89,6 @@ class TestGeometry:
             data = camera_of(mount).data
             assert data.sensor_fit == "HORIZONTAL"
             assert math.degrees(data.angle_x) == pytest.approx(mount.camera.hfov_deg)
-
-    def test_pod_span_and_overlap_measured_from_the_scene(self) -> None:
-        """The acceptance numbers, read off the built cameras rather than the config."""
-        arcs: dict[tuple[str, str], list[tuple[float, float]]] = {}
-        for mount in SCENARIO.rig.mounts:
-            camera = camera_of(mount)
-            half = math.degrees(camera.data.angle_x) / 2
-            # Bearing from the boresight; a euler off the matrix is wrong once tilted.
-            forward = camera.matrix_world.to_3x3() @ Vector((0.0, 0.0, -1.0))
-            centre = math.degrees(math.atan2(forward.x, forward.y))
-            # IR is one camera per pod; its span and overlap are a rig-level property.
-            pod = "rig" if mount.camera.kind == "ir" else mount.pod.name
-            arcs.setdefault((pod, mount.camera.kind), []).append(
-                (centre - half, centre + half)
-            )
-
-        for key, span, overlap in (
-            (("port", "eo"), 125.0, 5.0),
-            (("starboard", "eo"), 125.0, 5.0),
-            (("rig", "ir"), 44.0, 4.0),
-        ):
-            sectors = sorted(arcs[key])
-            assert sectors[-1][1] - sectors[0][0] == pytest.approx(span), key
-            gaps = [a[1] - b[0] for a, b in pairwise(sectors)]
-            # Through the pod transform, matrix_world is a few microdegrees out.
-            assert gaps == pytest.approx([overlap] * len(gaps), abs=1e-4), key
 
     def test_the_far_clip_clears_every_target(self) -> None:
         """Blender's default 1000 m renders a 2 km target as sky, reporting nothing."""

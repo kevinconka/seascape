@@ -4,6 +4,7 @@ One global Blender session, so the scene is built once per module.
 """
 
 import math
+from itertools import pairwise
 from pathlib import Path
 
 import bpy
@@ -46,9 +47,36 @@ def test_the_ownship_is_at_the_origin() -> None:
     """The rig's offsets are in the ownship's frame."""
     assert SCENARIO.ownship is not None
 
-    anchor = bpy.data.objects[SCENARIO.ownship.asset]
+    anchor = bpy.data.objects["ownship"]
 
     assert tuple(anchor.location) == pytest.approx((0.0, 0.0, 0.0))
+
+
+def test_pod_span_and_overlap_measured_from_the_scene() -> None:
+    """The acceptance numbers, read off the built cameras rather than the config."""
+    arcs: dict[tuple[str, str], list[tuple[float, float]]] = {}
+    for mount in SCENARIO.rig.mounts:
+        camera = bpy.data.objects[mount.name]
+        half = math.degrees(camera.data.angle_x) / 2
+        # Bearing from the boresight; a euler off the matrix is wrong once tilted.
+        forward = camera.matrix_world.to_3x3() @ Vector((0.0, 0.0, -1.0))
+        centre = math.degrees(math.atan2(forward.x, forward.y))
+        # IR is one camera per pod; its span and overlap are a rig-level property.
+        pod = "rig" if mount.camera.kind == "ir" else mount.pod.name
+        arcs.setdefault((pod, mount.camera.kind), []).append(
+            (centre - half, centre + half)
+        )
+
+    for key, span, overlap in (
+        (("port", "eo"), 125.0, 5.0),
+        (("starboard", "eo"), 125.0, 5.0),
+        (("rig", "ir"), 44.0, 4.0),
+    ):
+        sectors = sorted(arcs[key])
+        assert sectors[-1][1] - sectors[0][0] == pytest.approx(span), key
+        gaps = [a[1] - b[0] for a, b in pairwise(sectors)]
+        # Through the pod transform, matrix_world is a few microdegrees out.
+        assert gaps == pytest.approx([overlap] * len(gaps), abs=1e-4), key
 
 
 # A bracket stands on something. Further than this below a pod and it floats beside

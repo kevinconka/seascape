@@ -13,7 +13,8 @@ from pydantic import ValidationError
 
 from seascape.config import CFG_DIR, Camera, Outputs, Pod, Rig, Scenario, load
 
-BASELINE = Path(__file__).parents[1] / "scenarios" / "baseline.toml"
+SCENARIOS = Path(__file__).parents[1] / "scenarios"
+BASELINE = SCENARIOS / "baseline.toml"
 SCHEMA = Path(__file__).parents[1] / "schema" / "scenario.json"
 
 
@@ -33,16 +34,27 @@ def baseline() -> Scenario:
     return load(BASELINE)
 
 
-def test_baseline_has_eight_cameras(baseline) -> None:
-    """Six EO plus an LWIR pair, from twin_pod.toml."""
+@pytest.fixture(scope="module")
+def twin_pod() -> Scenario:
+    return load(SCENARIOS / "twin-pod.toml")
+
+
+def test_the_baseline_states_its_own_rig(baseline) -> None:
+    """One camera per band, no preset."""
     kinds = [mount.camera.kind for mount in baseline.rig.mounts]
-    assert kinds.count("eo") == 6
-    assert kinds.count("ir") == 2
+
+    assert kinds == ["eo", "ir"]
 
 
-def test_preset_supplies_optics_and_block_supplies_the_mount(baseline) -> None:
+def test_the_baseline_carries_no_scenario_a_variant_would_inherit(baseline) -> None:
+    """`extends` copies whatever is here; a variant never asked for a ring."""
+    assert (baseline.ownship, baseline.targets) == (None, None)
+
+
+def test_a_preset_supplies_optics_and_the_block_supplies_the_mount(twin_pod) -> None:
     """Optics come from the camera preset, mount from the pod that holds it."""
-    eo, ir = baseline.rig.mounts[0], baseline.rig.mounts[-1]
+    eo, ir = twin_pod.rig.mounts[0], twin_pod.rig.mounts[-1]
+
     assert (eo.camera.hfov_deg, eo.camera.width_px, eo.camera.height_px) == (
         45.0,
         3840,
@@ -56,12 +68,13 @@ def test_preset_supplies_optics_and_block_supplies_the_mount(baseline) -> None:
     assert (eo.pod.name, eo.bearing_deg) == ("port", -100.0)
 
 
-def test_a_bearing_is_its_pod_plus_its_fan(baseline) -> None:
+def test_a_bearing_is_its_pod_plus_its_fan(twin_pod) -> None:
     """bearing = pod yaw + fan, so re-aiming a pod moves its cameras."""
-    port = baseline.rig.pods[0]
+    port = twin_pod.rig.pods[0]
+
     assert port.yaw_deg == -60.0
     assert [camera.fan_deg for camera in port.cameras] == [-40.0, 0.0, 40.0, 50.0]
-    assert [mount.bearing_deg for mount in baseline.rig.mounts][:4] == [
+    assert [mount.bearing_deg for mount in twin_pod.rig.mounts][:4] == [
         -100.0,
         -60.0,
         -20.0,
@@ -69,11 +82,16 @@ def test_a_bearing_is_its_pod_plus_its_fan(baseline) -> None:
     ]
 
 
+def test_the_installed_rig_takes_its_height_from_the_preset(twin_pod) -> None:
+    """An inherited 12 m hung both pods 40 m below their bridge wings."""
+    assert twin_pod.rig.height_m == 51.8
+
+
 def test_objects_merge_their_preset(baseline) -> None:
     """The only list-of-tables preset: asset and temperature from cfg, pose here."""
     obj = baseline.objects[0]
     assert (obj.asset, obj.t_k) == ("container_ship", 295.0)
-    assert (obj.range_m, obj.bearing_deg) == (2000.0, 15.0)
+    assert (obj.range_m, obj.bearing_deg) == (2000.0, 8.0)
 
 
 def test_a_block_overrides_its_own_preset(tmp_path) -> None:
