@@ -40,15 +40,14 @@ def twin_pod() -> Scenario:
 
 
 def test_the_baseline_states_its_own_rig(baseline) -> None:
-    """One camera per band, no preset: nothing here follows the twin pod's spec."""
+    """One camera per band, no preset."""
     kinds = [mount.camera.kind for mount in baseline.rig.mounts]
 
     assert kinds == ["eo", "ir"]
 
 
 def test_the_baseline_carries_no_scenario_a_variant_would_inherit(baseline) -> None:
-    """`extends` copies whatever is here, and a silent ownship or ring is a scene a
-    variant never asked for."""
+    """`extends` copies whatever is here; a variant never asked for a ring."""
     assert (baseline.ownship, baseline.targets) == (None, None)
 
 
@@ -84,8 +83,7 @@ def test_a_bearing_is_its_pod_plus_its_fan(twin_pod) -> None:
 
 
 def test_the_installed_rig_takes_its_height_from_the_preset(twin_pod) -> None:
-    """The failure this exists for: an inherited 12 m hung both pods 40 m under their
-    bridge wings, and every other check still passed."""
+    """An inherited 12 m hung both pods 40 m below their bridge wings."""
     assert twin_pod.rig.height_m == 51.8
 
 

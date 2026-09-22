@@ -1,8 +1,7 @@
 #:schema ../schema/scenario.json
 
-# The smallest useful scene: one pod, one camera per band, one ship. Sea and sky are
-# the model defaults apart from the two noted below. Tests measure against these
-# numbers, so write a variant that extends this file rather than editing it.
+# The smallest useful scene: one pod, one camera per band, one ship. Tests measure
+# against these numbers, so write a variant that extends it rather than editing it.
 
 seed = 20260920
 
@@ -31,7 +30,7 @@ height_px = 512
 t_sea_k = 291.0
 
 [sky]
-# Off the bow quarter, so the sun disc and its glitter stay out of frame.
+# Keeps the sun disc and its glitter out of frame.
 sun_bearing_deg = 135.0
 
 [[objects]]
