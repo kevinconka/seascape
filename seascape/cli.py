@@ -44,7 +44,6 @@ def _render(scenario_path: Path, output: Path | None, overrides: list[str]) -> N
 
 
 def _montage(scenario_path: Path, output: Path | None, overrides: list[str]) -> None:
-    # No bpy here: this reads what `render` wrote, so it runs without the Blender wheel.
     from seascape import montage
 
     scenario = load(scenario_path, overrides)

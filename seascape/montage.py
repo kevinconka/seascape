@@ -3,9 +3,8 @@
 No Blender: this reads the images `render` already wrote, so it runs without the bpy
 wheel and a layout can be redone without re-rendering eight 4K frames.
 
-Captions sit in a band under each frame, never over it. These images are detection and
-radiometry data; text burnt into one is an artefact that travels with the dataset, and
-in an exr it would corrupt radiance.
+Captions sit in a band under each frame: text burnt into a frame is an artefact that
+travels with the dataset, and in an exr it would corrupt radiance.
 """
 
 from pathlib import Path
@@ -20,21 +19,20 @@ TILE_H = 260
 CAPTION_H = 26
 GUTTER = 4
 
-# Matte, so a frame's own edge is visible against it and the text is legible on both a
-# bright EO frame and a dark thermal one.
+# Dark enough that a frame's edge shows against it, and pale ink stays legible over
+# both a bright EO frame and a dark thermal one.
 MATTE = (24, 24, 24)
 INK = (232, 232, 232)
 
 
 def _font() -> FreeTypeFont | ImageFont.ImageFont:
-    """Pillow's built-in face, scaled. No font file to ship, or to find missing."""
+    """Pillow's built-in face: no font file to ship, or to find missing."""
     return ImageFont.load_default(size=16)
 
 
 def _tile(
     path: Path, font: FreeTypeFont | ImageFont.ImageFont, caption: str
 ) -> Image.Image:
-    """One frame scaled to `TILE_H`, with its caption in a band underneath."""
     frame = Image.open(path).convert("RGB")
     width = round(frame.width * TILE_H / frame.height)
     frame = frame.resize((width, TILE_H), Image.Resampling.LANCZOS)
@@ -55,20 +53,23 @@ def _tile(
 def compose(scenario: Scenario, into: Path) -> Path:
     """Write `montage.png` beside the frames in `into`, one row per band.
 
-    Rows follow the rig, so a row reads port to starboard the way the pods are bolted
-    on, and the bands stay apart because their pixels mean different things.
+    Tiles follow rig order, so a row reads port to starboard. eo and ir never share
+    a row: their pixels mean different things.
     """
     font = _font()
-    suffix = scenario.outputs.format
     rows: list[list[Image.Image]] = []
     for band in scenario.outputs.bands:
         tiles = []
         for mount in scenario.rig.mounts:
             if mount.camera.kind != band:
                 continue
-            frame = into / f"{mount.name}.{suffix}"
+            # png, whatever `outputs.format` says: an exr is float radiance, and
+            # turning it into a picture is the render's display transform, not this.
+            frame = into / f"{mount.name}.png"
             if not frame.exists():
-                raise FileNotFoundError(f"{frame}: render the scenario first")
+                raise FileNotFoundError(
+                    f"{frame}: render it as png, with --set 'outputs.format = \"png\"'"
+                )
             tiles.append(_tile(frame, font, mount.name))
         if tiles:
             rows.append(tiles)
@@ -82,7 +83,7 @@ def compose(scenario: Scenario, into: Path) -> Path:
     )
     y = 0
     for row, row_w, row_h in zip(rows, widths, heights, strict=True):
-        x = (sheet.width - row_w) // 2  # centred, so a short ir row sits under the eo
+        x = (sheet.width - row_w) // 2  # a short ir row sits under the eo
         for tile in row:
             sheet.paste(tile, (x, y))
             x += tile.width + GUTTER

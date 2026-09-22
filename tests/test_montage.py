@@ -1,4 +1,4 @@
-"""Laying rendered frames out for review. No Blender: these are images on disk."""
+"""Laying rendered frames out for review."""
 
 from pathlib import Path
 
@@ -25,7 +25,6 @@ def frames(scenario: Scenario, into: Path, size: tuple[int, int] = (64, 36)) -> 
 
 
 def test_a_montage_carries_every_camera(twin_pod, tmp_path) -> None:
-    """One tile per camera, or a reviewer is looking at a subset without being told."""
     into = frames(twin_pod, tmp_path)
 
     out = montage.compose(twin_pod, into)
@@ -35,8 +34,7 @@ def test_a_montage_carries_every_camera(twin_pod, tmp_path) -> None:
 
 
 def test_a_band_gets_its_own_row(twin_pod, tmp_path) -> None:
-    """eo and ir pixels mean different things, and an ir png is stretched per frame,
-    so the two never sit in one row where they would read as comparable."""
+    """An ir png is stretched per frame, so its greys never read as comparable to eo."""
     into = frames(twin_pod, tmp_path)
 
     height = Image.open(montage.compose(twin_pod, into)).height
@@ -46,8 +44,6 @@ def test_a_band_gets_its_own_row(twin_pod, tmp_path) -> None:
 
 
 def test_the_caption_sits_under_the_frame_and_never_on_it(twin_pod, tmp_path) -> None:
-    """These are detection and radiometry data. Text burnt into a frame travels with
-    the dataset, and in an exr it would corrupt radiance."""
     into = frames(twin_pod, tmp_path)
     flat = (90, 110, 130)
 
