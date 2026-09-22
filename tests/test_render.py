@@ -138,32 +138,47 @@ class TestSettings:
         self, fmt: ImageFormat
     ) -> None:
         """`render` composes its return paths from the format, not from Blender."""
-        assert built("eo", format=fmt).render.file_extension == f".{fmt}"
+        sc = built("eo", format=fmt)
+
+        assert sc.render.file_extension == f".{fmt}"
 
     def test_ir_renders_float_even_when_a_png_is_asked_for(self) -> None:
         """Radiance through 8 bits is no longer radiance."""
-        assert built("ir", format="png").render.image_settings.color_depth == "32"
+        sc = built("ir", format="png")
+
+        assert sc.render.image_settings.color_depth == "32"
 
     @pytest.mark.parametrize(("band", "denoised"), [("eo", True), ("ir", False)])
     def test_only_eo_is_denoised(self, band: Band, denoised: bool) -> None:
         """OIDN invents 10 K of structure on a field that is flat by construction."""
-        assert built(band).cycles.use_denoising is denoised
+        sc = built(band)
+
+        assert sc.cycles.use_denoising is denoised
 
     @pytest.mark.parametrize("band", get_args(Band.__value__))
     def test_both_bands_render_in_cycles(self, band: Band) -> None:
         """EEVEE renders the sea at half its radiance."""
-        assert built(band).render.engine == "CYCLES"
+        sc = built(band)
+
+        assert sc.render.engine == "CYCLES"
 
     def test_the_active_camera_sets_the_resolution(self) -> None:
         """Factory 1920x1080 otherwise, whatever the camera says it is."""
         eo = next(m.camera for m in load(BASELINE).rig.mounts if m.camera.kind == "eo")
+
         sc = built("eo")
+
         assert (sc.render.resolution_x, sc.render.resolution_y) == (
             eo.width_px,
             eo.height_px,
         )
 
-    def test_eo_is_exposed_and_ir_is_not(self) -> None:
+    @pytest.mark.parametrize(
+        ("band", "exposure_ev"),
+        [("eo", load(BASELINE).outputs.exposure_ev), ("ir", 0.0)],
+    )
+    def test_only_eo_is_exposed(self, band: Band, exposure_ev: float) -> None:
         """Radiance through an exposure is no longer radiance."""
-        assert built("eo").view_settings.exposure == load(BASELINE).outputs.exposure_ev
-        assert built("ir").view_settings.exposure == 0.0
+        sc = built(band)
+
+        assert sc.view_settings.exposure == exposure_ev
