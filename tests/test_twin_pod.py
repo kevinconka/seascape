@@ -9,12 +9,13 @@ from itertools import pairwise
 from pathlib import Path
 
 import bpy
+import cv2
 import numpy as np
 import pytest
 from bpy_extras.object_utils import world_to_camera_view
 from mathutils import Matrix, Vector
 
-from seascape import scene
+from seascape import panorama, scene
 from seascape.calibration import Calibration
 from seascape.config import Scenario, load
 
@@ -226,6 +227,98 @@ def test_in_its_pod_a_camera_points_exactly_as_asked(mount) -> None:
     assert (bearing, elevation) == pytest.approx(
         (mount.camera.yaw_deg, mount.camera.pitch_deg), abs=1e-4
     )
+
+
+@pytest.mark.parametrize("mount", MOUNTS)
+def test_a_panorama_puts_each_principal_point_on_its_boresight(mount) -> None:
+    """A slip in the stitcher's frame flips or mirrors the panorama."""
+    k, r = panorama.pose(scene.calibrate(mount, ""), "world", 0.0)
+    warper = cv2.PyRotationWarper("spherical", 1.0)
+
+    # Spherical: u is the bearing, v the angle down from straight up.
+    u, v = warper.warpPoint((float(k[0, 2]), float(k[1, 2])), k, r)
+
+    assert (math.degrees(u), 90.0 - math.degrees(v)) == pytest.approx(
+        scene.boresight_deg(bpy.data.objects[mount.name]), abs=1e-3
+    )
+
+
+def test_a_panorama_lays_its_cameras_out_in_yaw_order(tmp_path) -> None:
+    """Each frame one colour, so the stitch shows which camera landed where."""
+    first = SCENARIO.rig.mounts[0]
+    mounts = [
+        m
+        for m in SCENARIO.rig.mounts
+        if m.pod == first.pod and m.camera.kind == first.camera.kind
+    ][:3]
+    mounts.sort(key=lambda m: m.camera.yaw_deg)
+    for channel, mount in enumerate(mounts):
+        frame = np.zeros((mount.camera.height_px, mount.camera.width_px, 3), np.uint8)
+        frame[..., channel] = 255
+        cv2.imwrite(str(tmp_path / f"{mount.name}.png"), frame)
+    Calibration(cameras=[scene.calibrate(m, f"{m.name}.png") for m in mounts]).write(
+        tmp_path
+    )
+
+    paths = panorama.panoramas(tmp_path, "cylindrical", "pod", max_width=400)
+
+    image = cv2.imread(str(paths[0]))
+    assert image is not None
+    row = image[image.shape[0] // 2]
+    columns = [np.flatnonzero(row[:, c] > 127).mean() for c in range(len(mounts))]
+    assert columns == sorted(columns)
+
+
+def test_the_width_is_capped_and_never_raised(tmp_path) -> None:
+    mount = SCENARIO.rig.mounts[0]
+    frame = np.zeros((mount.camera.height_px, mount.camera.width_px, 3), np.uint8)
+    cv2.imwrite(str(tmp_path / "frame.png"), frame)
+    camera = scene.calibrate(mount, "frame.png")
+
+    native = panorama.stitch(tmp_path, [camera], "cylindrical", "pod")
+    capped = panorama.stitch(tmp_path, [camera], "cylindrical", "pod", 101)
+    uncapped = panorama.stitch(tmp_path, [camera], "cylindrical", "pod", 10**6)
+
+    assert capped.shape[1] == 101
+    assert uncapped.shape == native.shape
+
+
+def test_rectilinear_refuses_a_camera_behind_its_plane() -> None:
+    """Two cameras back to back: no plane faces both, whatever their field."""
+    camera = scene.calibrate(SCENARIO.rig.mounts[0], "")
+    turned = Matrix.Rotation(math.pi, 4, "Z") @ Matrix(camera.extrinsics["world"])
+    behind = camera.model_copy(
+        update={"extrinsics": {"world": tuple(map(tuple, turned))}}
+    )
+
+    with pytest.raises(ValueError, match="rectilinear cannot show"):
+        panorama.stitch(Path(), [camera, behind], "rectilinear", "world")
+
+
+def test_a_frame_the_calibration_lacks_is_named() -> None:
+    camera = scene.calibrate(SCENARIO.rig.mounts[0], "")
+
+    with pytest.raises(ValueError, match="'deck'"):
+        panorama.stitch(Path(), [camera], "cylindrical", "deck")
+
+
+def test_a_max_width_under_a_pixel_is_an_error() -> None:
+    camera = scene.calibrate(SCENARIO.rig.mounts[0], "")
+
+    with pytest.raises(ValueError, match="max width"):
+        panorama.stitch(Path(), [camera], "cylindrical", "pod", 0)
+
+
+def test_a_shrunk_frame_keeps_its_principal_point_at_its_centre() -> None:
+    camera = scene.calibrate(SCENARIO.rig.mounts[0], "")
+    frame = np.zeros((camera.height_px, camera.width_px, 3), np.uint8)
+    k, _ = panorama.pose(camera, "pod", 0.0)
+
+    small, k = panorama._shrink(frame, k, 0.25)
+
+    h, w = small.shape[:2]
+    assert (k[0, 2], k[1, 2]) == pytest.approx(((w - 1) / 2, (h - 1) / 2))
+    assert k[0, 0] == pytest.approx(camera.K[0][0] * w / camera.width_px)
 
 
 def _in_ship_frame(obj: bpy.types.Object) -> Matrix:

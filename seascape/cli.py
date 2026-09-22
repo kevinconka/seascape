@@ -9,6 +9,7 @@ import json
 import sys
 from pathlib import Path
 
+from seascape import panorama
 from seascape.config import Band, Scenario, load
 
 
@@ -51,6 +52,11 @@ def _montage(scenario_path: Path, output: Path | None, overrides: list[str]) -> 
     print(montage.compose(scenario, into))
 
 
+def _panorama(folder: Path, projection: str, frame: str, max_width: int | None) -> None:
+    for path in panorama.panoramas(folder, projection, frame, max_width):
+        print(path)
+
+
 def _add_set(command: argparse.ArgumentParser) -> None:
     command.add_argument(
         "--set",
@@ -87,6 +93,25 @@ def main(argv: list[str] | None = None) -> int:
     )
     _add_set(lay)
 
+    stitch = commands.add_parser(
+        "panorama", help="stitch each pod's frames, from calibration.json"
+    )
+    stitch.add_argument("folder", type=Path, help="a render's output directory")
+    stitch.add_argument(
+        "--projection",
+        choices=list(panorama.PROJECTIONS),
+        default="cylindrical",
+    )
+    stitch.add_argument(
+        "--frame",
+        default="world",
+        help="an extrinsics frame in calibration.json, which sets what is level: "
+        "world the horizon, vessel the deck, pod the enclosure",
+    )
+    stitch.add_argument(
+        "--max-width", type=int, help="pixels; native resolution when absent"
+    )
+
     commands.add_parser("schema", help="print the scenario JSON schema on stdout")
 
     args = parser.parse_args(argv)
@@ -98,6 +123,8 @@ def main(argv: list[str] | None = None) -> int:
             _render(args.scenario, args.output, args.overrides)
         elif args.command == "montage":
             _montage(args.scenario, args.output, args.overrides)
+        elif args.command == "panorama":
+            _panorama(args.folder, args.projection, args.frame, args.max_width)
         else:
             _build(args.scenario, args.output, args.band, args.overrides)
     except (

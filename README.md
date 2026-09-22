@@ -71,6 +71,12 @@ uv run seascape render scenarios/twin-pod.toml -o out/
 uv run seascape montage scenarios/twin-pod.toml -o out/   # out/montage.png
 ```
 
+`seascape panorama` stitches each pod's frames, per band, from the `calibration.json` beside them:
+
+```bash
+uv run seascape panorama out/ --projection rectilinear --frame pod
+```
+
 > [!NOTE]
 > `seascape build` writes the `.blend` to open in Blender; `seascape render` writes the images and `calibration.json`.
 
