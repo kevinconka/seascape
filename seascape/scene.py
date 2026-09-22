@@ -598,7 +598,7 @@ def _output(outputs: Outputs, band: Band) -> None:
     # Not EEVEE: no second bounce for world light, so the sea renders at half radiance.
     sc.render.engine = "CYCLES"
     sc.cycles.device = "GPU" if _enable_gpu() else "CPU"
-    sc.cycles.samples = outputs.samples[band]
+    sc.cycles.samples = getattr(outputs.samples, band)
     # OIDN is on by default and is a picture filter: a world flat at 290.00 K comes
     # back 282.43-293.00 K, and R=G=B, which `render._thermal_png` reads, breaks.
     sc.cycles.use_denoising = band == "eo"

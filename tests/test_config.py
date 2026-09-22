@@ -87,6 +87,46 @@ def test_the_installed_rig_takes_its_height_from_the_preset(twin_pod) -> None:
     assert twin_pod.rig.height_m == 51.8
 
 
+def test_an_override_is_the_toml_line_it_would_be_written_as(baseline) -> None:
+    """The point of reusing TOML: no second syntax, and no coercion rules to invent."""
+    scenario = load(BASELINE, ["rig.tilt_deg = -5"])
+
+    assert scenario.rig.tilt_deg == -5.0
+    assert scenario.rig.height_m == baseline.rig.height_m
+
+
+def test_an_override_merges_a_table_rather_than_replacing_it() -> None:
+    """The failure this exists for: `samples` as a dict dropped the band left out, and
+    `getattr(samples, band)` then raised partway through a render."""
+    scenario = load(BASELINE, ["outputs.samples.eo = 8"])
+
+    assert (scenario.outputs.samples.eo, scenario.outputs.samples.ir) == (8, 64)
+
+
+def test_overrides_apply_in_order() -> None:
+    """Last wins, so a script can append one without reading what came before."""
+    scenario = load(BASELINE, ["rig.tilt_deg = -5", "rig.tilt_deg = -10"])
+
+    assert scenario.rig.tilt_deg == -10.0
+
+
+@pytest.mark.parametrize(
+    ("override", "error"),
+    [
+        pytest.param("rig.tlit_deg = -5", ValidationError, id="misspelt-key"),
+        pytest.param("outputs.format = png", ValueError, id="unquoted-string"),
+        pytest.param("garbage", ValueError, id="not-an-assignment"),
+    ],
+)
+def test_a_bad_override_is_refused(override: str, error: type[Exception]) -> None:
+    """Silently ignoring one renders something other than what was asked for.
+
+    `tomllib.TOMLDecodeError` is a `ValueError`, so the CLI reports both the same way.
+    """
+    with pytest.raises(error):
+        load(BASELINE, [override])
+
+
 def test_objects_merge_their_preset(baseline) -> None:
     """The only list-of-tables preset: asset and temperature from cfg, pose here."""
     obj = baseline.objects[0]

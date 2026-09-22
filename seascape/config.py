@@ -16,6 +16,7 @@ Rules:
 """
 
 import tomllib
+from collections.abc import Iterable
 from pathlib import Path
 from typing import Any, Literal, NamedTuple
 
@@ -177,6 +178,19 @@ class Targets(Model):
         ]
 
 
+class Samples(Model):
+    """Cycles samples per band.
+
+    A model rather than a `dict[Band, int]`: a table merges field by field, so stating
+    one band keeps the other's default. A dict replaces outright and the band left out
+    goes missing, which surfaces as a KeyError partway through a render.
+    """
+
+    # eo is denoised: 16 is enough. ir is not, and needs 64 for the grain to go.
+    eo: int = Field(default=16, gt=0)
+    ir: int = Field(default=64, gt=0)
+
+
 class Outputs(Model):
     """What a render writes.
 
@@ -193,8 +207,7 @@ class Outputs(Model):
     bands: tuple[Band, ...] = Field(
         default=("eo", "ir"), min_length=1, json_schema_extra={"uniqueItems": True}
     )
-    # eo is denoised: 16 is enough. ir is not, and needs 64 for the grain to go.
-    samples: dict[Band, int] = {"eo": 16, "ir": 64}
+    samples: Samples = Field(default_factory=lambda: Samples())
     format: ImageFormat = "exr"
     # Stops, and EO clips to white without them: a sunlit sea renders at 3 to 13 where
     # a display wants 1. -5 puts the frame's median luminance on the 18% grey card
@@ -277,6 +290,13 @@ def _read(path: Path, chain: tuple[Path, ...] = ()) -> dict[str, Any]:
     return data
 
 
-def load(path: str | Path) -> Scenario:
-    """Read a scenario TOML, resolving `extends` and `preset`, and validate it."""
-    return Scenario.model_validate(_read(Path(path)))
+def load(path: str | Path, overrides: Iterable[str] = ()) -> Scenario:
+    """Read a scenario TOML, resolving `extends` and `preset`, and validate it.
+
+    Each override is one dotted-key TOML assignment merged over the file, so
+    `rig.tilt_deg = -5` is the line it would be written as in the scenario.
+    """
+    data = _read(Path(path))
+    for assignment in overrides:
+        data = _merge(data, tomllib.loads(assignment))
+    return Scenario.model_validate(data)

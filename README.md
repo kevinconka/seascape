@@ -42,10 +42,18 @@ uv run seascape build scenarios/baseline.toml            # scenarios/baseline.eo
 uv run seascape build scenarios/baseline.toml -o /tmp/look.blend
 ```
 
-A scenario is a TOML file describing the world, the platform, the sensors and the targets. `scenarios/baseline.toml` is the smallest one: one pod, one camera per band, one ship. Variants are diffs:
+A scenario is a TOML file describing the world, the platform, the sensors and the targets. `scenarios/baseline.toml` is the smallest one: one pod, one camera per band, one ship.
+
+`--set` overrides any field for one run, as the TOML line it would be written as:
+
+```bash
+uv run seascape render scenarios/twin-pod.toml --set 'rig.tilt_deg = -5'
+uv run seascape render scenarios/baseline.toml --set 'outputs.samples.eo = 8' --set 'sky.sun_elevation_deg = 5'
+```
+
+A variant worth keeping and rendering again is a file, and `extends` makes it a diff:
 
 ```toml
-# scenarios/tilt-down.toml
 extends = "twin-pod.toml"
 
 [rig]

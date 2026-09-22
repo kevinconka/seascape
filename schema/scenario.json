@@ -107,18 +107,7 @@
           "uniqueItems": true
         },
         "samples": {
-          "additionalProperties": {
-            "type": "integer"
-          },
-          "default": {
-            "eo": 16,
-            "ir": 64
-          },
-          "propertyNames": {
-            "$ref": "#/$defs/Band"
-          },
-          "title": "Samples",
-          "type": "object"
+          "$ref": "#/$defs/Samples"
         },
         "format": {
           "$ref": "#/$defs/ImageFormat",
@@ -225,6 +214,26 @@
         "pods"
       ],
       "title": "Rig",
+      "type": "object"
+    },
+    "Samples": {
+      "additionalProperties": false,
+      "description": "Cycles samples per band.\n\nA model rather than a `dict[Band, int]`: a table merges field by field, so stating\none band keeps the other's default. A dict replaces outright and the band left out\ngoes missing, which surfaces as a KeyError partway through a render.",
+      "properties": {
+        "eo": {
+          "default": 16,
+          "exclusiveMinimum": 0,
+          "title": "Eo",
+          "type": "integer"
+        },
+        "ir": {
+          "default": 64,
+          "exclusiveMinimum": 0,
+          "title": "Ir",
+          "type": "integer"
+        }
+      },
+      "title": "Samples",
       "type": "object"
     },
     "Sea": {
