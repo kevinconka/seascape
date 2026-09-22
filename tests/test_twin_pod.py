@@ -9,12 +9,13 @@ from itertools import pairwise
 from pathlib import Path
 
 import bpy
+import cv2
 import numpy as np
 import pytest
 from bpy_extras.object_utils import world_to_camera_view
 from mathutils import Matrix, Vector
 
-from seascape import scene
+from seascape import panorama, scene
 from seascape.calibration import Calibration
 from seascape.config import Scenario, load
 
@@ -226,6 +227,43 @@ def test_in_its_pod_a_camera_points_exactly_as_asked(mount) -> None:
     assert (bearing, elevation) == pytest.approx(
         (mount.camera.yaw_deg, mount.camera.pitch_deg), abs=1e-4
     )
+
+
+@pytest.mark.parametrize("mount", MOUNTS)
+def test_a_panorama_puts_each_principal_point_on_its_boresight(mount) -> None:
+    """A slip in the stitcher's frame flips or mirrors the panorama, with nothing
+    else failing."""
+    k, r = panorama.pose(scene.calibrate(mount, ""), "world", 0.0)
+    warper = cv2.PyRotationWarper("spherical", 1.0)
+
+    # Spherical: u is the bearing, v the angle down from straight up.
+    u, v = warper.warpPoint((float(k[0, 2]), float(k[1, 2])), k, r)
+
+    assert (math.degrees(u), 90.0 - math.degrees(v)) == pytest.approx(
+        scene.boresight_deg(bpy.data.objects[mount.name]), abs=1e-3
+    )
+
+
+def test_a_panorama_runs_port_to_starboard(tmp_path) -> None:
+    """Each frame a flat colour, so the stitch shows which camera landed where."""
+    mounts = [m for m in SCENARIO.rig.mounts if m.pod.name == "port"]
+    mounts = [m for m in mounts if m.camera.kind == "eo"]
+    for channel, mount in enumerate(mounts):
+        frame = np.zeros((mount.camera.height_px, mount.camera.width_px, 3), np.uint8)
+        frame[..., channel] = 255
+        cv2.imwrite(str(tmp_path / f"{mount.name}.png"), frame)
+    Calibration(cameras=[scene.calibrate(m, f"{m.name}.png") for m in mounts]).write(
+        tmp_path
+    )
+
+    (path,) = panorama.panoramas(tmp_path, "cylindrical", "pod", 400)
+
+    image = cv2.imread(str(path))
+    assert image is not None
+    row = image[image.shape[0] // 2]
+    lit = np.flatnonzero(row.any(axis=1))
+    samples = row[lit[2]], row[len(row) // 2], row[lit[-3]]
+    assert [int(np.argmax(pixel)) for pixel in samples] == [0, 1, 2]
 
 
 def _in_ship_frame(obj: bpy.types.Object) -> Matrix:

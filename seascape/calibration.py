@@ -4,12 +4,16 @@ Imports no Blender, so a consumer reads it without the bpy wheel.
 """
 
 from pathlib import Path
+from typing import Literal
 
 from pydantic import ConfigDict, Field
 
 from seascape.config import Model
 
 FILENAME = "calibration.json"
+
+# Each is +X right, +Y ahead, +Z up; see the `T_<frame>_cam` fields.
+type Frame = Literal["world", "vessel", "pod"]
 
 type Row3 = tuple[float, float, float]
 type Row4 = tuple[float, float, float, float]
