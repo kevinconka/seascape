@@ -56,6 +56,7 @@ Building fresh each time is also what keeps a long-lived session from accumulati
 These produce wrong output with no error. They are the reason this file exists.
 
 - **Blender's +Z rotation turns a forward-facing object to port.** Every nautical bearing goes through the single conversion helper and is negated there and nowhere else. Two negations cancel and look plausible.
+- **A camera's bearing is not `yaw + fan`.** The rig composes `Rz(-yaw) Rx(tilt) Rz(-fan)`, so tilt sits between the two yaws and shifts a fanned camera's azimuth -- 0.108 deg at -5 deg of tilt, nine pixels at 4K, and it grows with tilt. A centre camera is exact, which is why the sum looks right. `scene.boresight_deg` reads the achieved bearing and elevation off `matrix_world`; `Mount.nominal_bearing_deg` is only what the scenario asked for. A name carries position in the chain, never an angle, or every file a re-aimed rig wrote becomes a lie.
 - **`rotation_mode` is often `QUATERNION`.** Assigning `rotation_euler` is then ignored entirely — no exception, no warning, object doesn't move. Set the mode first.
 - **Address shader sockets by name, never by index.** `inputs["Distance"]` raises if Blender renames it; `inputs[1]` happily writes to whatever now sits in that slot.
 - **Objects can share a mesh datablock.** Material slots link to mesh data by default, so assigning a material to one object silently changes the other. Use `slot.link = "OBJECT"` when they must differ.

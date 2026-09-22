@@ -13,7 +13,7 @@ from bpy_extras.object_utils import world_to_camera_view
 from mathutils import Vector
 
 from seascape import scene
-from seascape.config import Mount, Scenario, load
+from seascape.config import Scenario, load
 
 SCENARIO: Scenario = load(Path(__file__).parent.parent / "scenarios" / "twin-pod.toml")
 MOUNTS = [pytest.param(mount, id=mount.name) for mount in SCENARIO.rig.mounts]
@@ -35,8 +35,9 @@ def test_a_pods_cameras_all_sit_at_its_mount_point(pod) -> None:
     expected = (pod.offset_x_m, pod.offset_y_m, SCENARIO.rig.height_m)
 
     places = {
-        tuple(bpy.data.objects[Mount(pod, camera).name].matrix_world.translation)
-        for camera in pod.cameras
+        tuple(bpy.data.objects[mount.name].matrix_world.translation)
+        for mount in SCENARIO.rig.mounts
+        if mount.pod.name == pod.name
     }
 
     assert len(places) == 1
@@ -58,9 +59,7 @@ def test_pod_span_and_overlap_measured_from_the_scene() -> None:
     for mount in SCENARIO.rig.mounts:
         camera = bpy.data.objects[mount.name]
         half = math.degrees(camera.data.angle_x) / 2
-        # Bearing from the boresight; a euler off the matrix is wrong once tilted.
-        forward = camera.matrix_world.to_3x3() @ Vector((0.0, 0.0, -1.0))
-        centre = math.degrees(math.atan2(forward.x, forward.y))
+        centre, _ = scene.boresight_deg(camera)
         # IR is one camera per pod; its span and overlap are a rig-level property.
         pod = "rig" if mount.camera.kind == "ir" else mount.pod.name
         arcs.setdefault((pod, mount.camera.kind), []).append(

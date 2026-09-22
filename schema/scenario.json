@@ -18,6 +18,19 @@
           "title": "Fan Deg",
           "type": "number"
         },
+        "name": {
+          "anyOf": [
+            {
+              "pattern": "^[A-Za-z0-9_-]+$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Name"
+        },
         "hfov_deg": {
           "exclusiveMaximum": 180.0,
           "exclusiveMinimum": 0.0,
