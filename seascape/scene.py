@@ -589,7 +589,7 @@ def calibrate(mount: Mount, image: str) -> CameraCalibration:
     """A built camera's geometry, read off the scene. Build first."""
     camera = bpy.data.objects[mount.name]
     world = camera.matrix_world @ _BLENDER_TO_CV
-    vessel = bpy.data.objects.get("ownship")
+    vessel = bpy.data.objects["ownship"].matrix_world
     pod = bpy.data.objects[f"pod_{mount.pod.name}"].matrix_world
     width, height = mount.camera.width_px, mount.camera.height_px
     f = (width / 2) / math.tan(camera.data.angle_x / 2)
@@ -603,11 +603,11 @@ def calibrate(mount: Mount, image: str) -> CameraCalibration:
         # Blender's frame spans pixel edges, so its centre is half a pixel past
         # OpenCV's.
         K=((f, 0.0, (width - 1) / 2), (0.0, f, (height - 1) / 2), (0.0, 0.0, 1.0)),
-        T_world_cam=_rows(world),
-        T_vessel_cam=_rows(
-            world if vessel is None else vessel.matrix_world.inverted() @ world
-        ),
-        T_pod_cam=_rows(pod.inverted() @ world),
+        extrinsics={
+            "world": _rows(world),
+            "vessel": _rows(vessel.inverted() @ world),
+            "pod": _rows(pod.inverted() @ world),
+        },
     )
 
 

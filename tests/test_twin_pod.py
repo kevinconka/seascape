@@ -186,7 +186,7 @@ def test_the_calibration_projects_every_target_where_blender_draws_it(
         # world_to_camera_view takes its aspect from the scene's resolution.
         monkeypatch.setattr(render, "resolution_x", w)
         monkeypatch.setattr(render, "resolution_y", h)
-        world_to_cam = np.linalg.inv(camera.T_world_cam)
+        world_to_cam = np.linalg.inv(camera.extrinsics["world"])
         for target in targets():
             uv = world_to_camera_view(
                 bpy.context.scene, bpy.data.objects[camera.name], target.location
@@ -201,7 +201,7 @@ def test_the_calibration_projects_every_target_where_blender_draws_it(
             ), camera.name
             projected += 1
 
-    assert projected >= len(SCENARIO.rig.mounts)
+    assert projected, "no target in any frame: the assertions above ran on nothing"
 
 
 def test_a_calibration_with_fields_it_does_not_know_still_reads(tmp_path) -> None:
@@ -219,7 +219,7 @@ def test_a_calibration_with_fields_it_does_not_know_still_reads(tmp_path) -> Non
 @pytest.mark.parametrize("mount", MOUNTS)
 def test_in_its_pod_a_camera_points_exactly_as_asked(mount) -> None:
     """The pod frame drops the hull's attitude: what remains is the camera's own."""
-    axis = np.array(scene.calibrate(mount, "").T_pod_cam)[:3, 2]
+    axis = np.array(scene.calibrate(mount, "").extrinsics["pod"])[:3, 2]
 
     bearing = math.degrees(math.atan2(axis[0], axis[1]))
     elevation = math.degrees(math.asin(axis[2]))

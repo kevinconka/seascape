@@ -7,7 +7,7 @@ from pathlib import Path
 
 from pydantic import ConfigDict, Field
 
-from seascape.config import Band, Model
+from seascape.config import Model
 
 FILENAME = "calibration.json"
 
@@ -26,23 +26,24 @@ class CameraCalibration(_Record):
     """An ideal pinhole with no distortion, in OpenCV's conventions.
 
     Camera frame: +X right, +Y down, +Z along the optical axis. Pixel centres sit at
-    integer coordinates. Each `T_<frame>_cam` takes camera coordinates into `<frame>`.
+    integer coordinates.
     """
 
     name: str
-    band: Band
+    band: str
     image: str = Field(description="relative to the calibration file")
-    pod: str
+    pod: str | None = None
     width_px: int = Field(gt=0)
     height_px: int = Field(gt=0)
     K: Matrix3
-    T_world_cam: Matrix4 = Field(
-        description="+X east, +Y north, +Z up, at sea level under the vessel's origin"
+    extrinsics: dict[str, Matrix4] = Field(
+        min_length=1,
+        description=(
+            "camera to each named frame. seascape writes world (+X east, +Y north, "
+            "+Z up, at sea level), vessel (+X starboard, +Y bow, +Z up, moving with "
+            "the hull) and pod (the enclosure, +Y along its axis)"
+        ),
     )
-    T_vessel_cam: Matrix4 = Field(
-        description="+X starboard, +Y bow, +Z up, moving with the hull"
-    )
-    T_pod_cam: Matrix4 = Field(description="the enclosure, +Y along its axis")
 
 
 class Calibration(_Record):
