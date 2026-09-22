@@ -600,9 +600,8 @@ def _output(outputs: Outputs, band: Band) -> None:
     sc.render.engine = "CYCLES"
     sc.cycles.device = "GPU" if _enable_gpu() else "CPU"
     sc.cycles.samples = outputs.samples[band]
-    # OIDN is an edge-aware image filter, not a radiometric one, and it is on by
-    # default. On a world flat at 290.00 K it returns 282.43-293.00 K and breaks the
-    # R=G=B the scene guarantees, which is the channel `render._thermal_png` reads.
+    # OIDN is on by default and is a picture filter: a world flat at 290.00 K comes
+    # back 282.43-293.00 K, and R=G=B, which `render._thermal_png` reads, breaks.
     sc.cycles.use_denoising = band == "eo"
     # HIGH: 16 s vs 5 s per 4K frame, 0.8% pixel change.
     sc.cycles.denoising_quality = "FAST"
@@ -610,11 +609,10 @@ def _output(outputs: Outputs, band: Band) -> None:
     if band == "eo":
         view.exposure = outputs.exposure_ev
     else:
-        # Pixels are radiance in W m^-2 sr^-1, not a picture. Blender defaults to the
-        # AgX film curve, which destroys the one property these pixels have.
+        # Radiance in W m^-2 sr^-1, not a picture; the default AgX film curve bends it.
         view.view_transform, view.look = "Standard", "None"
         view.exposure, view.gamma = 0.0, 1.0
-    # ir renders float whatever the scenario asks; `render` maps its png from the exr.
+    # 8-bit radiance is not radiance; `render` maps the ir png from the exr.
     file_format, depth = _FORMATS[outputs.format if band == "eo" else "exr"]
     sc.render.image_settings.file_format = file_format
     sc.render.image_settings.color_depth = depth
@@ -642,9 +640,13 @@ def build(scenario: Scenario, band: Band = "eo") -> None:
         _targets(scenario.targets, band)
     # Scenario order, so the first camera is EO in the baseline: an IR build would
     # otherwise open on a camera whose optics belong to the other band.
-    bpy.context.scene.camera = cameras[
-        next(mount.name for mount in scenario.rig.mounts if mount.camera.kind == band)
-    ]
+    first = next(mount for mount in scenario.rig.mounts if mount.camera.kind == band)
+    sc = bpy.context.scene
+    sc.camera = cameras[first.name]
+    sc.render.resolution_x, sc.render.resolution_y = (
+        first.camera.width_px,
+        first.camera.height_px,
+    )
     # Until the depsgraph runs, every child still reports its pre-parenting
     # matrix_world, so anything measuring the scene reads the wrong place.
     bpy.context.view_layer.update()

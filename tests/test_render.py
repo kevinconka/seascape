@@ -120,7 +120,6 @@ class TestThermalPng:
 
 
 def built(band: Band, **outputs: object) -> bpy.types.Scene:
-    """The baseline built in `band`, with `outputs` fields overridden."""
     scenario = load(BASELINE)
     scenario = scenario.model_copy(
         update={"outputs": scenario.outputs.model_copy(update=outputs)}
@@ -130,8 +129,6 @@ def built(band: Band, **outputs: object) -> bpy.types.Scene:
 
 
 class TestSettings:
-    """What the .blend carries, so F12 in Blender renders what `render` renders."""
-
     def test_every_format_maps_to_one_blender_identifier(self) -> None:
         """A format added to the Literal alone renders as whatever was set last."""
         assert set(scene._FORMATS) == set(get_args(ImageFormat.__value__))
@@ -144,7 +141,7 @@ class TestSettings:
         assert built("eo", format=fmt).render.file_extension == f".{fmt}"
 
     def test_ir_renders_float_even_when_a_png_is_asked_for(self) -> None:
-        """Radiance through 8 bits is no longer radiance; the png is mapped after."""
+        """Radiance through 8 bits is no longer radiance."""
         assert built("ir", format="png").render.image_settings.color_depth == "32"
 
     @pytest.mark.parametrize(("band", "denoised"), [("eo", True), ("ir", False)])
@@ -156,6 +153,15 @@ class TestSettings:
     def test_both_bands_render_in_cycles(self, band: Band) -> None:
         """EEVEE renders the sea at half its radiance."""
         assert built(band).render.engine == "CYCLES"
+
+    def test_the_active_camera_sets_the_resolution(self) -> None:
+        """Factory 1920x1080 otherwise, whatever the camera says it is."""
+        eo = next(m.camera for m in load(BASELINE).rig.mounts if m.camera.kind == "eo")
+        sc = built("eo")
+        assert (sc.render.resolution_x, sc.render.resolution_y) == (
+            eo.width_px,
+            eo.height_px,
+        )
 
     def test_eo_is_exposed_and_ir_is_not(self) -> None:
         """Radiance through an exposure is no longer radiance."""

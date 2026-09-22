@@ -66,7 +66,6 @@ def render(scenario: Scenario, into: Path) -> list[Path]:
         mounts = [m for m in scenario.rig.mounts if m.camera.kind == band]
         if not mounts:
             continue
-        # An ir scene renders float whatever the scenario asks; the png is mapped here.
         thermal_png = band == "ir" and outputs.format == "png"
         scene.build(scenario, band)
         sc = bpy.context.scene
