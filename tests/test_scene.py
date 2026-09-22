@@ -178,6 +178,18 @@ class TestGeometry:
         assert reach > horizon
         assert reach > max(spec.range_m for spec in SCENARIO.objects)
 
+    def test_a_hull_floats_on_the_sea_and_not_on_the_tangent_plane(self) -> None:
+        """The failure this exists for: the sea curves away from z = 0, so hulls left
+        there fly -- the 7 NM ring stood 11.5 m up, and a vessel at 40 km stood 109 m.
+        Nothing caught it, because range and bearing were still right."""
+        radius = scene.earth_radius_m(SCENARIO.sea.refraction_k)
+
+        for spec in SCENARIO.objects:
+            anchor = bpy.data.objects[spec.asset]
+            east, north, up = anchor.matrix_world.translation
+
+            assert up == pytest.approx(scene.sea_z_m(east, north, radius), abs=1e-3)
+
     def test_a_hull_beyond_the_horizon_is_cut_off(self) -> None:
         """What a flat sea could not do: at 506 km of plane nothing is ever hull-down,
         and a target past the horizon shows its waterline when it should not."""

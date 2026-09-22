@@ -154,6 +154,16 @@ def earth_radius_m(refraction_k: float) -> float:
     return EARTH_RADIUS_M / (1.0 - refraction_k)
 
 
+def sea_z_m(east_m: float, north_m: float, radius_m: float) -> float:
+    """Height of the sea at a point, relative to the tangent plane at the origin.
+
+    The parabola that osculates the sphere. One definition, so a hull floats on the
+    same surface the mesh is built from rather than on z = 0, which the sea curves
+    away from: 11.5 m at 7 NM and 109 m at 40 km.
+    """
+    return -(east_m * east_m + north_m * north_m) / (2.0 * radius_m)
+
+
 def horizon_m(height_m: float, refraction_k: float) -> float:
     """Distance to the horizon from `height_m`, tangent to the effective sphere.
 
@@ -436,8 +446,7 @@ def _sea(sea: Sea, seed: int, reach_m: float, band: Band) -> bpy.types.Object:
     _place(water, 0.0, 0.0, 0.0)
     radius_m = earth_radius_m(sea.refraction_k)
     for vertex in water.data.vertices:
-        x, y, _ = vertex.co
-        vertex.co.z = -(x * x + y * y) / (2.0 * radius_m)
+        vertex.co.z = sea_z_m(vertex.co.x, vertex.co.y, radius_m)
     # Flat faces would show their edges in the specular, which a sea does not have.
     for face in water.data.polygons:
         face.use_smooth = True
@@ -571,14 +580,20 @@ def _pose(
     range_m: float,
     bearing_deg: float,
     heading_deg: float,
+    radius_m: float,
 ) -> None:
-    """Put a hull on a bearing at a range, steering the given course."""
-    _place(
-        anchor,
-        range_m * math.sin(math.radians(bearing_deg)),
-        range_m * math.cos(math.radians(bearing_deg)),
-        0.0,
-    )
+    """Put a hull on the sea at a bearing and range, steering the given course.
+
+    The sea falls away from the tangent plane, so a hull left at z = 0 flies: the ring
+    at 7 NM floated 11.5 m and a vessel at 40 km floated 109 m.
+
+    Not tilted to the local vertical. That angle is range / R -- 0.18 m of bow-to-stern
+    difference on a 200 m hull at 7 NM, against a 5 m draught -- so it is under the
+    waterline everywhere the sea is rendered.
+    """
+    east = range_m * math.sin(math.radians(bearing_deg))
+    north = range_m * math.cos(math.radians(bearing_deg))
+    _place(anchor, east, north, sea_z_m(east, north, radius_m))
     anchor.rotation_euler = (0.0, 0.0, _yaw(heading_deg))
 
 
@@ -597,7 +612,7 @@ def _copy_tree(
     return clone
 
 
-def _targets(spec: Targets, band: Band) -> list[bpy.types.Object]:
+def _targets(spec: Targets, band: Band, radius_m: float) -> list[bpy.types.Object]:
     first = _vessel(spec.asset, spec.t_k, band)
     poses = spec.poses()
     anchors = [first, *(_copy_tree(first, None) for _ in poses[1:])]
@@ -605,13 +620,13 @@ def _targets(spec: Targets, band: Band) -> list[bpy.types.Object]:
         zip(anchors, poses, strict=True)
     ):
         anchor.name = f"target_{i}"
-        _pose(anchor, spec.range_m, bearing_deg, heading_deg)
+        _pose(anchor, spec.range_m, bearing_deg, heading_deg, radius_m)
     return anchors
 
 
-def _object(spec: Object, band: Band) -> bpy.types.Object:
+def _object(spec: Object, band: Band, radius_m: float) -> bpy.types.Object:
     anchor = _vessel(spec.asset, spec.t_k, band)
-    _pose(anchor, spec.range_m, spec.bearing_deg, spec.heading_deg)
+    _pose(anchor, spec.range_m, spec.bearing_deg, spec.heading_deg, radius_m)
     return anchor
 
 
@@ -684,10 +699,11 @@ def build(scenario: Scenario, band: Band = "eo") -> None:
         # At the origin, bow to +Y: the rig's offsets are in that frame. Named for
         # its role, or a target on the same asset takes the name by build order.
         _vessel(scenario.ownship.asset, scenario.ownship.t_k, band).name = "ownship"
+    radius_m = earth_radius_m(scenario.sea.refraction_k)
     for spec in scenario.objects:
-        _object(spec, band)
+        _object(spec, band, radius_m)
     if scenario.targets is not None:
-        _targets(scenario.targets, band)
+        _targets(scenario.targets, band, radius_m)
     # Scenario order, so the first camera is EO in the baseline: an IR build would
     # otherwise open on a camera whose optics belong to the other band.
     first = next(mount for mount in scenario.rig.mounts if mount.camera.kind == band)
