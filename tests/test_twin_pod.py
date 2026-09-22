@@ -74,7 +74,7 @@ def test_pod_span_and_overlap_measured_from_the_scene() -> None:
     for mount in SCENARIO.rig.mounts:
         camera = bpy.data.objects[mount.name]
         half = math.degrees(camera.data.angle_x) / 2
-        centre = _ship_bearing_deg(camera)
+        centre, _ = scene.boresight_deg(camera, bpy.data.objects["ownship"])
         # IR is one camera per pod; its span and overlap are a rig-level property.
         pod = "rig" if mount.camera.kind == "ir" else mount.pod.name
         arcs.setdefault((pod, mount.camera.kind), []).append(
@@ -175,11 +175,6 @@ def test_the_ring_is_one_mesh_however_many_targets() -> None:
 def _in_ship_frame(obj: bpy.types.Object) -> Matrix:
     """The rig is specified on the hull, so it is measured there, not on the sea."""
     return bpy.data.objects["ownship"].matrix_world.inverted() @ obj.matrix_world
-
-
-def _ship_bearing_deg(camera: bpy.types.Object) -> float:
-    forward = _in_ship_frame(camera).to_3x3() @ Vector((0.0, 0.0, -1.0))
-    return math.degrees(math.atan2(forward.x, forward.y))
 
 
 def _distance_to_geometry(origin, through) -> float:
