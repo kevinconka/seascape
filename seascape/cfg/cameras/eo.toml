@@ -1,11 +1,9 @@
-# Daylight camera, at native sensor resolution.
+# Daylight camera.
 #
-# 4K is not a quality setting. A 25 x 12 m merchant at 7 NM is ~6 px on the geometric
-# mean of its projection, which is the Johnson detection limit the rig is designed
-# against; downsample in the pipeline, never render at 2K and call it the same scene.
+# Native resolution: a 25 x 12 m merchant at 7 NM is ~6 px, the Johnson detection
+# limit. Downsample in the pipeline, never render smaller.
 kind = "eo"
-# 42-45 deg per the pod spec. 45.0 is the value that makes three cameras 40 deg apart
-# span 125.0 deg with 5.0 deg of overlap, which the same spec also asks for.
+# Pod spec says 42-45; 45 gives the spec's 125 deg span and 5 deg overlap at 40 deg pitch.
 hfov_deg = 45.0
 width_px = 3840
 height_px = 2160

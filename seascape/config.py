@@ -50,15 +50,13 @@ class Camera(Model):
 
 
 class Pod(Model):
-    """One enclosure, bolted to a bridge wing: several cameras behind one yaw.
+    """One enclosure: several cameras behind one yaw and one mount point.
 
-    Offsets are the mount point, not a nicety: two pods a bridge-width apart have
-    fields that overlap in angle long before they overlap in space, which is the
-    blind wedge over the bow. Cameras coincident at the centreline hide it.
+    Offsets matter: pods a beam apart overlap in angle before they overlap in space,
+    which is the blind wedge over the bow. Coincident cameras would hide it.
     """
 
-    # A mount's name is built from this and used as a filename, so a pod that is path
-    # text writes the render outside the output directory.
+    # Becomes a filename; path text would write outside the output directory.
     name: str = Field(pattern=r"^[A-Za-z0-9_-]+$")
     yaw_deg: float  # pod axis relative to the bow, positive to starboard
     offset_x_m: float = 0.0  # from the centreline, positive to starboard
@@ -67,7 +65,7 @@ class Pod(Model):
 
 
 class Mount(NamedTuple):
-    """A camera as built: its optics, and the pod that decides where it looks."""
+    """A camera and the pod that aims it."""
 
     pod: Pod
     camera: Camera
@@ -78,13 +76,12 @@ class Mount(NamedTuple):
 
     @property
     def bearing_deg(self) -> float:
-        """Absolute, relative to the bow. Authored as a fan angle off the pod axis,
-        so a pod can be re-aimed without eight bearings falling out of step."""
+        """Relative to the bow: pod yaw + fan, so re-aiming a pod moves its cameras."""
         return self.pod.yaw_deg + self.camera.fan_deg
 
 
 class Rig(Model):
-    """The pods on the ownship, and the deck height they sit at."""
+    """The pods on the ownship."""
 
     height_m: float = Field(gt=0.0)
     tilt_deg: float = 0.0
@@ -98,8 +95,7 @@ class Rig(Model):
     def _names_are_unique(self) -> "Rig":
         """Two cameras of one name share a datablock and overwrite each other's file.
 
-        Over mounts, not cameras: the same fan angle on two pods is fine, the same
-        bearing twice is not, and only the assembled name tells them apart.
+        Checked over mounts: two pods may share a fan angle, not a bearing.
         """
         names = [mount.name for mount in self.mounts]
         if len(set(names)) != len(names):

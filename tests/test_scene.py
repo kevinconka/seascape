@@ -97,12 +97,10 @@ class TestGeometry:
         for mount in SCENARIO.rig.mounts:
             camera = camera_of(mount)
             half = math.degrees(camera.data.angle_x) / 2
-            # The boresight as a direction, then its bearing. A euler angle read off
-            # the matrix is neither once a pod is tilted.
+            # Bearing from the boresight direction; a euler off the matrix is wrong once tilted.
             forward = camera.matrix_world.to_3x3() @ Vector((0.0, 0.0, -1.0))
             centre = math.degrees(math.atan2(forward.x, forward.y))
-            # The IR pair is one camera per pod, so it is grouped across the rig: its
-            # span and overlap are what the two pods achieve together.
+            # IR is one camera per pod; its span and overlap are a rig-level property.
             pod = "rig" if mount.camera.kind == "ir" else mount.pod.name
             arcs.setdefault((pod, mount.camera.kind), []).append(
                 (centre - half, centre + half)
@@ -116,8 +114,7 @@ class TestGeometry:
             sectors = sorted(arcs[key])
             assert sectors[-1][1] - sectors[0][0] == pytest.approx(span), key
             gaps = [a[1] - b[0] for a, b in pairwise(sectors)]
-            # abs, not the default relative: a bearing composed through a pod's
-            # transform and read back off matrix_world lands a few microdegrees out.
+            # Composed through the pod transform, matrix_world is a few microdegrees out.
             assert gaps == pytest.approx([overlap] * len(gaps), abs=1e-4), key
 
     def test_the_far_clip_clears_every_target(self) -> None:
@@ -233,12 +230,8 @@ def test_the_active_camera_belongs_to_the_band_built(band) -> None:
 def test_a_tilted_pod_rolls_the_horizon_of_its_fanned_cameras(
     tmp_path, fan_deg
 ) -> None:
-    """A pod is one rigid enclosure: tilt pitches the box, not each lens.
-
-    Applying tilt per camera instead holds every horizon level, which looks correct
-    in the centre camera and is wrong in the other two. A camera fanned off the pod
-    axis of a pitched pod sees the horizon rolled by asin(sin(tilt) sin(fan)), and
-    the two sides roll opposite ways.
+    """Tilt pitches the pod, not each lens: a fanned camera sees the horizon rolled by
+    asin(sin(tilt) sin(fan)). Per-camera tilt would hold every horizon level.
     """
     tilt_deg = -5.0
     path = tmp_path / "tilted.toml"
@@ -249,8 +242,7 @@ def test_a_tilted_pod_rolls_the_horizon_of_its_fanned_cameras(
         f'[[rig.pods.cameras]]\npreset = "eo"\nfan_deg = {fan_deg}\n'
     )
     scenario = load(path)
-    # Through `_yaw`, not a hand-written minus: the fan is a bearing, and Blender's
-    # +Z turns to port, so the roll follows the yaw the scene actually applies.
+    # Through `_yaw`: Blender's +Z turns to port, so the sign follows the scene's.
     expected = math.degrees(
         math.asin(math.sin(math.radians(tilt_deg)) * math.sin(scene._yaw(fan_deg)))
     )

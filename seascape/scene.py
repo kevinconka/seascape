@@ -403,12 +403,7 @@ def _sea(sea: Sea, seed: int, reach_m: float, band: Band) -> bpy.types.Object:
 
 
 def _rig(rig: Rig, far_m: float) -> dict[str, bpy.types.Object]:
-    """Root at deck height, an empty per pod, cameras carrying only their fan angle.
-
-    The hierarchy is the point. A pod's mount and yaw live on one object, so no camera
-    holds a world transform anybody had to work out, and re-aiming a pod moves its four
-    cameras together. Rotations compose to the same total yaw a flat rig had.
-    """
+    """Root at deck height, an empty per pod, cameras carrying only their fan angle."""
     root = bpy.data.objects.new("rig", None)
     bpy.context.collection.objects.link(root)
     _place(root, 0.0, 0.0, rig.height_m)
@@ -419,11 +414,9 @@ def _rig(rig: Rig, far_m: float) -> dict[str, bpy.types.Object]:
         bpy.context.collection.objects.link(empty)
         empty.parent = root
         _place(empty, pod.offset_x_m, pod.offset_y_m, 0.0)
-        # Blender's XYZ euler composes as Rz @ Ry @ Rx, so this yaws the pod and then
-        # pitches it about its own transverse axis -- which is what a rigid enclosure
-        # bolted at a fixed angle does. Tilt belongs here and not on the cameras: a
-        # pod that pitched each lens separately would hold every horizon level, and
-        # the fanned cameras of a tilted pod see a rolled one.
+        # XYZ euler is Rz @ Ry @ Rx: yaw, then pitch about the pod's own transverse axis.
+        # Tilt lives on the pod, not the cameras, so fanned cameras of a tilted pod see a
+        # rolled horizon, as a rigid enclosure does.
         empty.rotation_euler = (math.radians(rig.tilt_deg), 0.0, _yaw(pod.yaw_deg))
 
         for mount in (Mount(pod, camera) for camera in pod.cameras):
@@ -439,8 +432,7 @@ def _rig(rig: Rig, far_m: float) -> dict[str, bpy.types.Object]:
             bpy.context.collection.objects.link(camera)
             camera.parent = empty
             camera.rotation_mode = "XYZ"
-            # A camera looks down its local -Z, so +90 deg about X aims it at the
-            # horizon; the pod's own yaw and tilt are already in the parent.
+            # A camera looks down its local -Z, so +90 deg about X aims it at the horizon.
             camera.rotation_euler = (
                 math.radians(90.0),
                 0.0,

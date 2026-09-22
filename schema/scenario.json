@@ -137,7 +137,7 @@
     },
     "Pod": {
       "additionalProperties": false,
-      "description": "One enclosure, bolted to a bridge wing: several cameras behind one yaw.\n\nOffsets are the mount point, not a nicety: two pods a bridge-width apart have\nfields that overlap in angle long before they overlap in space, which is the\nblind wedge over the bow. Cameras coincident at the centreline hide it.",
+      "description": "One enclosure: several cameras behind one yaw and one mount point.\n\nOffsets matter: pods a beam apart overlap in angle before they overlap in space,\nwhich is the blind wedge over the bow. Coincident cameras would hide it.",
       "properties": {
         "name": {
           "pattern": "^[A-Za-z0-9_-]+$",
@@ -177,7 +177,7 @@
     },
     "Rig": {
       "additionalProperties": false,
-      "description": "The pods on the ownship, and the deck height they sit at.",
+      "description": "The pods on the ownship.",
       "properties": {
         "height_m": {
           "exclusiveMinimum": 0.0,

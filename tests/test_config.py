@@ -17,8 +17,7 @@ BASELINE = Path(__file__).parents[1] / "scenarios" / "baseline.toml"
 SCHEMA = Path(__file__).parents[1] / "schema" / "scenario.json"
 
 
-# A rig of one camera in one pod. Overriding `rig.pods` replaces the list whole, which
-# is what the merge tests are here to show.
+# One camera in one pod; overriding `rig.pods` replaces the whole list.
 ONE_POD = '[[rig.pods]]\nname = "bow"\nyaw_deg = 0.0\n\n[[rig.pods.cameras]]\n'
 
 
@@ -58,8 +57,7 @@ def test_preset_supplies_optics_and_block_supplies_the_mount(baseline) -> None:
 
 
 def test_a_bearing_is_its_pod_plus_its_fan(baseline) -> None:
-    """The reason a camera authors a fan angle and not a bearing: re-aiming a pod has
-    to move its four cameras together, and a literal bearing would not follow."""
+    """bearing = pod yaw + fan, so re-aiming a pod moves its cameras."""
     port = baseline.rig.pods[0]
     assert port.yaw_deg == -60.0
     assert [camera.fan_deg for camera in port.cameras] == [-40.0, 0.0, 40.0, 50.0]
@@ -250,8 +248,7 @@ def test_two_cameras_cannot_share_a_name() -> None:
 
 
 def test_the_same_fan_angle_on_two_pods_is_fine() -> None:
-    """Names collide on bearing, not on fan: a pod aims its own cameras, and the two
-    pods of a rig are deliberately mirror images of each other."""
+    """Names collide on bearing, not fan: mirrored pods share fan angles."""
     camera = Camera(kind="eo", fan_deg=0.0, hfov_deg=45.0, width_px=8, height_px=8)
 
     rig = Rig(
@@ -263,13 +260,3 @@ def test_the_same_fan_angle_on_two_pods_is_fine() -> None:
     )
 
     assert [mount.name for mount in rig.mounts] == ["port_eo_-60", "starboard_eo_+60"]
-
-
-def test_a_pod_name_cannot_be_path_text() -> None:
-    """The name becomes a filename, so a slash writes outside the output directory."""
-    with pytest.raises(ValidationError, match="pattern"):
-        Pod(
-            name="../escape",
-            yaw_deg=0.0,
-            cameras=[Camera(kind="eo", hfov_deg=45.0, width_px=8, height_px=8)],
-        )

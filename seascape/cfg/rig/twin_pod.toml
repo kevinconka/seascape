@@ -1,30 +1,23 @@
 # Two pods on the bridge wings, both forward-facing. Eight cameras.
 #
-# Pod axis at +-60 deg from the bow. The spec says 58.5; 60 is what puts the forward
-# EO overlap on the 5 deg the same spec states, so the stated overlaps and the stated
-# axis cannot both hold exactly and the overlaps are the ones that get measured.
+# Pod axis +-60 deg from the bow. Spec says 58.5, but 60 is what gives the spec's 5 deg
+# forward EO overlap; the overlap is what gets measured, so it wins.
 #
-# Within a pod the three EO cameras sit 40 deg apart: 45 deg optics give 125 deg
-# combined with 5 deg overlap, and the two pods together span 245 deg.
-# The IR sits inboard at 50 deg off the pod axis, i.e. +-10 deg off the bow, so the
-# pair spans 44 deg with 4 deg of overlap.
+# EO: 3 x 45 deg at 40 deg pitch = 125 deg per pod, 5 deg overlap, 245 deg total.
+# IR: 50 deg inboard of the pod axis = +-10 deg off the bow, 44 deg pair, 4 deg overlap.
 #
-# Offsets are the bridge-wing tops of the container_ship asset, measured from the
-# mesh: +-21.5 m from the centreline (half its 43 m beam, which is how far a real
-# bridge wing reaches) and 68.2 m aft of midships.
+# Offsets: bridge-wing tops of the container_ship mesh, +-21.5 m (half the 43 m beam)
+# and 68.2 m aft of midships.
 
-# 49.8 m is the top face of those wings, so a pod at that height sits IN the deck
-# plate and the plate fills the lower frame from 0.2 m away. 2.0 m of bracket clears
-# it: the structure then falls below every camera's lower edge.
+# Wing top is 49.8 m; 2 m of bracket keeps the deck plate out of every lower frame edge.
 height_m = 51.8
 tilt_deg = 0.0
 
 [[pods]]
 name = "port"
 yaw_deg = -60.0
-# Outboard end of the port bridge wing. The lateral separation is not cosmetic: it
-# is why the two pods overlap in angle from the bow but only cross in space a few
-# hundred metres out, leaving a blind wedge ahead of the ship.
+# Real lateral separation: the pods overlap in angle but only cross in space a few
+# hundred metres out, leaving a blind wedge ahead.
 offset_x_m = -21.5
 offset_y_m = -68.2
 
@@ -48,9 +41,6 @@ fan_deg = +50.0
 [[pods]]
 name = "starboard"
 yaw_deg = +60.0
-# Outboard end of the starboard bridge wing. The lateral separation is not cosmetic: it
-# is why the two pods overlap in angle from the bow but only cross in space a few
-# hundred metres out, leaving a blind wedge ahead of the ship.
 offset_x_m = +21.5
 offset_y_m = -68.2
 
@@ -68,5 +58,4 @@ fan_deg = 40.0
 
 [[pods.cameras]]
 preset = "ir"
-# Inboard, so the pair straddles the bow at +-10 deg.
 fan_deg = -50.0
