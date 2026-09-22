@@ -47,7 +47,7 @@ def _settings(
 ) -> None:
     outputs = scenario.outputs
     sc = bpy.context.scene
-    # Not EEVEE: no second bounce for world light, so the sea comes out at half radiance.
+    # Not EEVEE: no second bounce for world light, so the sea renders at half radiance.
     sc.render.engine = "CYCLES"
     sc.cycles.samples = outputs.samples[band]
     sc.cycles.device = "GPU" if on_gpu else "CPU"

@@ -128,7 +128,7 @@ class Outputs(Model):
     bands: tuple[Band, ...] = Field(
         default=("eo", "ir"), min_length=1, json_schema_extra={"uniqueItems": True}
     )
-    # eo is denoised and stops changing at 16; undenoised ir needs 64 before the grain goes.
+    # eo is denoised: 16 is enough. ir is not, and needs 64 for the grain to go.
     samples: dict[Band, int] = {"eo": 16, "ir": 64}
     format: ImageFormat = "exr"
     # Stops, and EO clips to white without them: a sunlit sea renders at 3 to 13 where
