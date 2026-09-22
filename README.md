@@ -64,6 +64,13 @@ Scenarios carry a `#:schema` line, so editors with a TOML language server give y
 
 Meshes are never committed. `seascape/assets.toml` records each one's source, sha256, licence and credit; they download on first use to `~/.cache/seascape`, or to `$XDG_CACHE_HOME/seascape` when that is set to an absolute path. Every run re-checks the digest.
 
+`seascape montage` lays a render out for review, one row per band, each frame captioned with its camera. It reads the images already written, so it needs no Blender and a layout can be redone without re-rendering:
+
+```bash
+uv run seascape render scenarios/twin-pod.toml -o out/
+uv run seascape montage scenarios/twin-pod.toml -o out/   # out/montage.png
+```
+
 > [!NOTE]
 > `seascape build` writes the `.blend` to open in Blender; `seascape render` writes the images. There is no ground-truth file yet.
 

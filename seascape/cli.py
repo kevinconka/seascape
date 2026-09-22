@@ -1,6 +1,7 @@
 """Command line entry point.
 
-`build` writes a .blend, `render` writes the images, `schema` prints the JSON schema.
+`build` writes a .blend, `render` writes the images, `montage` lays them out for
+review, `schema` prints the JSON schema.
 """
 
 import argparse
@@ -42,6 +43,14 @@ def _render(scenario_path: Path, output: Path | None, overrides: list[str]) -> N
     print(f"{len(written)} images in {into}")
 
 
+def _montage(scenario_path: Path, output: Path | None, overrides: list[str]) -> None:
+    from seascape import montage
+
+    scenario = load(scenario_path, overrides)
+    into = output or scenario_path.with_suffix("")
+    print(montage.compose(scenario, into))
+
+
 def _add_set(command: argparse.ArgumentParser) -> None:
     command.add_argument(
         "--set",
@@ -71,6 +80,13 @@ def main(argv: list[str] | None = None) -> int:
     )
     _add_set(shoot)
 
+    lay = commands.add_parser("montage", help="lay rendered frames out for review")
+    lay.add_argument("scenario", type=Path)
+    lay.add_argument(
+        "-o", "--output", type=Path, help="directory the frames are in, and the montage"
+    )
+    _add_set(lay)
+
     commands.add_parser("schema", help="print the scenario JSON schema on stdout")
 
     args = parser.parse_args(argv)
@@ -80,6 +96,8 @@ def main(argv: list[str] | None = None) -> int:
     try:
         if args.command == "render":
             _render(args.scenario, args.output, args.overrides)
+        elif args.command == "montage":
+            _montage(args.scenario, args.output, args.overrides)
         else:
             _build(args.scenario, args.output, args.band, args.overrides)
     except (

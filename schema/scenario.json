@@ -104,7 +104,7 @@
     },
     "Outputs": {
       "additionalProperties": false,
-      "description": "What a render writes.\n\nEvery camera of a listed band is rendered; a scene is built per band, in Cycles.\n\nEXR by default: it is float, so an LWIR pixel stays the radiance in W m^-2 sr^-1\nthat the render produced. PNG is 8-bit and needs a mapping onto it -- for EO the\nexposure below and Blender's AgX film curve, for LWIR an auto-contrast over the\nframe, which is a picture rather than a measurement.",
+      "description": "What a render writes.\n\nEvery camera of a listed band is rendered; a scene is built per band, in Cycles.\n\nPNG by default, because most runs are looked at. It is 8-bit and carries a mapping\n-- for EO the exposure below and Blender's AgX film curve, for LWIR an auto-contrast\nover the frame, so two thermal frames are not comparable and a pixel is not a\ntemperature. Ask for EXR to keep the radiance in W m^-2 sr^-1 the render produced.",
       "properties": {
         "bands": {
           "default": [
@@ -124,7 +124,7 @@
         },
         "format": {
           "$ref": "#/$defs/ImageFormat",
-          "default": "exr"
+          "default": "png"
         },
         "exposure_ev": {
           "default": -5.0,

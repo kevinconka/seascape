@@ -23,18 +23,22 @@ offset_y_m = -68.2
 
 [[pods.cameras]]
 preset = "eo"
+name = "EO_PORT_P"
 fan_deg = -40.0
 
 [[pods.cameras]]
 preset = "eo"
+name = "EO_PORT_C"
 fan_deg = 0.0
 
 [[pods.cameras]]
 preset = "eo"
+name = "EO_PORT_S"
 fan_deg = 40.0
 
 [[pods.cameras]]
 preset = "ir"
+name = "IR_PORT"
 # Inboard, so the pair straddles the bow at +-10 deg.
 fan_deg = +50.0
 
@@ -46,16 +50,20 @@ offset_y_m = -68.2
 
 [[pods.cameras]]
 preset = "eo"
+name = "EO_STBD_P"
 fan_deg = -40.0
 
 [[pods.cameras]]
 preset = "eo"
+name = "EO_STBD_C"
 fan_deg = 0.0
 
 [[pods.cameras]]
 preset = "eo"
+name = "EO_STBD_S"
 fan_deg = 40.0
 
 [[pods.cameras]]
 preset = "ir"
+name = "IR_STBD"
 fan_deg = -50.0
