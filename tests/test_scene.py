@@ -269,11 +269,10 @@ def test_the_active_camera_belongs_to_the_band_built(band) -> None:
 def test_a_pitched_pod_rolls_the_horizon_of_its_off_axis_cameras(
     tmp_path, yaw_deg
 ) -> None:
-    """The enclosure pitches as one unit, so an off-axis camera sees the horizon rolled
-    by asin(sin(pitch) sin(yaw)). `Camera.pitch_deg` is the per-lens angle and does not.
-    """
+    """The enclosure pitches as one unit, so an off-axis camera sees the horizon
+    rolled by asin(sin(pitch) sin(yaw))."""
     pitch_deg = -5.0
-    path = tmp_path / "tilted.toml"
+    path = tmp_path / "pitched.toml"
     path.write_text(
         f'extends = "{BASELINE}"\n\n'
         f"[rig]\npitch_deg = {pitch_deg}\n\n"
@@ -297,7 +296,6 @@ def test_a_pitched_pod_rolls_the_horizon_of_its_off_axis_cameras(
 
 
 def _lens_pitched(tmp_path, yaw_deg: float, pitch_deg: float):
-    """A yawed one-pod rig whose single camera carries the pitch, not the pod."""
     path = tmp_path / "lens.toml"
     path.write_text(
         f'extends = "{BASELINE}"\n\n'
@@ -312,8 +310,7 @@ def _lens_pitched(tmp_path, yaw_deg: float, pitch_deg: float):
 
 @pytest.mark.parametrize("yaw_deg", [-40.0, 0.0, 40.0])
 def test_a_pitched_lens_points_exactly_where_it_was_asked_to(tmp_path, yaw_deg) -> None:
-    """Rx inside the camera's yaw: unlike pod pitch, neither angle disturbs the
-    other."""
+    """Rx inside the camera's yaw: neither angle disturbs the other."""
     pitch_deg = -10.0
 
     mount = _lens_pitched(tmp_path, yaw_deg, pitch_deg)
@@ -325,7 +322,6 @@ def test_a_pitched_lens_points_exactly_where_it_was_asked_to(tmp_path, yaw_deg) 
 
 @pytest.mark.parametrize("yaw_deg", [-40.0, 0.0, 40.0])
 def test_a_pitched_lens_keeps_its_horizon_level(tmp_path, yaw_deg) -> None:
-    """A rolled horizon is the pod-pitch signature; per-lens pitch must not show it."""
     mount = _lens_pitched(tmp_path, yaw_deg, -10.0)
 
     across = bpy.data.objects[mount.name].matrix_world.to_3x3() @ Vector(
@@ -337,7 +333,7 @@ def test_a_pitched_lens_keeps_its_horizon_level(tmp_path, yaw_deg) -> None:
 
 def _tilted(tmp_path, yaw_deg: float, pitch_deg: float = -5.0):
     """A one-pod rig yawed off the bow, so pitch sits between two non-zero yaws."""
-    path = tmp_path / "tilted.toml"
+    path = tmp_path / "pitched.toml"
     path.write_text(
         f'extends = "{BASELINE}"\n\n'
         f"[rig]\npitch_deg = {pitch_deg}\n\n"

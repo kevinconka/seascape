@@ -45,8 +45,7 @@ class Model(BaseModel):
 class Camera(Model):
     kind: Band
     yaw_deg: float = 0.0  # relative to the pod axis, positive to starboard
-    # Pitch in the camera's own frame, so an off-axis camera's horizon stays level and
-    # its bearing stays exact. Sign as `Rig.pitch_deg`: negative is down.
+    # In the camera's own frame: horizon stays level, bearing exact. Negative is down.
     pitch_deg: float = Field(default=0.0, gt=-90.0, lt=90.0)
     # Becomes a filename, so the same charset as a pod. Derived from position
     # in the pod when absent.
