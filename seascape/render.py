@@ -21,11 +21,36 @@ _FORMATS: dict[ImageFormat, tuple[str, str]] = {
 }
 
 
-def _settings(scenario: Scenario, band: Band, writing: ImageFormat) -> None:
+def _enable_gpu() -> bool:
+    """Point Cycles at a GPU, once, before anything renders.
+
+    Without `refresh_devices()` Cycles stays on the CPU silently; switching device
+    mid-process pays kernel compilation.
+    """
+    preferences = bpy.context.preferences.addons["cycles"].preferences
+    for backend in ("METAL", "OPTIX", "CUDA", "HIP", "ONEAPI"):
+        try:
+            preferences.compute_device_type = backend
+        except TypeError:
+            continue  # not compiled into this build
+        preferences.refresh_devices()
+        if any(device.type != "CPU" for device in preferences.devices):
+            for device in preferences.devices:
+                # CPU alongside the GPU wins nothing here.
+                device.use = device.type != "CPU"
+            return True
+    return False
+
+
+def _settings(
+    scenario: Scenario, band: Band, writing: ImageFormat, on_gpu: bool
+) -> None:
     outputs = scenario.outputs
     sc = bpy.context.scene
+    # Not EEVEE: no second bounce for world light, so the sea renders at half radiance.
     sc.render.engine = "CYCLES"
-    sc.cycles.samples = outputs.samples
+    sc.cycles.samples = outputs.samples[band]
+    sc.cycles.device = "GPU" if on_gpu else "CPU"
     if band == "eo":
         # ir pixels are radiance; gain on them belongs to the display mapping.
         sc.view_settings.exposure = outputs.exposure_ev
@@ -33,6 +58,8 @@ def _settings(scenario: Scenario, band: Band, writing: ImageFormat) -> None:
     # default. On a world flat at 290.00 K it returns 282.43-293.00 K and breaks the
     # R=G=B the scene guarantees, which is the channel `_thermal_png` reads.
     sc.cycles.use_denoising = band == "eo"
+    # HIGH: 16 s vs 5 s per 4K frame, 0.8% pixel change.
+    sc.cycles.denoising_quality = "FAST"
     file_format, depth = _FORMATS[writing]
     sc.render.image_settings.file_format = file_format
     sc.render.image_settings.color_depth = depth
@@ -84,6 +111,7 @@ def render(scenario: Scenario, into: Path) -> list[Path]:
     """Write one image per camera into `into`, building each band's scene once."""
     into.mkdir(parents=True, exist_ok=True)
     outputs = scenario.outputs
+    on_gpu = _enable_gpu()
     written: list[Path] = []
     for band in outputs.bands:
         # The default bands ask for both, so an EO-only rig must skip ir, not fail.
@@ -92,7 +120,7 @@ def render(scenario: Scenario, into: Path) -> list[Path]:
             continue
         thermal_png = band == "ir" and outputs.format == "png"
         scene.build(scenario, band)
-        _settings(scenario, band, "exr" if thermal_png else outputs.format)
+        _settings(scenario, band, "exr" if thermal_png else outputs.format, on_gpu)
         sc = bpy.context.scene
         for spec in specs:
             sc.camera = bpy.data.objects[spec.name]

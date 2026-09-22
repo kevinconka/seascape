@@ -135,25 +135,33 @@ class TestSettings:
         self, fmt: ImageFormat
     ) -> None:
         """`render` composes its return paths from the format, not from Blender."""
-        render._settings(self.scenario, "eo", fmt)
+        render._settings(self.scenario, "eo", fmt, on_gpu=False)
         assert bpy.context.scene.render.file_extension == f".{fmt}"
 
     @pytest.mark.parametrize(("band", "denoised"), [("eo", True), ("ir", False)])
     def test_only_eo_is_denoised(self, band: Band, denoised: bool) -> None:
         """OIDN invents 10 K of structure on a field that is flat by construction."""
-        render._settings(self.scenario, band, "exr")
+        render._settings(self.scenario, band, "exr", on_gpu=False)
+
         assert bpy.context.scene.cycles.use_denoising is denoised
 
+    @pytest.mark.parametrize("band", get_args(Band))
+    def test_both_bands_render_in_cycles(self, band: Band) -> None:
+        """EEVEE renders the sea at half its radiance."""
+        render._settings(self.scenario, band, "exr", on_gpu=False)
+
+        assert bpy.context.scene.render.engine == "CYCLES"
+
     def test_radiance_keeps_its_full_float(self) -> None:
-        render._settings(self.scenario, "ir", "exr")
+        render._settings(self.scenario, "ir", "exr", on_gpu=False)
         assert bpy.context.scene.render.image_settings.color_depth == "32"
 
     def test_eo_is_exposed_and_ir_is_not(self) -> None:
         """Radiance through an exposure is no longer radiance."""
-        render._settings(self.scenario, "eo", "png")
+        render._settings(self.scenario, "eo", "png", on_gpu=False)
         assert bpy.context.scene.view_settings.exposure == (
             self.scenario.outputs.exposure_ev
         )
         bpy.context.scene.view_settings.exposure = 0.0
-        render._settings(self.scenario, "ir", "exr")
+        render._settings(self.scenario, "ir", "exr", on_gpu=False)
         assert bpy.context.scene.view_settings.exposure == 0.0

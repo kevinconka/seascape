@@ -115,9 +115,7 @@ class Object(Model):
 class Outputs(Model):
     """What a render writes.
 
-    Every camera of a listed band is rendered; a scene is built per band.
-
-    Cycles only: EEVEE is not bit-reproducible and its Metal driver cannot be pinned.
+    Every camera of a listed band is rendered; a scene is built per band, in Cycles.
 
     EXR by default: it is float, so an LWIR pixel stays the radiance in W m^-2 sr^-1
     that the render produced. PNG is 8-bit and needs a mapping onto it -- for EO the
@@ -130,7 +128,8 @@ class Outputs(Model):
     bands: tuple[Band, ...] = Field(
         default=("eo", "ir"), min_length=1, json_schema_extra={"uniqueItems": True}
     )
-    samples: int = Field(default=64, gt=0)
+    # eo is denoised: 16 is enough. ir is not, and needs 64 for the grain to go.
+    samples: dict[Band, int] = {"eo": 16, "ir": 64}
     format: ImageFormat = "exr"
     # Stops, and EO clips to white without them: a sunlit sea renders at 3 to 13 where
     # a display wants 1. -5 puts the frame's median luminance on the 18% grey card
