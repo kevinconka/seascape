@@ -5,7 +5,7 @@ Imports no Blender, so a consumer reads it without the bpy wheel.
 
 from pathlib import Path
 
-from pydantic import Field
+from pydantic import ConfigDict, Field
 
 from seascape.config import Band, Model
 
@@ -17,7 +17,12 @@ type Matrix3 = tuple[Row3, Row3, Row3]
 type Matrix4 = tuple[Row4, Row4, Row4, Row4]
 
 
-class CameraCalibration(Model):
+class _Record(Model):
+    # Another writer's file, or a newer one, carries fields this reader has no use for.
+    model_config = ConfigDict(extra="ignore")
+
+
+class CameraCalibration(_Record):
     """An ideal pinhole with no distortion, in OpenCV's conventions.
 
     Camera frame: +X right, +Y down, +Z along the optical axis. Pixel centres sit at
@@ -40,7 +45,7 @@ class CameraCalibration(Model):
     T_pod_cam: Matrix4 = Field(description="the enclosure, +Y along its axis")
 
 
-class Calibration(Model):
+class Calibration(_Record):
     cameras: list[CameraCalibration] = Field(min_length=1)
 
     def write(self, folder: Path) -> Path:

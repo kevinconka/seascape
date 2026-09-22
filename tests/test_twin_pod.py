@@ -3,6 +3,7 @@
 One global Blender session, so the scene is built once per module.
 """
 
+import json
 import math
 from itertools import pairwise
 from pathlib import Path
@@ -201,6 +202,18 @@ def test_the_calibration_projects_every_target_where_blender_draws_it(
             projected += 1
 
     assert projected >= len(SCENARIO.rig.mounts)
+
+
+def test_a_calibration_with_fields_it_does_not_know_still_reads(tmp_path) -> None:
+    mount = SCENARIO.rig.mounts[0]
+    record = scene.calibrate(mount, "").model_dump()
+    (tmp_path / "calibration.json").write_text(
+        json.dumps({"cameras": [{**record, "serial": "X"}], "rig": "Y"})
+    )
+
+    (camera,) = Calibration.read(tmp_path).cameras
+
+    assert camera.name == mount.name
 
 
 @pytest.mark.parametrize("mount", MOUNTS)
