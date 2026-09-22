@@ -128,9 +128,9 @@ class Outputs(Model):
     bands: tuple[Band, ...] = Field(
         default=("eo", "ir"), min_length=1, json_schema_extra={"uniqueItems": True}
     )
-    # 16 is where a denoised EO frame stops changing; ir has no denoiser but 25x fewer
-    # pixels, so it can afford whatever this says.
-    samples: int = Field(default=16, gt=0)
+    # Per band: eo is denoised and stops changing at 16; ir has no denoiser and its
+    # Monte Carlo grain only leaves at 64, which its 25x fewer pixels make cheap.
+    samples: dict[Band, int] = {"eo": 16, "ir": 64}
     format: ImageFormat = "exr"
     # Stops, and EO clips to white without them: a sunlit sea renders at 3 to 13 where
     # a display wants 1. -5 puts the frame's median luminance on the 18% grey card

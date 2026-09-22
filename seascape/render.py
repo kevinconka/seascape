@@ -52,7 +52,7 @@ def _settings(
     # Cycles for both bands. EEVEE has no second bounce for world light, and at grazing
     # view most wave facets reflect the sea into the sea: it returns half the radiance.
     sc.render.engine = "CYCLES"
-    sc.cycles.samples = outputs.samples
+    sc.cycles.samples = outputs.samples[band]
     sc.cycles.device = "GPU" if on_gpu else "CPU"
     if band == "eo":
         # ir pixels are radiance; gain on them belongs to the display mapping.

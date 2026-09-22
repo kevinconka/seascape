@@ -113,10 +113,18 @@
           "uniqueItems": true
         },
         "samples": {
-          "default": 16,
-          "exclusiveMinimum": 0,
+          "additionalProperties": {
+            "type": "integer"
+          },
+          "default": {
+            "eo": 16,
+            "ir": 64
+          },
+          "propertyNames": {
+            "$ref": "#/$defs/Band"
+          },
           "title": "Samples",
-          "type": "integer"
+          "type": "object"
         },
         "format": {
           "$ref": "#/$defs/ImageFormat",
