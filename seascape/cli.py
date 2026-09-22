@@ -22,10 +22,10 @@ def _build(scenario_path: Path, output: Path | None, band: Band) -> None:
     scene.build(scenario, band)
     path = output or scenario_path.with_suffix(f".{band}.blend")
     bpy.ops.wm.save_as_mainfile(filepath=str(path.resolve()))
-    cameras = scenario.rig.cameras
-    kinds = ", ".join(sorted({camera.kind for camera in cameras}))
+    mounts = scenario.rig.mounts
+    kinds = ", ".join(sorted({mount.camera.kind for mount in mounts}))
     print(
-        f"{path}: {band}, {len(cameras)} cameras ({kinds}) at {scenario.rig.height_m} m"
+        f"{path}: {band}, {len(mounts)} cameras ({kinds}) at {scenario.rig.height_m} m"
     )
 
 

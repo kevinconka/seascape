@@ -30,8 +30,8 @@ import numpy as np
 from mathutils import Matrix, Vector
 
 from seascape import lwir
-from seascape.assets import fetch, manifest
-from seascape.config import Band, Mount, Object, Rig, Scenario, Sea, Sky
+from seascape.assets import Asset, fetch, manifest
+from seascape.config import Band, Mount, Object, Rig, Scenario, Sea, Sky, Targets
 
 CURVE_SAMPLES = 256
 
@@ -442,68 +442,118 @@ def _rig(rig: Rig, far_m: float) -> dict[str, bpy.types.Object]:
     return cameras
 
 
-def _bounds(objects: Iterable[bpy.types.Object]) -> tuple[Vector, Vector]:
-    """World-space extent of the meshes in `objects`.
+def _corners(objects: Iterable[bpy.types.Object]) -> list[Vector]:
+    """World-space bounding corners of the meshes in `objects`.
 
     An empty's `bound_box` is a unit cube at its origin, and an FBX rig is mostly
     empties, so including them silently inflates the extent.
     """
-    corners = [
+    return [
         o.matrix_world @ Vector(corner)
         for o in objects
         if o.type == "MESH"
         for corner in o.bound_box
     ]
-    axes = list(zip(*corners, strict=True))
-    return Vector([min(a) for a in axes]), Vector([max(a) for a in axes])
 
 
-def _object(spec: Object, band: Band) -> bpy.types.Object:
-    """Import the mesh, fit it to its manifest length, and pose it.
+def _fit(corners: Iterable[Vector], asset: Asset) -> Matrix:
+    """Bow to +Y, scaled to the manifest length, centred, keel at the draught.
 
-    An asset arrives in whatever units its author used, off-origin, in many parts. It
-    is scaled by its bow-to-stern extent, centred, and set down so its keel sits at the
-    manifest draught below the waterline. The sea is opaque, so it hides what is under.
+    Turned first so the length is measured bow to stern whatever the authored axis.
+    """
+    turn = Matrix.Rotation(_yaw(-asset.bow_deg), 4, "Z")
+    axes = list(zip(*(turn @ c for c in corners), strict=True))
+    low, high = Vector([min(a) for a in axes]), Vector([max(a) for a in axes])
+    scale = asset.length_m / (high.y - low.y)
+    low, high = low * scale, high * scale
+    return (
+        Matrix.Translation(
+            (-(low.x + high.x) / 2, -(low.y + high.y) / 2, -low.z - asset.draught_m)
+        )
+        @ Matrix.Scale(scale, 4)
+        @ turn
+    )
+
+
+def _vessel(name: str, t_k: float, band: Band) -> bpy.types.Object:
+    """Import a hull, fit it, and anchor it at the origin under an empty.
+
+    An asset arrives in its author's units, off-origin, in many parts.
     """
     before = set(bpy.data.objects)
-    bpy.ops.import_scene.fbx(filepath=str(fetch(spec.asset)))
+    bpy.ops.import_scene.fbx(filepath=str(fetch(name)))
     imported = set(bpy.data.objects) - before
     # Measure everything, move the roots. The shipped ship keeps 40 of its 88 meshes
     # under empties, and measuring only the roots would leave them out of the fit.
     parts = [o for o in imported if o.parent is None]
 
-    asset = manifest()[spec.asset]
-    low, high = _bounds(imported)
-    scale = asset.length_m / (high.y - low.y)
-    # A uniform scale about the origin, so the fitted bounds follow without remeasuring
-    # -- and without reading matrix_world back on the line after writing it.
-    low, high = low * scale, high * scale
-    fit = Matrix.Translation(
-        (-(low.x + high.x) / 2, -(low.y + high.y) / 2, -low.z - asset.draught_m)
-    ) @ Matrix.Scale(scale, 4)
+    fit = _fit(_corners(imported), manifest()[name])
     for part in parts:
         part.matrix_world = fit @ part.matrix_world
 
     if band == "ir":
         # The asset's own materials are albedo, which says nothing about 8-14 um.
-        skin = _blackbody_material(f"{spec.asset}_ir", lwir.band_radiance(spec.t_k))
+        skin = _blackbody_material(f"{name}_ir", lwir.band_radiance(t_k))
         for part in parts:
             for mesh in [part, *part.children_recursive]:
                 if mesh.type == "MESH":
                     mesh.data.materials.clear()
                     mesh.data.materials.append(skin)
 
-    anchor = bpy.data.objects.new(spec.asset, None)
+    anchor = bpy.data.objects.new(name, None)
     bpy.context.collection.objects.link(anchor)
     for part in parts:
         part.parent = anchor
+    _place(anchor, 0.0, 0.0, 0.0)
+    return anchor
+
+
+def _pose(
+    anchor: bpy.types.Object,
+    range_m: float,
+    bearing_deg: float,
+    heading_deg: float,
+) -> None:
+    """Put a hull on a bearing at a range, steering the given course."""
     _place(
         anchor,
-        spec.range_m * math.sin(math.radians(spec.bearing_deg)),
-        spec.range_m * math.cos(math.radians(spec.bearing_deg)),
+        range_m * math.sin(math.radians(bearing_deg)),
+        range_m * math.cos(math.radians(bearing_deg)),
         0.0,
     )
-    anchor.rotation_euler = (0.0, 0.0, _yaw(spec.heading_deg))
+    anchor.rotation_euler = (0.0, 0.0, _yaw(heading_deg))
+
+
+def _copy_tree(
+    obj: bpy.types.Object, parent: bpy.types.Object | None
+) -> bpy.types.Object:
+    """Duplicate an object tree. `copy()` shares `data`, so N targets cost one mesh.
+
+    The parent inverse copies too, so the tree keeps its shape rather than flattening.
+    """
+    clone = obj.copy()
+    bpy.context.collection.objects.link(clone)
+    clone.parent = parent
+    for child in obj.children:
+        _copy_tree(child, clone)
+    return clone
+
+
+def _targets(spec: Targets, band: Band) -> list[bpy.types.Object]:
+    first = _vessel(spec.asset, spec.t_k, band)
+    poses = spec.poses()
+    anchors = [first, *(_copy_tree(first, None) for _ in poses[1:])]
+    for i, (anchor, (bearing_deg, heading_deg)) in enumerate(
+        zip(anchors, poses, strict=True)
+    ):
+        anchor.name = f"target_{i}"
+        _pose(anchor, spec.range_m, bearing_deg, heading_deg)
+    return anchors
+
+
+def _object(spec: Object, band: Band) -> bpy.types.Object:
+    anchor = _vessel(spec.asset, spec.t_k, band)
+    _pose(anchor, spec.range_m, spec.bearing_deg, spec.heading_deg)
     return anchor
 
 
@@ -526,8 +576,13 @@ def build(scenario: Scenario, band: Band = "eo") -> None:
     _sea(scenario.sea, scenario.seed, reach_m, band)
     # The sea's far corner is reach * sqrt(2) away, so the clip plane has to clear it.
     cameras = _rig(scenario.rig, 1.5 * reach_m)
+    if scenario.ownship is not None:
+        # At the origin, bow to +Y: the rig's offsets are measured in that frame.
+        _vessel(scenario.ownship.asset, scenario.ownship.t_k, band)
     for spec in scenario.objects:
         _object(spec, band)
+    if scenario.targets is not None:
+        _targets(scenario.targets, band)
     # Scenario order, so the first camera is EO in the baseline: an IR build would
     # otherwise open on a camera whose optics belong to the other band.
     bpy.context.scene.camera = cameras[

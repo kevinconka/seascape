@@ -1,0 +1,10 @@
+#:schema ../schema/scenario.json
+
+# The installed rig pitched 5 deg down. Tilt is still open in the pod spec, so it
+# is a variant, not part of the rig preset.
+
+extends = "twin-pod.toml"
+
+[rig]
+# Negative is down.
+tilt_deg = -5.0

@@ -135,6 +135,28 @@
       "title": "Outputs",
       "type": "object"
     },
+    "Ownship": {
+      "additionalProperties": false,
+      "description": "The vessel the rig is bolted to. Its cameras see its own deck.",
+      "properties": {
+        "asset": {
+          "title": "Asset",
+          "type": "string"
+        },
+        "t_k": {
+          "default": 296.0,
+          "maximum": 400.0,
+          "minimum": 250.0,
+          "title": "T K",
+          "type": "number"
+        }
+      },
+      "required": [
+        "asset"
+      ],
+      "title": "Ownship",
+      "type": "object"
+    },
     "Pod": {
       "additionalProperties": false,
       "description": "One enclosure: several cameras behind one yaw and one mount point.\n\nOffsets matter: pods a beam apart overlap in angle before they overlap in space,\nwhich is the blind wedge over the bow. Coincident cameras would hide it.",
@@ -259,6 +281,73 @@
       },
       "title": "Sky",
       "type": "object"
+    },
+    "Targets": {
+      "additionalProperties": false,
+      "description": "A ring of vessels at one range, spread over a span of bearings.\n\nWorld objects: nothing here refers to the rig, so per-camera coverage is a test,\nnot a guarantee.",
+      "properties": {
+        "asset": {
+          "title": "Asset",
+          "type": "string"
+        },
+        "count": {
+          "exclusiveMinimum": 0,
+          "title": "Count",
+          "type": "integer"
+        },
+        "range_m": {
+          "exclusiveMinimum": 0.0,
+          "title": "Range M",
+          "type": "number"
+        },
+        "bearing_deg": {
+          "maxItems": 2,
+          "minItems": 2,
+          "prefixItems": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "number"
+            }
+          ],
+          "title": "Bearing Deg",
+          "type": "array"
+        },
+        "heading_deg": {
+          "default": [
+            0.0,
+            315.0
+          ],
+          "maxItems": 2,
+          "minItems": 2,
+          "prefixItems": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "number"
+            }
+          ],
+          "title": "Heading Deg",
+          "type": "array"
+        },
+        "t_k": {
+          "default": 293.0,
+          "maximum": 400.0,
+          "minimum": 250.0,
+          "title": "T K",
+          "type": "number"
+        }
+      },
+      "required": [
+        "asset",
+        "count",
+        "range_m",
+        "bearing_deg"
+      ],
+      "title": "Targets",
+      "type": "object"
     }
   },
   "additionalProperties": false,
@@ -270,6 +359,28 @@
     },
     "rig": {
       "$ref": "#/$defs/Rig"
+    },
+    "ownship": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/Ownship"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "targets": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/Targets"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
     },
     "sea": {
       "$ref": "#/$defs/Sea"
