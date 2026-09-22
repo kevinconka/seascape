@@ -213,10 +213,10 @@ class Outputs(Model):
 
     Every camera of a listed band is rendered; a scene is built per band, in Cycles.
 
-    EXR by default: it is float, so an LWIR pixel stays the radiance in W m^-2 sr^-1
-    that the render produced. PNG is 8-bit and needs a mapping onto it -- for EO the
-    exposure below and Blender's AgX film curve, for LWIR an auto-contrast over the
-    frame, which is a picture rather than a measurement.
+    PNG by default, because most runs are looked at. It is 8-bit and carries a mapping
+    -- for EO the exposure below and Blender's AgX film curve, for LWIR an auto-contrast
+    over the frame, so two thermal frames are not comparable and a pixel is not a
+    temperature. Ask for EXR to keep the radiance in W m^-2 sr^-1 the render produced.
     """
 
     # uniqueItems so an editor validating against the schema catches a repeat too,
@@ -225,7 +225,7 @@ class Outputs(Model):
         default=("eo", "ir"), min_length=1, json_schema_extra={"uniqueItems": True}
     )
     samples: Samples = Field(default_factory=lambda: Samples())
-    format: ImageFormat = "exr"
+    format: ImageFormat = "png"
     # Stops, and EO clips to white without them: a sunlit sea renders at 3 to 13 where
     # a display wants 1. -5 puts the frame's median luminance on the 18% grey card
     # every light meter is calibrated to -- the baseline reads 7.0, and
