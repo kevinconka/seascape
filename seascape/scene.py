@@ -631,8 +631,9 @@ def build(scenario: Scenario, band: Band = "eo") -> None:
     # The sea's far corner is reach * sqrt(2) away, so the clip plane has to clear it.
     cameras = _rig(scenario.rig, 1.5 * reach_m)
     if scenario.ownship is not None:
-        # At the origin, bow to +Y: the rig's offsets are measured in that frame.
-        _vessel(scenario.ownship.asset, scenario.ownship.t_k, band)
+        # At the origin, bow to +Y: the rig's offsets are measured in that frame. Named
+        # for its role, so a target on the same asset cannot take it by build order.
+        _vessel(scenario.ownship.asset, scenario.ownship.t_k, band).name = "ownship"
     for spec in scenario.objects:
         _object(spec, band)
     if scenario.targets is not None:
