@@ -16,7 +16,7 @@ import numpy as np
 import pytest
 
 from seascape import lwir, scene
-from seascape.config import Band, load
+from seascape.config import Band, Scenario, load
 
 pytestmark = pytest.mark.render
 
@@ -45,9 +45,9 @@ def radiance(band: Band, kind: str, size: tuple[int, int]) -> np.ndarray:
     sc.camera = next(
         o for o in bpy.data.objects if o.type == "CAMERA" and f"_{kind}_" in o.name
     )
-    sc.render.engine = "CYCLES"
+    # Build already set the band's engine and denoiser; only the sample count is the
+    # test's own. ir keeps its build default of no OIDN, which is not radiometric.
     sc.cycles.samples = SAMPLES
-    sc.cycles.use_denoising = True
     return shoot(size, f"drift_{band}")
 
 
@@ -101,6 +101,46 @@ def test_sea_texture_fades_with_range(frame) -> None:
     assert far_to_near[0] == min(far_to_near), (
         f"the far field has to settle, not sparkle: {far_to_near}"
     )
+
+
+def sea_of(scenario: Scenario, waves: bool) -> np.ndarray:
+    """The near sea of an ir frame, optionally with the wave relief flattened."""
+    scene.build(scenario, "ir")
+    bump = next(
+        n
+        for n in bpy.data.materials["sea"].node_tree.nodes
+        if n.bl_idname == "ShaderNodeBump"
+    )
+    if not waves:
+        bump.inputs["Distance"].default_value = 0.0
+    sc = bpy.context.scene
+    sc.camera = next(
+        o for o in bpy.data.objects if o.type == "CAMERA" and "_ir_" in o.name
+    )
+    # Flat sea is the control, so grain must sit well under the relief; 48 does not.
+    sc.cycles.samples = 256
+    frame = shoot((320, 256), "isothermal")
+    horizon = frame.shape[0] // 2
+    return frame[horizon + 30 : horizon + 80]
+
+
+@pytest.mark.render
+def test_waves_survive_a_sea_at_air_temperature() -> None:
+    """Wave relief survives a sea exactly at air temperature.
+
+    A tilted facet reflects a different sky elevation, cold overhead to ambient at
+    the horizon, so relief shows without `t_sea_k - t_air_k`; 3 K buys 7-18% of it.
+    """
+    isothermal = SCENARIO.model_copy(
+        update={
+            "sea": SCENARIO.sea.model_copy(update={"t_sea_k": SCENARIO.sky.t_air_k})
+        }
+    )
+
+    rippled, flat = sea_of(isothermal, True), sea_of(isothermal, False)
+
+    # 3.2 measured; grain-limited flat control reads 1.0.
+    assert texture(rippled) > 2.5 * texture(flat)
 
 
 @pytest.mark.render

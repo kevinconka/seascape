@@ -60,7 +60,16 @@ These produce wrong output with no error. They are the reason this file exists.
 - **Address shader sockets by name, never by index.** `inputs["Distance"]` raises if Blender renames it; `inputs[1]` happily writes to whatever now sits in that slot.
 - **Objects can share a mesh datablock.** Material slots link to mesh data by default, so assigning a material to one object silently changes the other. Use `slot.link = "OBJECT"` when they must differ.
 - **Shader node trees leak.** If you build a chain, cleanup must remove the whole chain, not just the node you tagged. Re-running a build should leave the node count unchanged.
-- **A sea at air temperature has no LWIR waves.** Emission and reflected sky are then the same radiance, so tilting a facet changes nothing and the surface renders as a flat plate. `t_sea_k - t_air_k` is the wave signal, not a refinement of it.
+- **LWIR waves do not need `t_sea_k - t_air_k`.** A tilted facet reflects a different elevation of a sky that runs cold overhead to ambient at the horizon, so relief shows with the sea exactly at air temperature. Wave signal as MAD within a row, baseline against a flat-sea control at equal samples:
+
+  | rows below the horizon | dT = 0 K | dT = 3 K |
+  |---|---|---|
+  | 4-12 | 0.105 | 0.112 |
+  | 12-30 | 0.137 | 0.155 |
+  | 30-80 | 0.259 | 0.303 |
+  | 80+ | 0.401 | 0.471 |
+
+  3 K buys 7-18%. Under a uniform ambient world the loss is nothing at the horizon and 5-6x in the near field, so measure rows well clear of it.
 - **The engine identifier is version-dependent.** `BLENDER_EEVEE` means EEVEE Legacy on ≤4.1 and EEVEE Next on ≥5.0, with `BLENDER_EEVEE_NEXT` in between. The Sky Texture moved the same way: `NISHITA` is `SINGLE_SCATTERING` and `MULTIPLE_SCATTERING` on ≥5.0.
 - **Do not validate an engine against the enum.** Under the `bpy` module `render.engine` reports only `['BLENDER_EEVEE']`, on the class and the instance alike, because Cycles registers as an add-on. Assigning `CYCLES` works anyway and reads back. Assign it and let Blender raise: an identifier it does not know is a `TypeError`.
 - **A camera's `clip_end` defaults to 1000 m.** A target at 2 km renders as sky and the clip boundary reads as a convincing horizon. Nothing warns. Set it from the scene's reach.

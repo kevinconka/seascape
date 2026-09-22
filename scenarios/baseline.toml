@@ -25,8 +25,8 @@ width_px = 640
 height_px = 512
 
 [sea]
-# Above the 288 K air: at equal temperatures a tilted facet trades emission for
-# reflected sky of the same radiance and the LWIR waves vanish.
+# Warmer than the air: global-mean sea-air difference is under 1 K
+# (Kara et al. 2007, https://doi.org/10.1029/2006JC003833); 3 K for a clearer scene.
 t_sea_k = 291.0
 
 [sky]
