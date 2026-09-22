@@ -215,7 +215,6 @@ class TestGeometry:
         assert counts() == before
 
 
-@pytest.mark.parametrize("band", ["eo", "ir"])
 @pytest.mark.parametrize(
     ("bow_deg", "bow_corner"),
     [(0.0, (0, 5, 0)), (90.0, (5, 0, 0)), (180.0, (0, -5, 0)), (270.0, (-5, 0, 0))],
@@ -252,6 +251,7 @@ def test_a_hull_is_fitted_along_its_own_bow_axis(bow_deg, bow_corner) -> None:
     assert (fit @ long).y == pytest.approx(100.0), "and the bow ends up at +Y"
 
 
+@pytest.mark.parametrize("band", ["eo", "ir"])
 def test_the_active_camera_belongs_to_the_band_built(band) -> None:
     """The scene opens on whichever camera it saved as active, and F12 uses it.
 
