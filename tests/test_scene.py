@@ -148,8 +148,10 @@ class TestGeometry:
         tree = bpy.data.materials["sea"].node_tree
         wind = SCENARIO.sea.wind_speed_mps
         scaling = next(n for n in tree.nodes if n.bl_idname == "ShaderNodeVectorMath")
+        # Zero on z: the seed owns that axis, so the curve under the sea cannot
+        # slide the wave field and `refraction_k` cannot reshuffle it.
         assert tuple(scaling.inputs[1].default_value) == pytest.approx(
-            (1.0 / scene.wave_length_m(wind),) * 3
+            (1.0 / scene.wave_length_m(wind), 1.0 / scene.wave_length_m(wind), 0.0)
         )
         bump = next(n for n in tree.nodes if n.bl_idname == "ShaderNodeBump")
         assert bump.inputs["Distance"].default_value == pytest.approx(
@@ -217,6 +219,7 @@ class TestGeometry:
         before = len(bpy.data.objects["sea"].data.vertices)
         scene.build(blowing, "eo")
         after = len(bpy.data.objects["sea"].data.vertices)
+        scene.build(SCENARIO, "eo")  # the class shares one scene; put it back
 
         assert before == after == (scene.SEA_CELLS + 1) ** 2
 

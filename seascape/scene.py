@@ -315,11 +315,14 @@ def _wave_normals(
     sub-pixel made the far field more aliased relative to its own texture, not less.
     """
     length_m = wave_length_m(sea.wind_speed_mps)
-    # The sea lies in z = 0, so a seeded z offset slices the 3-D field: waves move, sea
-    # does not. 3-D rather than 4-D with the seed in W: same field, 20% cheaper at 4K.
+    # Horizontal position only: the z multiplier is 0, so the seed alone reaches the
+    # third axis and the sea curving underneath cannot slide the wave field. Scaling z
+    # too drifts the sample three noise periods across the grid and makes the pattern
+    # depend on `refraction_k`. 3-D rather than 4-D with the seed in W: same field,
+    # 20% cheaper at 4K.
     scale = tree.nodes.new("ShaderNodeVectorMath")
     scale.operation = "MULTIPLY_ADD"
-    scale.inputs[1].default_value = (1.0 / length_m,) * 3
+    scale.inputs[1].default_value = (1.0 / length_m, 1.0 / length_m, 0.0)
     scale.inputs[2].default_value = (
         0.0,
         0.0,
