@@ -269,8 +269,7 @@ def test_the_active_camera_belongs_to_the_band_built(band) -> None:
 def test_a_pitched_pod_rolls_the_horizon_of_its_off_axis_cameras(
     tmp_path, yaw_deg
 ) -> None:
-    """The enclosure pitches as one unit, so an off-axis camera sees the horizon
-    rolled by asin(sin(pitch) sin(yaw))."""
+    """Horizon rolls by asin(sin(pitch) sin(yaw))."""
     pitch_deg = -5.0
     path = tmp_path / "pitched.toml"
     path.write_text(
@@ -295,10 +294,13 @@ def test_a_pitched_pod_rolls_the_horizon_of_its_off_axis_cameras(
     )
 
 
-def _lens_pitched(tmp_path, yaw_deg: float, pitch_deg: float):
+def _lens_pitched(
+    tmp_path, yaw_deg: float, pitch_deg: float, rig_pitch_deg: float = 0.0
+):
     path = tmp_path / "lens.toml"
     path.write_text(
         f'extends = "{BASELINE}"\n\n'
+        f"[rig]\npitch_deg = {rig_pitch_deg}\n\n"
         '[[rig.pods]]\nname = "port"\nyaw_deg = -60.0\n\n'
         f'[[rig.pods.cameras]]\npreset = "eo"\n'
         f"yaw_deg = {yaw_deg}\npitch_deg = {pitch_deg}\n"
@@ -320,6 +322,17 @@ def test_a_pitched_lens_points_exactly_where_it_was_asked_to(tmp_path, yaw_deg) 
     assert elevation == pytest.approx(pitch_deg, abs=1e-4)
 
 
+@pytest.mark.parametrize("yaw_deg", [-40.0, 40.0])
+def test_a_pitched_pod_disturbs_a_pitched_lens(tmp_path, yaw_deg) -> None:
+    """Rx(rig) still sits between the yaws: neither angle survives intact."""
+    mount = _lens_pitched(tmp_path, yaw_deg, -10.0, rig_pitch_deg=-5.0)
+
+    bearing, elevation = scene.boresight_deg(bpy.data.objects[mount.name])
+
+    assert abs(bearing - mount.nominal_bearing_deg) > 0.1
+    assert abs(elevation - (-10.0)) > 0.1
+
+
 @pytest.mark.parametrize("yaw_deg", [-40.0, 0.0, 40.0])
 def test_a_pitched_lens_keeps_its_horizon_level(tmp_path, yaw_deg) -> None:
     mount = _lens_pitched(tmp_path, yaw_deg, -10.0)
@@ -331,7 +344,7 @@ def test_a_pitched_lens_keeps_its_horizon_level(tmp_path, yaw_deg) -> None:
     assert across.normalized().z == pytest.approx(0.0, abs=1e-6)
 
 
-def _tilted(tmp_path, yaw_deg: float, pitch_deg: float = -5.0):
+def _pod_pitched(tmp_path, yaw_deg: float, pitch_deg: float = -5.0):
     """A one-pod rig yawed off the bow, so pitch sits between two non-zero yaws."""
     path = tmp_path / "pitched.toml"
     path.write_text(
@@ -351,14 +364,14 @@ def _tilted(tmp_path, yaw_deg: float, pitch_deg: float = -5.0):
 def test_pitch_moves_an_off_axis_camera_off_its_bearing(tmp_path, yaw_deg) -> None:
     """The chain is Rz(-pod) Rx(pitch) Rz(-camera), so the rig's pitch sits between the
     two yaws; at -5 deg this is 0.108 deg, nine pixels at 4K."""
-    bearing, nominal = _tilted(tmp_path, yaw_deg)
+    bearing, nominal = _pod_pitched(tmp_path, yaw_deg)
 
     assert abs(bearing - nominal) > 0.1
 
 
 def test_pitch_leaves_a_centre_camera_on_its_nominal_bearing(tmp_path) -> None:
     """Exact down the pod axis. Microdegrees, not zero: matrix_world is float32."""
-    bearing, nominal = _tilted(tmp_path, 0.0)
+    bearing, nominal = _pod_pitched(tmp_path, 0.0)
 
     assert bearing == pytest.approx(nominal, abs=1e-4)
 

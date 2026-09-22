@@ -1,6 +1,6 @@
 # Two pods on the bridge wings, both forward-facing. Eight cameras.
 #
-# Pod axis +-60 deg from the bow.
+# Pod axis +-60 deg from the bow; the spec's mounting angle is 58.5.
 #
 # EO: 3 x 49 deg at 40 deg apart = 129 deg per pod, 9 deg overlap, 249 deg total.
 # IR: 50 deg inboard of the pod axis = +-10 deg off the bow, 44 deg pair, 4 deg overlap.

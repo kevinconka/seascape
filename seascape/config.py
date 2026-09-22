@@ -45,8 +45,7 @@ class Model(BaseModel):
 class Camera(Model):
     kind: Band
     yaw_deg: float = 0.0  # relative to the pod axis, positive to starboard
-    # In the camera's own frame: horizon stays level, bearing exact. Negative is down.
-    pitch_deg: float = Field(default=0.0, gt=-90.0, lt=90.0)
+    pitch_deg: float = Field(default=0.0, gt=-90.0, lt=90.0)  # negative is down
     # Becomes a filename, so the same charset as a pod. Derived from position
     # in the pod when absent.
     name: str | None = Field(default=None, pattern=r"^[A-Za-z0-9_-]+$")
@@ -92,7 +91,7 @@ class Rig(Model):
     """The pods on the ownship."""
 
     height_m: float = Field(gt=0.0)
-    pitch_deg: float = 0.0
+    pitch_deg: float = Field(default=0.0, gt=-90.0, lt=90.0)
     pods: list[Pod] = Field(min_length=1)
 
     @property

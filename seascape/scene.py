@@ -527,8 +527,7 @@ def _rig(rig: Rig, far_m: float) -> dict[str, bpy.types.Object]:
         empty.parent = root
         _place(empty, pod.offset_x_m, pod.offset_y_m, 0.0)
         # XYZ euler is Rz @ Ry @ Rx: yaw, then pitch about the pod's own transverse
-        # axis. The enclosure pitches as one rigid unit, so its off-axis cameras see a
-        # rolled horizon.
+        # axis, so a pitched pod rolls the horizon of its off-axis cameras.
         empty.rotation_euler = (math.radians(rig.pitch_deg), 0.0, _yaw(pod.yaw_deg))
         pods[pod.name] = empty
 
@@ -547,7 +546,6 @@ def _rig(rig: Rig, far_m: float) -> dict[str, bpy.types.Object]:
         camera.parent = pods[mount.pod.name]
         camera.rotation_mode = "XYZ"
         # A camera looks down its local -Z; +90 deg about X aims it at the horizon.
-        # Rx inside the camera's yaw keeps its transverse axis in the pod's horizontal.
         camera.rotation_euler = (
             math.radians(90.0 + mount.camera.pitch_deg),
             0.0,
