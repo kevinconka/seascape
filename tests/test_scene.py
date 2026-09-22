@@ -381,6 +381,25 @@ class TestIrBand:
         assert curve[-1] < 0.5 * ambient, "the zenith is much colder than ambient"
         assert np.all(np.diff(curve) <= 1e-6), "radiance falls towards the zenith"
 
+    def test_a_vessel_reflects_what_it_does_not_emit(self) -> None:
+        """A pure emitter leaves one radiance in every direction, so a hull renders as
+        a single flat value whichever way it is turned. Reflecting the rest gives back
+        the angular structure: a deck faces the cold zenith, a side half sky, half sea.
+
+        Diffuse, where the sea is glossy: flat paint scatters this band.
+        """
+        skin = next(m for m in bpy.data.materials if m.name.endswith("_ir"))
+        mix = next(
+            n for n in skin.node_tree.nodes if n.bl_idname == "ShaderNodeMixShader"
+        )
+
+        assert scene.PAINT_EMISSIVITY < 1.0, "a blackbody has no angular structure"
+        assert mix.inputs["Factor"].default_value == pytest.approx(
+            scene.PAINT_EMISSIVITY
+        )
+        assert mix.inputs[1].links[0].from_node.bl_idname == "ShaderNodeBsdfDiffuse"
+        assert mix.inputs[2].links[0].from_node.bl_idname == "ShaderNodeEmission"
+
     def test_the_sea_reflects_what_it_does_not_emit(self) -> None:
         """Emission alone falls to a fiftieth of ambient by 2 km.
 

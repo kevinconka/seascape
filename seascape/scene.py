@@ -132,6 +132,11 @@ def specular_roughness(wind_speed_mps: float) -> float:
     return math.sqrt(min(math.sqrt(2.0) * unresolved_slope(wind_speed_mps), 1.0))
 
 
+# Flat paint over steel, 8-14 um. Paints sit at 0.94-0.96 across this band and the
+# colour does not matter, only how flat the finish is; metallic paints are far lower
+# and are not what a hull is coated with.
+PAINT_EMISSIVITY = 0.94
+
 # Mean radius, IUGG.
 EARTH_RADIUS_M = 6_371_000.0
 
@@ -276,15 +281,36 @@ def _thermal_sky(world: bpy.types.World, t_air_k: float) -> bpy.types.World:
     return world
 
 
-def _blackbody_material(name: str, radiance: float) -> bpy.types.Material:
-    """Emission of `radiance` W m^-2 sr^-1: a target with no measured emissivity."""
+def _thermal_skin(name: str, t_k: float) -> bpy.types.Material:
+    """eps of a painted hull emitted, the remaining 1 - eps reflected from the sky.
+
+    The sea's shape, for the sea's reason. A pure emitter leaves the same radiance in
+    every direction, so a vessel renders as one flat value however it is lit or turned.
+    Reflecting the other 6% gives it back the angular structure a real hull has: a deck
+    faces the cold zenith, a vertical side sees half sky and half sea.
+
+    Diffuse rather than glossy, which is where this parts from the sea: flat marine
+    paint is near-Lambertian in this band, so a hull scatters the sky rather than
+    mirroring it.
+    """
     material = bpy.data.materials.new(name)
     tree = material.node_tree
     tree.nodes.clear()
+    # White: the Mix Shader already applies the 1 - eps weighting, so a grey here would
+    # absorb part of the reflected sky a second time.
+    scatter = tree.nodes.new("ShaderNodeBsdfDiffuse")
+    scatter.inputs["Color"].default_value = (1.0, 1.0, 1.0, 1.0)
     emission = tree.nodes.new("ShaderNodeEmission")
-    emission.inputs["Strength"].default_value = radiance
+    emission.inputs["Strength"].default_value = lwir.band_radiance(t_k)
+    mix = tree.nodes.new("ShaderNodeMixShader")
+    # Mix Shader names both shader inputs "Shader", so they can only be indexed.
+    mix.inputs["Factor"].default_value = PAINT_EMISSIVITY
     output = tree.nodes.new("ShaderNodeOutputMaterial")
-    tree.links.new(emission.outputs["Emission"], output.inputs["Surface"])
+
+    link = tree.links.new
+    link(scatter.outputs["BSDF"], mix.inputs[1])
+    link(emission.outputs["Emission"], mix.inputs[2])
+    link(mix.outputs["Shader"], output.inputs["Surface"])
     return material
 
 
@@ -547,7 +573,7 @@ def _vessel(name: str, t_k: float, band: Band) -> bpy.types.Object:
 
     if band == "ir":
         # The asset's own materials are albedo, which says nothing about 8-14 um.
-        skin = _blackbody_material(f"{name}_ir", lwir.band_radiance(t_k))
+        skin = _thermal_skin(f"{name}_ir", t_k)
         for part in parts:
             for mesh in [part, *part.children_recursive]:
                 if mesh.type == "MESH":
