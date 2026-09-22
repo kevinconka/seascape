@@ -265,25 +265,25 @@ def test_the_active_camera_belongs_to_the_band_built(band) -> None:
     assert f"_{band}_" in bpy.context.scene.camera.name
 
 
-@pytest.mark.parametrize("fan_deg", [-40.0, 0.0, 40.0])
-def test_a_tilted_pod_rolls_the_horizon_of_its_fanned_cameras(
-    tmp_path, fan_deg
+@pytest.mark.parametrize("yaw_deg", [-40.0, 0.0, 40.0])
+def test_a_pitched_pod_rolls_the_horizon_of_its_off_axis_cameras(
+    tmp_path, yaw_deg
 ) -> None:
-    """The enclosure pitches as one unit, so a fanned camera sees the horizon rolled
-    by asin(sin(tilt) sin(fan)). `Camera.tilt_deg` is the per-lens angle and does not.
+    """The enclosure pitches as one unit, so an off-axis camera sees the horizon rolled
+    by asin(sin(pitch) sin(yaw)). `Camera.pitch_deg` is the per-lens angle and does not.
     """
-    tilt_deg = -5.0
+    pitch_deg = -5.0
     path = tmp_path / "tilted.toml"
     path.write_text(
         f'extends = "{BASELINE}"\n\n'
-        f"[rig]\ntilt_deg = {tilt_deg}\n\n"
+        f"[rig]\npitch_deg = {pitch_deg}\n\n"
         '[[rig.pods]]\nname = "bow"\nyaw_deg = 0.0\n\n'
-        f'[[rig.pods.cameras]]\npreset = "eo"\nfan_deg = {fan_deg}\n'
+        f'[[rig.pods.cameras]]\npreset = "eo"\nyaw_deg = {yaw_deg}\n'
     )
     scenario = load(path)
     # Through `_yaw`: Blender's +Z turns to port, so the sign follows the scene's.
     expected = math.degrees(
-        math.asin(math.sin(math.radians(tilt_deg)) * math.sin(scene._yaw(fan_deg)))
+        math.asin(math.sin(math.radians(pitch_deg)) * math.sin(scene._yaw(yaw_deg)))
     )
 
     scene.build(scenario, "eo")
@@ -296,36 +296,37 @@ def test_a_tilted_pod_rolls_the_horizon_of_its_fanned_cameras(
     )
 
 
-def _lens_tilted(tmp_path, fan_deg: float, tilt_deg: float):
-    """A yawed one-pod rig whose single camera carries the tilt, not the pod."""
+def _lens_pitched(tmp_path, yaw_deg: float, pitch_deg: float):
+    """A yawed one-pod rig whose single camera carries the pitch, not the pod."""
     path = tmp_path / "lens.toml"
     path.write_text(
         f'extends = "{BASELINE}"\n\n'
         '[[rig.pods]]\nname = "port"\nyaw_deg = -60.0\n\n'
         f'[[rig.pods.cameras]]\npreset = "eo"\n'
-        f"fan_deg = {fan_deg}\ntilt_deg = {tilt_deg}\n"
+        f"yaw_deg = {yaw_deg}\npitch_deg = {pitch_deg}\n"
     )
     scenario = load(path)
     scene.build(scenario, "eo")
     return scenario.rig.mounts[0]
 
 
-@pytest.mark.parametrize("fan_deg", [-40.0, 0.0, 40.0])
-def test_a_tilted_lens_points_exactly_where_it_was_asked_to(tmp_path, fan_deg) -> None:
-    """Rx inside the fan yaw: unlike pod tilt, neither angle disturbs the other."""
-    tilt_deg = -10.0
+@pytest.mark.parametrize("yaw_deg", [-40.0, 0.0, 40.0])
+def test_a_pitched_lens_points_exactly_where_it_was_asked_to(tmp_path, yaw_deg) -> None:
+    """Rx inside the camera's yaw: unlike pod pitch, neither angle disturbs the
+    other."""
+    pitch_deg = -10.0
 
-    mount = _lens_tilted(tmp_path, fan_deg, tilt_deg)
+    mount = _lens_pitched(tmp_path, yaw_deg, pitch_deg)
 
     bearing, elevation = scene.boresight_deg(bpy.data.objects[mount.name])
     assert bearing == pytest.approx(mount.nominal_bearing_deg, abs=1e-4)
-    assert elevation == pytest.approx(tilt_deg, abs=1e-4)
+    assert elevation == pytest.approx(pitch_deg, abs=1e-4)
 
 
-@pytest.mark.parametrize("fan_deg", [-40.0, 0.0, 40.0])
-def test_a_tilted_lens_keeps_its_horizon_level(tmp_path, fan_deg) -> None:
-    """A rolled horizon is the pod-tilt signature; per-lens tilt must not show it."""
-    mount = _lens_tilted(tmp_path, fan_deg, -10.0)
+@pytest.mark.parametrize("yaw_deg", [-40.0, 0.0, 40.0])
+def test_a_pitched_lens_keeps_its_horizon_level(tmp_path, yaw_deg) -> None:
+    """A rolled horizon is the pod-pitch signature; per-lens pitch must not show it."""
+    mount = _lens_pitched(tmp_path, yaw_deg, -10.0)
 
     across = bpy.data.objects[mount.name].matrix_world.to_3x3() @ Vector(
         (1.0, 0.0, 0.0)
@@ -334,14 +335,14 @@ def test_a_tilted_lens_keeps_its_horizon_level(tmp_path, fan_deg) -> None:
     assert across.normalized().z == pytest.approx(0.0, abs=1e-6)
 
 
-def _tilted(tmp_path, fan_deg: float, tilt_deg: float = -5.0):
-    """A one-pod rig yawed off the bow, so tilt sits between two non-zero yaws."""
+def _tilted(tmp_path, yaw_deg: float, pitch_deg: float = -5.0):
+    """A one-pod rig yawed off the bow, so pitch sits between two non-zero yaws."""
     path = tmp_path / "tilted.toml"
     path.write_text(
         f'extends = "{BASELINE}"\n\n'
-        f"[rig]\ntilt_deg = {tilt_deg}\n\n"
+        f"[rig]\npitch_deg = {pitch_deg}\n\n"
         '[[rig.pods]]\nname = "port"\nyaw_deg = -60.0\n\n'
-        f'[[rig.pods.cameras]]\npreset = "eo"\nfan_deg = {fan_deg}\n'
+        f'[[rig.pods.cameras]]\npreset = "eo"\nyaw_deg = {yaw_deg}\n'
     )
     scenario = load(path)
     scene.build(scenario, "eo")
@@ -350,16 +351,16 @@ def _tilted(tmp_path, fan_deg: float, tilt_deg: float = -5.0):
     return bearing, mount.nominal_bearing_deg
 
 
-@pytest.mark.parametrize("fan_deg", [-40.0, 40.0])
-def test_tilt_moves_a_fanned_camera_off_its_nominal_bearing(tmp_path, fan_deg) -> None:
-    """The chain is Rz(-yaw) Rx(tilt) Rz(-fan), so tilt sits between the two yaws;
-    at -5 deg this is 0.108 deg, nine pixels at 4K."""
-    bearing, nominal = _tilted(tmp_path, fan_deg)
+@pytest.mark.parametrize("yaw_deg", [-40.0, 40.0])
+def test_pitch_moves_an_off_axis_camera_off_its_bearing(tmp_path, yaw_deg) -> None:
+    """The chain is Rz(-pod) Rx(pitch) Rz(-camera), so the rig's pitch sits between the
+    two yaws; at -5 deg this is 0.108 deg, nine pixels at 4K."""
+    bearing, nominal = _tilted(tmp_path, yaw_deg)
 
     assert abs(bearing - nominal) > 0.1
 
 
-def test_tilt_leaves_a_centre_camera_on_its_nominal_bearing(tmp_path) -> None:
+def test_pitch_leaves_a_centre_camera_on_its_nominal_bearing(tmp_path) -> None:
     """Exact down the pod axis. Microdegrees, not zero: matrix_world is float32."""
     bearing, nominal = _tilted(tmp_path, 0.0)
 

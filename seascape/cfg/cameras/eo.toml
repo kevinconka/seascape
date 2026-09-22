@@ -4,7 +4,7 @@
 # exactly the Johnson detection limit the pod is specified against -- at this field of
 # view the margin is gone. Downsample in the pipeline, never render smaller.
 kind = "eo"
-# 3 per pod at 40 deg pitch: a 129 deg pod span with 9 deg of overlap between lenses.
+# 3 per pod at 40 deg apart: a 129 deg pod span with 9 deg of overlap between lenses.
 hfov_deg = 49.0
 width_px = 3840
 height_px = 2160

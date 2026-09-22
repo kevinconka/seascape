@@ -44,10 +44,10 @@ class Model(BaseModel):
 
 class Camera(Model):
     kind: Band
-    fan_deg: float = 0.0  # relative to the pod axis, positive to starboard
-    # Pitch in the camera's own frame, so a fanned camera's horizon stays level and
-    # its bearing stays exact. Sign as `Rig.tilt_deg`: negative is down.
-    tilt_deg: float = Field(default=0.0, gt=-90.0, lt=90.0)
+    yaw_deg: float = 0.0  # relative to the pod axis, positive to starboard
+    # Pitch in the camera's own frame, so an off-axis camera's horizon stays level and
+    # its bearing stays exact. Sign as `Rig.pitch_deg`: negative is down.
+    pitch_deg: float = Field(default=0.0, gt=-90.0, lt=90.0)
     # Becomes a filename, so the same charset as a pod. Derived from position
     # in the pod when absent.
     name: str | None = Field(default=None, pattern=r"^[A-Za-z0-9_-]+$")
@@ -83,16 +83,17 @@ class Mount(NamedTuple):
 
     @property
     def nominal_bearing_deg(self) -> float:
-        """Not the achieved boresight: tilt sits between the two yaws, so a fanned
-        camera points elsewhere. `scene.boresight_deg` measures the built camera."""
-        return self.pod.yaw_deg + self.camera.fan_deg
+        """Not the achieved boresight: the rig's pitch sits between the two yaws, so
+        an off-axis camera points elsewhere. `scene.boresight_deg` measures the
+        built camera."""
+        return self.pod.yaw_deg + self.camera.yaw_deg
 
 
 class Rig(Model):
     """The pods on the ownship."""
 
     height_m: float = Field(gt=0.0)
-    tilt_deg: float = 0.0
+    pitch_deg: float = 0.0
     pods: list[Pod] = Field(min_length=1)
 
     @property
@@ -320,7 +321,7 @@ def _read(path: Path, chain: tuple[Path, ...] = ()) -> dict[str, Any]:
 def load(path: str | Path, overrides: Iterable[str] = ()) -> Scenario:
     """Read a scenario TOML, resolving `extends` and `preset`, and validate it.
 
-    Each override is a TOML assignment merged over the file: `rig.tilt_deg = -5`.
+    Each override is a TOML assignment merged over the file: `rig.pitch_deg = -5`.
     """
     data = _read(Path(path))
     for assignment in overrides:

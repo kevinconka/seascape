@@ -2,7 +2,7 @@
 #
 # Pod axis +-60 deg from the bow.
 #
-# EO: 3 x 49 deg at 40 deg pitch = 129 deg per pod, 9 deg overlap, 249 deg total.
+# EO: 3 x 49 deg at 40 deg apart = 129 deg per pod, 9 deg overlap, 249 deg total.
 # IR: 50 deg inboard of the pod axis = +-10 deg off the bow, 44 deg pair, 4 deg overlap.
 #
 # Both bands pitch down, trading sky for near sea. What is left above the horizon is
@@ -14,7 +14,7 @@
 
 # Wing top is 49.8 m; 2 m of bracket keeps the deck plate out of every lower frame edge.
 height_m = 51.8
-tilt_deg = 0.0
+pitch_deg = 0.0
 
 [[pods]]
 name = "port"
@@ -27,27 +27,27 @@ offset_y_m = -68.2
 [[pods.cameras]]
 preset = "eo"
 name = "EO_PORT_P"
-fan_deg = -40.0
-tilt_deg = -10.0
+yaw_deg = -40.0
+pitch_deg = -10.0
 
 [[pods.cameras]]
 preset = "eo"
 name = "EO_PORT_C"
-fan_deg = 0.0
-tilt_deg = -10.0
+yaw_deg = 0.0
+pitch_deg = -10.0
 
 [[pods.cameras]]
 preset = "eo"
 name = "EO_PORT_S"
-fan_deg = 40.0
-tilt_deg = -10.0
+yaw_deg = 40.0
+pitch_deg = -10.0
 
 [[pods.cameras]]
 preset = "ir"
 name = "IR_PORT"
 # Inboard, so the pair straddles the bow at +-10 deg.
-fan_deg = +50.0
-tilt_deg = -6.0
+yaw_deg = +50.0
+pitch_deg = -6.0
 
 [[pods]]
 name = "starboard"
@@ -58,23 +58,23 @@ offset_y_m = -68.2
 [[pods.cameras]]
 preset = "eo"
 name = "EO_STBD_P"
-fan_deg = -40.0
-tilt_deg = -10.0
+yaw_deg = -40.0
+pitch_deg = -10.0
 
 [[pods.cameras]]
 preset = "eo"
 name = "EO_STBD_C"
-fan_deg = 0.0
-tilt_deg = -10.0
+yaw_deg = 0.0
+pitch_deg = -10.0
 
 [[pods.cameras]]
 preset = "eo"
 name = "EO_STBD_S"
-fan_deg = 40.0
-tilt_deg = -10.0
+yaw_deg = 40.0
+pitch_deg = -10.0
 
 [[pods.cameras]]
 preset = "ir"
 name = "IR_STBD"
-fan_deg = -50.0
-tilt_deg = -6.0
+yaw_deg = -50.0
+pitch_deg = -6.0

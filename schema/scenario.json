@@ -13,16 +13,16 @@
         "kind": {
           "$ref": "#/$defs/Band"
         },
-        "fan_deg": {
+        "yaw_deg": {
           "default": 0.0,
-          "title": "Fan Deg",
+          "title": "Yaw Deg",
           "type": "number"
         },
-        "tilt_deg": {
+        "pitch_deg": {
           "default": 0.0,
           "exclusiveMaximum": 90.0,
           "exclusiveMinimum": -90.0,
-          "title": "Tilt Deg",
+          "title": "Pitch Deg",
           "type": "number"
         },
         "name": {
@@ -215,9 +215,9 @@
           "title": "Height M",
           "type": "number"
         },
-        "tilt_deg": {
+        "pitch_deg": {
           "default": 0.0,
-          "title": "Tilt Deg",
+          "title": "Pitch Deg",
           "type": "number"
         },
         "pods": {
