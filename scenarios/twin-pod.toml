@@ -18,8 +18,7 @@ sun_bearing_deg = 135.0
 
 [ownship]
 asset = "container_ship"
-# Illustrative, not measured: a hull at sea is never level. `test_twin_pod`
-# needs both positive.
+# Illustrative, not measured: a hull at sea is never level.
 roll_deg = 2.0
 pitch_deg = 0.5
 

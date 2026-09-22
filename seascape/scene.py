@@ -651,7 +651,12 @@ def _vessel(name: str, t_k: float, band: Band, sky: Sky) -> bpy.types.Object:
 
 def _ownship(ownship: Ownship, band: Band, sky: Sky) -> None:
     """At the origin, bow to +Y, carrying the rig: its offsets are in this frame."""
-    anchor = _vessel(ownship.asset, ownship.t_k, band, sky)
+    if ownship.asset is None:
+        anchor = bpy.data.objects.new("ownship", None)
+        bpy.context.collection.objects.link(anchor)
+        _place(anchor, 0.0, 0.0, 0.0)
+    else:
+        anchor = _vessel(ownship.asset, ownship.t_k, band, sky)
     # Named for its role, or a target on the same asset takes the name by build order.
     anchor.name = "ownship"
     bpy.data.objects["rig"].parent = anchor
@@ -795,8 +800,7 @@ def build(scenario: Scenario, band: Band = "eo") -> None:
     far_m = 1.5 * reach_m  # the sea's corner is reach * sqrt(2) away
     _sea(scenario.sea, scenario.seed, reach_m, band)
     cameras = _rig(scenario.rig, far_m)
-    if scenario.ownship is not None:
-        _ownship(scenario.ownship, band, scenario.sky)
+    _ownship(scenario.ownship, band, scenario.sky)
     radius_m = earth_radius_m(scenario.sea.refraction_k)
     for spec in scenario.objects:
         _object(spec, band, radius_m, scenario.sky)

@@ -146,11 +146,19 @@
     },
     "Ownship": {
       "additionalProperties": false,
-      "description": "The vessel the rig is bolted to. Its cameras see its own deck.",
+      "description": "The vessel the rig is bolted to, rolling and pitching about its origin at the\nwaterline. Without an asset it is the attitude alone, and no hull is in view.",
       "properties": {
         "asset": {
-          "title": "Asset",
-          "type": "string"
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Asset"
         },
         "t_k": {
           "default": 296.0,
@@ -174,9 +182,6 @@
           "type": "number"
         }
       },
-      "required": [
-        "asset"
-      ],
       "title": "Ownship",
       "type": "object"
     },
@@ -425,15 +430,7 @@
       "$ref": "#/$defs/Rig"
     },
     "ownship": {
-      "anyOf": [
-        {
-          "$ref": "#/$defs/Ownship"
-        },
-        {
-          "type": "null"
-        }
-      ],
-      "default": null
+      "$ref": "#/$defs/Ownship"
     },
     "targets": {
       "anyOf": [

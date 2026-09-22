@@ -46,26 +46,23 @@ def test_a_pods_cameras_all_sit_at_its_mount_point(pod) -> None:
 
 def test_the_ownship_is_at_the_origin() -> None:
     """The rig's offsets are in the ownship's frame."""
-    assert SCENARIO.ownship is not None
-
     anchor = bpy.data.objects["ownship"]
 
     assert tuple(anchor.location) == pytest.approx((0.0, 0.0, 0.0))
 
 
-def test_roll_takes_starboard_down_and_pitch_the_bow_up() -> None:
-    assert SCENARIO.ownship is not None
-    assert SCENARIO.ownship.roll_deg > 0.0
-    assert SCENARIO.ownship.pitch_deg > 0.0
-    ship = bpy.data.objects["ownship"].matrix_world
-    port, starboard = (
-        bpy.data.objects[f"pod_{side}"].matrix_world.translation.z
-        for side in ("port", "starboard")
-    )
-    bow, stern = ((ship @ Vector((0.0, y, 0.0))).z for y in (1.0, -1.0))
+def test_the_hull_takes_the_attitude_it_was_given() -> None:
+    """Rz @ Rx @ Ry: the bow rises by sin(pitch), starboard drops by
+    cos(pitch) sin(roll). Pins both signs and the order."""
+    roll = math.radians(SCENARIO.ownship.roll_deg)
+    pitch = math.radians(SCENARIO.ownship.pitch_deg)
+    rotation = bpy.data.objects["ownship"].matrix_world.to_3x3()
 
-    assert starboard < port
-    assert bow > stern
+    bow = rotation @ Vector((0.0, 1.0, 0.0))
+    starboard = rotation @ Vector((1.0, 0.0, 0.0))
+
+    assert bow.z == pytest.approx(math.sin(pitch))
+    assert starboard.z == pytest.approx(-math.cos(pitch) * math.sin(roll))
 
 
 def test_pod_span_and_overlap_measured_from_the_scene() -> None:
