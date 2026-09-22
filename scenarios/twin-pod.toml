@@ -9,7 +9,7 @@ seed = 20260920
 preset = "twin_pod"
 
 [sea]
-# Above the 288 K air, or the LWIR waves vanish.
+# Warmer than the air, which is the norm at sea.
 t_sea_k = 291.0
 
 [sky]

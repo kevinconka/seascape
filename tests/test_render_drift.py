@@ -16,7 +16,7 @@ import numpy as np
 import pytest
 
 from seascape import lwir, scene
-from seascape.config import Band, load
+from seascape.config import Band, Scenario, load
 
 pytestmark = pytest.mark.render
 
@@ -101,6 +101,50 @@ def test_sea_texture_fades_with_range(frame) -> None:
     assert far_to_near[0] == min(far_to_near), (
         f"the far field has to settle, not sparkle: {far_to_near}"
     )
+
+
+def sea_of(scenario: Scenario, waves: bool) -> np.ndarray:
+    """The near sea of an ir frame, optionally with the wave relief flattened."""
+    scene.build(scenario, "ir")
+    bump = next(
+        n
+        for n in bpy.data.materials["sea"].node_tree.nodes
+        if n.bl_idname == "ShaderNodeBump"
+    )
+    if not waves:
+        bump.inputs["Distance"].default_value = 0.0
+    sc = bpy.context.scene
+    sc.camera = next(
+        o for o in bpy.data.objects if o.type == "CAMERA" and "_ir_" in o.name
+    )
+    # The flat sea is the control, so grain has to sit well under the relief being
+    # measured; 48 leaves them a factor of two apart, which is no test.
+    sc.cycles.samples = 256
+    frame = shoot((320, 256), "isothermal")
+    horizon = frame.shape[0] // 2
+    return frame[horizon + 30 : horizon + 80]
+
+
+@pytest.mark.render
+def test_waves_survive_a_sea_at_air_temperature() -> None:
+    """Wave contrast is mostly the sky's angular gradient, not `t_sea_k - t_air_k`.
+
+    A tilted facet reflects a different elevation of a sky that runs cold overhead to
+    ambient at the horizon, so the relief shows with the sea exactly at air temperature.
+    AGENTS.md used to say the surface renders as a flat plate here; measured, 3 K of
+    difference buys 5-18% of the contrast rather than all of it. The flat sea is the
+    control, so this compares relief against the grain floor at the same samples.
+    """
+    isothermal = SCENARIO.model_copy(
+        update={
+            "sea": SCENARIO.sea.model_copy(update={"t_sea_k": SCENARIO.sky.t_air_k})
+        }
+    )
+
+    rippled, flat = sea_of(isothermal, True), sea_of(isothermal, False)
+
+    # 3.2 measured; a flat plate, which is what the old claim predicts, reads 1.0.
+    assert texture(rippled) > 2.5 * texture(flat)
 
 
 @pytest.mark.render
