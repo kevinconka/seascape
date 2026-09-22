@@ -120,14 +120,9 @@ class TestThermalPng:
 
 
 def built(band: Band, **outputs: object) -> bpy.types.Scene:
-    # No vessels: importing the hull is 1.39 s of a 1.47 s build, and nothing here
-    # looks at one.
     scenario = load(BASELINE)
     scenario = scenario.model_copy(
-        update={
-            "outputs": scenario.outputs.model_copy(update=outputs),
-            "objects": [],
-        }
+        update={"outputs": scenario.outputs.model_copy(update=outputs)}
     )
     scene.build(scenario, band)
     return bpy.context.scene
