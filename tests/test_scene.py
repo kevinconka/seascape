@@ -97,7 +97,7 @@ class TestGeometry:
         for mount in SCENARIO.rig.mounts:
             camera = camera_of(mount)
             half = math.degrees(camera.data.angle_x) / 2
-            # Bearing from the boresight direction; a euler off the matrix is wrong once tilted.
+            # Bearing from the boresight; a euler off the matrix is wrong once tilted.
             forward = camera.matrix_world.to_3x3() @ Vector((0.0, 0.0, -1.0))
             centre = math.degrees(math.atan2(forward.x, forward.y))
             # IR is one camera per pod; its span and overlap are a rig-level property.
@@ -114,7 +114,7 @@ class TestGeometry:
             sectors = sorted(arcs[key])
             assert sectors[-1][1] - sectors[0][0] == pytest.approx(span), key
             gaps = [a[1] - b[0] for a, b in pairwise(sectors)]
-            # Composed through the pod transform, matrix_world is a few microdegrees out.
+            # Through the pod transform, matrix_world is a few microdegrees out.
             assert gaps == pytest.approx([overlap] * len(gaps), abs=1e-4), key
 
     def test_the_far_clip_clears_every_target(self) -> None:
