@@ -11,58 +11,7 @@ import bpy
 import numpy as np
 
 from seascape import lwir, scene
-from seascape.config import Band, ImageFormat, Scenario
-
-# Blender's format identifier and bit depth. 32-bit EXR, not half: an 11-bit
-# mantissa loses radiance.
-_FORMATS: dict[ImageFormat, tuple[str, str]] = {
-    "exr": ("OPEN_EXR", "32"),
-    "png": ("PNG", "8"),
-}
-
-
-def _enable_gpu() -> bool:
-    """Point Cycles at a GPU, once, before anything renders.
-
-    Without `refresh_devices()` Cycles stays on the CPU silently; switching device
-    mid-process pays kernel compilation.
-    """
-    preferences = bpy.context.preferences.addons["cycles"].preferences
-    for backend in ("METAL", "OPTIX", "CUDA", "HIP", "ONEAPI"):
-        try:
-            preferences.compute_device_type = backend
-        except TypeError:
-            continue  # not compiled into this build
-        preferences.refresh_devices()
-        if any(device.type != "CPU" for device in preferences.devices):
-            for device in preferences.devices:
-                # CPU alongside the GPU wins nothing here.
-                device.use = device.type != "CPU"
-            return True
-    return False
-
-
-def _settings(
-    scenario: Scenario, band: Band, writing: ImageFormat, on_gpu: bool
-) -> None:
-    outputs = scenario.outputs
-    sc = bpy.context.scene
-    # Not EEVEE: no second bounce for world light, so the sea renders at half radiance.
-    sc.render.engine = "CYCLES"
-    sc.cycles.samples = outputs.samples[band]
-    sc.cycles.device = "GPU" if on_gpu else "CPU"
-    if band == "eo":
-        # ir pixels are radiance; gain on them belongs to the display mapping.
-        sc.view_settings.exposure = outputs.exposure_ev
-    # OIDN is an edge-aware image filter, not a radiometric one, and it is on by
-    # default. On a world flat at 290.00 K it returns 282.43-293.00 K and breaks the
-    # R=G=B the scene guarantees, which is the channel `_thermal_png` reads.
-    sc.cycles.use_denoising = band == "eo"
-    # HIGH: 16 s vs 5 s per 4K frame, 0.8% pixel change.
-    sc.cycles.denoising_quality = "FAST"
-    file_format, depth = _FORMATS[writing]
-    sc.render.image_settings.file_format = file_format
-    sc.render.image_settings.color_depth = depth
+from seascape.config import Scenario
 
 
 def _thermal_png(exr: Path, png: Path) -> None:
@@ -111,16 +60,15 @@ def render(scenario: Scenario, into: Path) -> list[Path]:
     """Write one image per camera into `into`, building each band's scene once."""
     into.mkdir(parents=True, exist_ok=True)
     outputs = scenario.outputs
-    on_gpu = _enable_gpu()
     written: list[Path] = []
     for band in outputs.bands:
         # The default bands ask for both, so an EO-only rig must skip ir, not fail.
         mounts = [m for m in scenario.rig.mounts if m.camera.kind == band]
         if not mounts:
             continue
+        # An ir scene renders float whatever the scenario asks; the png is mapped here.
         thermal_png = band == "ir" and outputs.format == "png"
         scene.build(scenario, band)
-        _settings(scenario, band, "exr" if thermal_png else outputs.format, on_gpu)
         sc = bpy.context.scene
         for mount in mounts:
             sc.camera = bpy.data.objects[mount.name]

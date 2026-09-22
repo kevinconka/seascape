@@ -31,7 +31,18 @@ from mathutils import Matrix, Vector
 
 from seascape import lwir
 from seascape.assets import Asset, fetch, manifest
-from seascape.config import Band, Mount, Object, Rig, Scenario, Sea, Sky, Targets
+from seascape.config import (
+    Band,
+    ImageFormat,
+    Mount,
+    Object,
+    Outputs,
+    Rig,
+    Scenario,
+    Sea,
+    Sky,
+    Targets,
+)
 
 CURVE_SAMPLES = 256
 
@@ -557,6 +568,58 @@ def _object(spec: Object, band: Band) -> bpy.types.Object:
     return anchor
 
 
+# Blender's format identifier and bit depth. 32-bit EXR, not half: an 11-bit
+# mantissa loses radiance.
+_FORMATS: dict[ImageFormat, tuple[str, str]] = {
+    "exr": ("OPEN_EXR", "32"),
+    "png": ("PNG", "8"),
+}
+
+
+def _enable_gpu() -> bool:
+    """Point Cycles at a GPU. Without `refresh_devices()` it stays on the CPU."""
+    preferences = bpy.context.preferences.addons["cycles"].preferences
+    for backend in ("METAL", "OPTIX", "CUDA", "HIP", "ONEAPI"):
+        try:
+            preferences.compute_device_type = backend
+        except TypeError:
+            continue  # not compiled into this build
+        preferences.refresh_devices()
+        if any(device.type != "CPU" for device in preferences.devices):
+            for device in preferences.devices:
+                # CPU alongside the GPU wins nothing here.
+                device.use = device.type != "CPU"
+            return True
+    return False
+
+
+def _output(outputs: Outputs, band: Band) -> None:
+    """Render and display settings, in the .blend, so F12 renders what `render` does."""
+    sc = bpy.context.scene
+    # Not EEVEE: no second bounce for world light, so the sea renders at half radiance.
+    sc.render.engine = "CYCLES"
+    sc.cycles.device = "GPU" if _enable_gpu() else "CPU"
+    sc.cycles.samples = outputs.samples[band]
+    # OIDN is an edge-aware image filter, not a radiometric one, and it is on by
+    # default. On a world flat at 290.00 K it returns 282.43-293.00 K and breaks the
+    # R=G=B the scene guarantees, which is the channel `render._thermal_png` reads.
+    sc.cycles.use_denoising = band == "eo"
+    # HIGH: 16 s vs 5 s per 4K frame, 0.8% pixel change.
+    sc.cycles.denoising_quality = "FAST"
+    view = sc.view_settings
+    if band == "eo":
+        view.exposure = outputs.exposure_ev
+    else:
+        # Pixels are radiance in W m^-2 sr^-1, not a picture. Blender defaults to the
+        # AgX film curve, which destroys the one property these pixels have.
+        view.view_transform, view.look = "Standard", "None"
+        view.exposure, view.gamma = 0.0, 1.0
+    # ir renders float whatever the scenario asks; `render` maps its png from the exr.
+    file_format, depth = _FORMATS[outputs.format if band == "eo" else "exr"]
+    sc.render.image_settings.file_format = file_format
+    sc.render.image_settings.color_depth = depth
+
+
 def build(scenario: Scenario, band: Band = "eo") -> None:
     """Replace the current Blender session's contents with `scenario` in one band.
 
@@ -564,13 +627,7 @@ def build(scenario: Scenario, band: Band = "eo") -> None:
     units. Rendering both bands means building twice, which costs seconds.
     """
     bpy.ops.wm.read_factory_settings(use_empty=True)
-    if band == "ir":
-        # Pixels are radiance in W m^-2 sr^-1, not a picture. Blender defaults to the
-        # AgX film curve, which is a lookup built to make photographs pleasant and
-        # destroys the one property these pixels have. Any AGC belongs in post.
-        view = bpy.context.scene.view_settings
-        view.view_transform, view.look = "Standard", "None"
-        view.exposure, view.gamma = 0.0, 1.0
+    _output(scenario.outputs, band)
     bpy.context.scene.world = _sky(scenario.sky, band)
     reach_m = sea_reach_m(scenario.rig, band)
     _sea(scenario.sea, scenario.seed, reach_m, band)

@@ -12,8 +12,8 @@ import bpy
 import numpy as np
 import pytest
 
-from seascape import render
-from seascape.config import Band, ImageFormat, Scenario, load
+from seascape import render, scene
+from seascape.config import Band, ImageFormat, load
 
 BASELINE = Path(__file__).parent.parent / "scenarios" / "baseline.toml"
 
@@ -119,49 +119,45 @@ class TestThermalPng:
         assert len(bpy.data.images) == before
 
 
-class TestSettings:
-    scenario: Scenario
+def built(band: Band, **outputs: object) -> bpy.types.Scene:
+    """The baseline built in `band`, with `outputs` fields overridden."""
+    scenario = load(BASELINE)
+    scenario = scenario.model_copy(
+        update={"outputs": scenario.outputs.model_copy(update=outputs)}
+    )
+    scene.build(scenario, band)
+    return bpy.context.scene
 
-    @classmethod
-    def setup_class(cls) -> None:
-        cls.scenario = load(BASELINE)
+
+class TestSettings:
+    """What the .blend carries, so F12 in Blender renders what `render` renders."""
 
     def test_every_format_maps_to_one_blender_identifier(self) -> None:
         """A format added to the Literal alone renders as whatever was set last."""
-        assert set(render._FORMATS) == set(get_args(ImageFormat.__value__))
+        assert set(scene._FORMATS) == set(get_args(ImageFormat.__value__))
 
     @pytest.mark.parametrize("fmt", get_args(ImageFormat.__value__))
     def test_the_extension_matches_the_name_render_files_under(
         self, fmt: ImageFormat
     ) -> None:
         """`render` composes its return paths from the format, not from Blender."""
-        render._settings(self.scenario, "eo", fmt, on_gpu=False)
-        assert bpy.context.scene.render.file_extension == f".{fmt}"
+        assert built("eo", format=fmt).render.file_extension == f".{fmt}"
+
+    def test_ir_renders_float_even_when_a_png_is_asked_for(self) -> None:
+        """Radiance through 8 bits is no longer radiance; the png is mapped after."""
+        assert built("ir", format="png").render.image_settings.color_depth == "32"
 
     @pytest.mark.parametrize(("band", "denoised"), [("eo", True), ("ir", False)])
     def test_only_eo_is_denoised(self, band: Band, denoised: bool) -> None:
         """OIDN invents 10 K of structure on a field that is flat by construction."""
-        render._settings(self.scenario, band, "exr", on_gpu=False)
+        assert built(band).cycles.use_denoising is denoised
 
-        assert bpy.context.scene.cycles.use_denoising is denoised
-
-    @pytest.mark.parametrize("band", get_args(Band))
+    @pytest.mark.parametrize("band", get_args(Band.__value__))
     def test_both_bands_render_in_cycles(self, band: Band) -> None:
         """EEVEE renders the sea at half its radiance."""
-        render._settings(self.scenario, band, "exr", on_gpu=False)
-
-        assert bpy.context.scene.render.engine == "CYCLES"
-
-    def test_radiance_keeps_its_full_float(self) -> None:
-        render._settings(self.scenario, "ir", "exr", on_gpu=False)
-        assert bpy.context.scene.render.image_settings.color_depth == "32"
+        assert built(band).render.engine == "CYCLES"
 
     def test_eo_is_exposed_and_ir_is_not(self) -> None:
         """Radiance through an exposure is no longer radiance."""
-        render._settings(self.scenario, "eo", "png", on_gpu=False)
-        assert bpy.context.scene.view_settings.exposure == (
-            self.scenario.outputs.exposure_ev
-        )
-        bpy.context.scene.view_settings.exposure = 0.0
-        render._settings(self.scenario, "ir", "exr", on_gpu=False)
-        assert bpy.context.scene.view_settings.exposure == 0.0
+        assert built("eo").view_settings.exposure == load(BASELINE).outputs.exposure_ev
+        assert built("ir").view_settings.exposure == 0.0
