@@ -220,9 +220,8 @@ class TestGeometry:
     [(0.0, (0, 5, 0)), (90.0, (5, 0, 0)), (180.0, (0, -5, 0)), (270.0, (-5, 0, 0))],
 )
 def test_a_hull_is_fitted_along_its_own_bow_axis(bow_deg, bow_corner) -> None:
-    """The failure this exists for: the shipped hull is authored at 180, which is its
-    own inverse, so a sign error and a length measured along the wrong axis both
-    passed. Any other bow lands stern-first and scaled by its beam."""
+    """180 is its own inverse: the shipped hull passes with a sign error or the
+    length measured along the beam. Any other bow catches both."""
     asset = Asset(
         url="x",
         sha256="0" * 64,
@@ -232,7 +231,7 @@ def test_a_hull_is_fitted_along_its_own_bow_axis(bow_deg, bow_corner) -> None:
         licence="x",
         attribution="x",
     )
-    # a 10 x 2 x 1 box, long axis pointing at the bow, bottom at z = 0
+    # 10 x 2 x 1 box, long axis at the bow, bottom at z = 0
     long, beam = Vector(bow_corner), Vector((-bow_corner[1], bow_corner[0], 0)) / 5
     corners = [
         s * long + b * beam + Vector((0, 0, z))

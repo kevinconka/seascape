@@ -137,7 +137,7 @@
     },
     "Ownship": {
       "additionalProperties": false,
-      "description": "The vessel the rig is bolted to. Its own cameras see it, which is the point:\nthe forecastle occludes the lower frame and the bow has a blind wedge.",
+      "description": "The vessel the rig is bolted to. Its cameras see its own deck.",
       "properties": {
         "asset": {
           "title": "Asset",
@@ -284,7 +284,7 @@
     },
     "Targets": {
       "additionalProperties": false,
-      "description": "A ring of vessels in the world, at one range, spread over a span of bearings.\n\nWorld objects, not a per-camera construct: nothing here refers to the rig. That\nevery camera ends up with one in frame is a property of the two geometries, so it\nis asserted in a test rather than guaranteed by the placement.",
+      "description": "A ring of vessels at one range, spread over a span of bearings.\n\nWorld objects: nothing here refers to the rig, so per-camera coverage is a test,\nnot a guarantee.",
       "properties": {
         "asset": {
           "title": "Asset",

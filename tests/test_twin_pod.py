@@ -1,7 +1,6 @@
 """The installed rig: pods on an ownship's bridge wings, traffic at 7 NM.
 
-Blender is one global session, so the scene is built once for the module and every
-test reads that one scene.
+One global Blender session, so the scene is built once per module.
 """
 
 import math
@@ -31,8 +30,7 @@ def targets() -> list[bpy.types.Object]:
 
 @pytest.mark.parametrize("pod", PODS)
 def test_a_pods_cameras_all_sit_at_its_mount_point(pod) -> None:
-    """Four cameras, one enclosure. A pod that only yawed its cameras and left them on
-    the centreline would pass every bearing check and still have no baseline."""
+    """Cameras yawed on the centreline pass every bearing check with no baseline."""
     expected = (pod.offset_x_m, pod.offset_y_m, SCENARIO.rig.height_m)
 
     places = {
@@ -45,8 +43,7 @@ def test_a_pods_cameras_all_sit_at_its_mount_point(pod) -> None:
 
 
 def test_the_ownship_is_at_the_origin() -> None:
-    """The rig's offsets are measured in the ownship's frame, so anywhere else and
-    every camera is somewhere other than the deck it is bolted to."""
+    """The rig's offsets are in the ownship's frame."""
     assert SCENARIO.ownship is not None
 
     anchor = bpy.data.objects[SCENARIO.ownship.asset]
@@ -54,22 +51,15 @@ def test_the_ownship_is_at_the_origin() -> None:
     assert tuple(anchor.location) == pytest.approx((0.0, 0.0, 0.0))
 
 
-# A pod bolted flush to the deck it stands on sees that deck and nothing else. The
-# bracket has to clear the structure by more than a rounding error, and less than a
-# mast: anything in this range is a mount, anything closer is the mount itself.
-# A bracket stands on something. Further than this below a pod and it is floating
-# beside the ship rather than bolted to it.
+# A bracket stands on something. Further than this below a pod and it floats beside
+# the ship.
 MAX_BRACKET_M = 5.0
 
 
 @pytest.mark.parametrize("pod", PODS)
 def test_a_pod_stands_on_the_ship_rather_than_beside_it(pod) -> None:
-    """The failure this exists for: `extends` carried baseline's deliberately low 12 m
-    into this scenario, leaving both pods at hull level 40 m under their bridge wings
-    and just outboard of the beam, so no ray hit anything. Bearings, overlaps, lens
-    clearance and target coverage all still passed, and the thermal frames filled with
-    the ship's own bow.
-    """
+    """`extends` once carried baseline's 12 m in, putting both pods 40 m under their
+    bridge wings and outboard of the hull. Every other test still passed."""
     pod_at = bpy.data.objects[f"pod_{pod.name}"].matrix_world.translation
 
     drop_m = _distance_to_geometry(pod_at, pod_at + Vector((0.0, 0.0, -1.0)))
@@ -84,9 +74,8 @@ MIN_CLEARANCE_M = 5.0
 
 @pytest.mark.parametrize("mount", MOUNTS)
 def test_no_camera_is_buried_in_the_structure_it_is_mounted_on(mount) -> None:
-    """The failure this exists for: `height_m` set to the top face of the bridge wing
-    put every lens 0.2 m from the plate, which then filled the lower frame. Bearings,
-    overlaps and target coverage all still passed."""
+    """`height_m` at the wing's top face put every lens 0.2 m from the plate, which
+    filled the lower frame. Every other test still passed."""
     camera = bpy.data.objects[mount.name]
     origin = camera.matrix_world.translation
     # The corners, not the axis: a deck the pod stands on is below the optical centre,
@@ -103,9 +92,7 @@ def test_no_camera_is_buried_in_the_structure_it_is_mounted_on(mount) -> None:
 
 @pytest.mark.parametrize("mount", MOUNTS)
 def test_every_camera_has_a_target_in_frame(mount) -> None:
-    """The point of the ring, and the reason it is asserted rather than constructed:
-    the targets are world objects on their own bearings, so coverage is a property of
-    the two geometries and breaks silently if either moves."""
+    """Targets are world objects: coverage breaks silently if either geometry moves."""
     camera = bpy.data.objects[mount.name]
 
     framed = [
@@ -128,8 +115,7 @@ def test_every_target_sits_at_the_configured_range() -> None:
 
 
 def test_the_ring_is_one_mesh_however_many_targets() -> None:
-    """Clones share their datablocks, so the ring costs one import. Copying the meshes
-    instead is invisible until a build runs out of memory."""
+    """Clones share datablocks; copied meshes show only when a build runs out of memory."""
     assert SCENARIO.targets is not None
     hulls = [obj for obj in bpy.data.objects if obj.name.startswith("target_")]
 
@@ -154,6 +140,5 @@ def _distance_to_geometry(origin, through) -> float:
 
 
 def _in_frame(uv) -> bool:
-    """`world_to_camera_view` returns normalised coordinates and a depth; behind the
-    camera the coordinates still land in range, so the depth is what decides it."""
+    """Behind the camera `world_to_camera_view` still lands x, y in range; z decides."""
     return 0.0 <= uv.x <= 1.0 and 0.0 <= uv.y <= 1.0 and uv.z > 0.0

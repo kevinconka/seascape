@@ -457,11 +457,9 @@ def _corners(objects: Iterable[bpy.types.Object]) -> list[Vector]:
 
 
 def _fit(corners: Iterable[Vector], asset: Asset) -> Matrix:
-    """The transform that turns a hull's bow to +Y, scales it to the manifest length,
-    centres it, and sets its keel at the draught below the waterline.
+    """Bow to +Y, scaled to the manifest length, centred, keel at the draught.
 
-    Turned first, so the length is measured bow to stern whichever way the mesh was
-    authored, and centred before it is turned, so it does not spin about a corner.
+    Turned first so the length is measured bow to stern whatever the authored axis.
     """
     turn = Matrix.Rotation(_yaw(-asset.bow_deg), 4, "Z")
     axes = list(zip(*(turn @ c for c in corners), strict=True))
@@ -478,12 +476,9 @@ def _fit(corners: Iterable[Vector], asset: Asset) -> Matrix:
 
 
 def _vessel(name: str, t_k: float, band: Band) -> bpy.types.Object:
-    """Import a hull, fit it to its manifest length, and anchor it at the origin.
+    """Import a hull, fit it, and anchor it at the origin under an empty.
 
-    An asset arrives in whatever units its author used, off-origin, in many parts. It
-    is scaled by its bow-to-stern extent, centred, turned so its bow faces +Y, and set
-    down so its keel sits at the manifest draught below the waterline. The sea is
-    opaque, so it hides what is under.
+    An asset arrives in its author's units, off-origin, in many parts.
     """
     before = set(bpy.data.objects)
     bpy.ops.import_scene.fbx(filepath=str(fetch(name)))
@@ -532,11 +527,9 @@ def _pose(
 def _copy_tree(
     obj: bpy.types.Object, parent: bpy.types.Object | None
 ) -> bpy.types.Object:
-    """Duplicate a hull's object tree, sharing every mesh datablock.
+    """Duplicate an object tree. `copy()` shares `data`, so N targets cost one mesh.
 
-    `copy()` shares `data`, so N targets cost one mesh. The parent inverse rides along
-    with each copy, which is why the tree has to be rebuilt in the same shape rather
-    than flattened.
+    The parent inverse copies too, so the tree keeps its shape rather than flattening.
     """
     clone = obj.copy()
     bpy.context.collection.objects.link(clone)
@@ -547,7 +540,6 @@ def _copy_tree(
 
 
 def _targets(spec: Targets, band: Band) -> list[bpy.types.Object]:
-    """The ring, from a single import."""
     first = _vessel(spec.asset, spec.t_k, band)
     poses = spec.poses()
     anchors = [first, *(_copy_tree(first, None) for _ in poses[1:])]
@@ -560,7 +552,6 @@ def _targets(spec: Targets, band: Band) -> list[bpy.types.Object]:
 
 
 def _object(spec: Object, band: Band) -> bpy.types.Object:
-    """One scenario-placed vessel."""
     anchor = _vessel(spec.asset, spec.t_k, band)
     _pose(anchor, spec.range_m, spec.bearing_deg, spec.heading_deg)
     return anchor

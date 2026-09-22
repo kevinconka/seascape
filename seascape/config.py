@@ -143,28 +143,25 @@ class Object(Model):
 
 
 class Ownship(Model):
-    """The vessel the rig is bolted to. Its own cameras see it, which is the point:
-    the forecastle occludes the lower frame and the bow has a blind wedge."""
+    """The vessel the rig is bolted to. Its cameras see its own deck."""
 
     asset: str
     t_k: float = Field(default=296.0, ge=250.0, le=400.0)
 
 
 class Targets(Model):
-    """A ring of vessels in the world, at one range, spread over a span of bearings.
+    """A ring of vessels at one range, spread over a span of bearings.
 
-    World objects, not a per-camera construct: nothing here refers to the rig. That
-    every camera ends up with one in frame is a property of the two geometries, so it
-    is asserted in a test rather than guaranteed by the placement.
+    World objects: nothing here refers to the rig, so per-camera coverage is a test,
+    not a guarantee.
     """
 
     asset: str
     count: int = Field(gt=0)
     range_m: float = Field(gt=0.0)
-    # Inclusive span, spread evenly. Both ends are used, so `count` targets sit at
-    # `count - 1` intervals across it.
+    # Inclusive span, both ends used.
     bearing_deg: tuple[float, float]
-    # Spread evenly too, so aspect varies between targets and projected size with it.
+    # Spread evenly, so aspect varies between targets.
     heading_deg: tuple[float, float] = (0.0, 315.0)
     t_k: float = Field(default=293.0, ge=250.0, le=400.0)
 
