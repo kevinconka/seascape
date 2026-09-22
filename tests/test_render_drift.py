@@ -117,8 +117,7 @@ def sea_of(scenario: Scenario, waves: bool) -> np.ndarray:
     sc.camera = next(
         o for o in bpy.data.objects if o.type == "CAMERA" and "_ir_" in o.name
     )
-    # The flat sea is the control, so grain has to sit well under the relief being
-    # measured; 48 leaves them a factor of two apart, which is no test.
+    # Flat sea is the control, so grain must sit well under the relief; 48 does not.
     sc.cycles.samples = 256
     frame = shoot((320, 256), "isothermal")
     horizon = frame.shape[0] // 2
@@ -127,13 +126,10 @@ def sea_of(scenario: Scenario, waves: bool) -> np.ndarray:
 
 @pytest.mark.render
 def test_waves_survive_a_sea_at_air_temperature() -> None:
-    """Wave contrast is mostly the sky's angular gradient, not `t_sea_k - t_air_k`.
+    """Wave relief survives a sea exactly at air temperature.
 
-    A tilted facet reflects a different elevation of a sky that runs cold overhead to
-    ambient at the horizon, so the relief shows with the sea exactly at air temperature.
-    AGENTS.md used to say the surface renders as a flat plate here; measured, 3 K of
-    difference buys 5-18% of the contrast rather than all of it. The flat sea is the
-    control, so this compares relief against the grain floor at the same samples.
+    A tilted facet reflects a different sky elevation, cold overhead to ambient at
+    the horizon, so relief shows without `t_sea_k - t_air_k`; 3 K buys 7-18% of it.
     """
     isothermal = SCENARIO.model_copy(
         update={
@@ -143,7 +139,7 @@ def test_waves_survive_a_sea_at_air_temperature() -> None:
 
     rippled, flat = sea_of(isothermal, True), sea_of(isothermal, False)
 
-    # 3.2 measured; a flat plate, which is what the old claim predicts, reads 1.0.
+    # 3.2 measured; grain-limited flat control reads 1.0.
     assert texture(rippled) > 2.5 * texture(flat)
 
 
