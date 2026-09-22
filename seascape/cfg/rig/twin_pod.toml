@@ -1,14 +1,13 @@
 # Two pods on the bridge wings, both forward-facing. Eight cameras.
 #
-# Pod axis +-60 deg from the bow. Spec says 58.5, but 60 is what gives the spec's 5 deg
-# forward EO overlap; the overlap is what gets measured, so it wins.
+# Pod axis +-60 deg from the bow.
 #
-# EO: 3 x 45 deg at 40 deg pitch = 125 deg per pod, 5 deg overlap, 245 deg total.
+# EO: 3 x 49 deg at 40 deg pitch = 129 deg per pod, 9 deg overlap, 249 deg total.
 # IR: 50 deg inboard of the pod axis = +-10 deg off the bow, 44 deg pair, 4 deg overlap.
 #
 # Both bands pitch down, trading sky for near sea. What is left above the horizon is
-# half the vertical field minus the tilt: 3.1 deg of EO (26.2 deg field), 3.7 of IR
-# (19.3 deg). A target at the horizon lands in the top eighth of the frame.
+# half the vertical field minus the tilt: 4.4 deg of EO (28.8 deg field), 3.7 of IR
+# (19.3 deg). A target at the horizon lands in the top sixth of the frame.
 #
 # Offsets: bridge-wing tops of the container_ship mesh, +-21.5 m (half the 43 m beam)
 # and 68.2 m aft of midships.

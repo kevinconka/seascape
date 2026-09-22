@@ -67,7 +67,7 @@ def test_a_preset_supplies_optics_and_the_block_supplies_the_mount(twin_pod) -> 
     eo, ir = twin_pod.rig.mounts[0], twin_pod.rig.mounts[-1]
 
     assert (eo.camera.hfov_deg, eo.camera.width_px, eo.camera.height_px) == (
-        45.0,
+        49.0,
         3840,
         2160,
     )
@@ -153,7 +153,7 @@ def test_a_block_overrides_its_own_preset(tmp_path) -> None:
         )
     )
     camera = scenario.rig.mounts[0].camera
-    assert camera.hfov_deg == 10.0  # preset says 45.0
+    assert camera.hfov_deg == 10.0  # preset says 49.0
     assert camera.width_px == 3840  # untouched by the block
 
 

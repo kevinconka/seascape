@@ -67,8 +67,8 @@ def test_pod_span_and_overlap_measured_from_the_scene() -> None:
         )
 
     for key, span, overlap in (
-        (("port", "eo"), 125.0, 5.0),
-        (("starboard", "eo"), 125.0, 5.0),
+        (("port", "eo"), 129.0, 9.0),
+        (("starboard", "eo"), 129.0, 9.0),
         (("rig", "ir"), 44.0, 4.0),
     ):
         sectors = sorted(arcs[key])
