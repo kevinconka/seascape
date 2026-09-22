@@ -60,16 +60,16 @@ These produce wrong output with no error. They are the reason this file exists.
 - **Address shader sockets by name, never by index.** `inputs["Distance"]` raises if Blender renames it; `inputs[1]` happily writes to whatever now sits in that slot.
 - **Objects can share a mesh datablock.** Material slots link to mesh data by default, so assigning a material to one object silently changes the other. Use `slot.link = "OBJECT"` when they must differ.
 - **Shader node trees leak.** If you build a chain, cleanup must remove the whole chain, not just the node you tagged. Re-running a build should leave the node count unchanged.
-- **LWIR wave contrast is mostly the sky's angular gradient, not `t_sea_k - t_air_k`.** A tilted facet reflects a different elevation of a sky that runs cold overhead to ambient at the horizon, so waves show even when the sea is exactly at air temperature. Measured on the baseline, wave signal as MAD within a row, against a flat-sea control at the same samples:
+- **LWIR waves do not need `t_sea_k - t_air_k`.** A tilted facet reflects a different elevation of a sky that runs cold overhead to ambient at the horizon, so relief shows with the sea exactly at air temperature. Measured on the baseline against a flat-sea control at the same samples, wave signal as MAD within a row:
 
-  | rows below the horizon | dT = 0 K | dT = 3 K | dT = 0, uniform sky |
-  |---|---|---|---|
-  | 0-8 | 0.116 | 0.122 | 0.139 |
-  | 8-30 | 0.131 | 0.147 | 0.072 |
-  | 30-80 | 0.259 | 0.303 | 0.049 |
-  | 80+ | 0.401 | 0.471 | 0.064 |
+  | rows below the horizon | dT = 0 K | dT = 3 K |
+  |---|---|---|
+  | 4-12 | 0.105 | 0.112 |
+  | 12-30 | 0.137 | 0.155 |
+  | 30-80 | 0.259 | 0.303 |
+  | 80+ | 0.401 | 0.471 |
 
-  So 3 K of sea-air difference buys 5-18%. Replace the modelled sky with a uniform one and the signal collapses by four to five times, which is the case where the difference is the only driver -- and is not what this project renders.
+  3 K buys 7-18%. Render the same scene under a uniform ambient world and the loss is row-dependent: nothing at the horizon, where a facet reflects ambient sky whichever world it is, rising to 5-6x in the near field. Band rows well clear of the horizon or the transition is what gets measured.
 - **The engine identifier is version-dependent.** `BLENDER_EEVEE` means EEVEE Legacy on ≤4.1 and EEVEE Next on ≥5.0, with `BLENDER_EEVEE_NEXT` in between. The Sky Texture moved the same way: `NISHITA` is `SINGLE_SCATTERING` and `MULTIPLE_SCATTERING` on ≥5.0.
 - **Do not validate an engine against the enum.** Under the `bpy` module `render.engine` reports only `['BLENDER_EEVEE']`, on the class and the instance alike, because Cycles registers as an add-on. Assigning `CYCLES` works anyway and reads back. Assign it and let Blender raise: an identifier it does not know is a `TypeError`.
 - **A camera's `clip_end` defaults to 1000 m.** A target at 2 km renders as sky and the clip boundary reads as a convincing horizon. Nothing warns. Set it from the scene's reach.
