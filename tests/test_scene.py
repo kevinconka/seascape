@@ -32,6 +32,18 @@ def baked(name: str) -> np.ndarray:
     return pixels.reshape(-1, 4)[:, 0]
 
 
+def _blocked(origin: Vector, target: Vector) -> bool:
+    """Is the straight line between these two points interrupted by the sea?"""
+    ray = target - origin
+    hit, *_ = bpy.context.scene.ray_cast(
+        bpy.context.evaluated_depsgraph_get(),
+        origin,
+        ray.normalized(),
+        distance=ray.length * 0.999,
+    )
+    return bool(hit)
+
+
 def counts() -> tuple[int, ...]:
     return tuple(
         len(block) for block in (bpy.data.objects, bpy.data.materials, bpy.data.images)
@@ -150,35 +162,51 @@ class TestGeometry:
             "the transfer was measured at this Detail"
         )
 
-    def test_the_sea_edge_falls_inside_a_pixel(self) -> None:
-        """A flat sea has no horizon of its own; it runs to a vanishing point.
+    def test_the_sea_reaches_past_its_own_horizon(self) -> None:
+        """The grid has to contain the tangent point, or its edge becomes the horizon.
 
-        What makes that read as a horizon is the edge being finer than the sharpest
-        camera can resolve. Checked as an angle, because that is the thing that has to
-        be small -- a distance in metres says nothing without the optics.
+        A flat sea had no horizon and ran until its edge fell under a pixel, which at
+        4K meant 506 km. A curved one ends itself, and only has to outrun that.
         """
         corners = [
             bpy.data.objects["sea"].matrix_world @ Vector(c)
             for c in bpy.data.objects["sea"].bound_box
         ]
         reach = min(max(abs(v.x), abs(v.y)) for v in corners)
-        edge_rad = math.atan(SCENARIO.rig.height_m / reach)
-        sharpest = min(
-            math.radians(m.camera.hfov_deg) / m.camera.width_px
-            for m in SCENARIO.rig.mounts
-        )
-        assert edge_rad <= sharpest / 2
+        horizon = scene.horizon_m(SCENARIO.rig.height_m, SCENARIO.sea.refraction_k)
+
+        assert reach > horizon
         assert reach > max(spec.range_m for spec in SCENARIO.objects)
 
-    def test_the_sea_costs_no_geometry(self) -> None:
-        """Waves are shading. Displacing them costs millions of vertices and aliases
-        past the range their own relief covers a pixel."""
-        mesh = (
-            bpy.data.objects["sea"]
-            .evaluated_get(bpy.context.evaluated_depsgraph_get())
-            .to_mesh()
+    def test_a_hull_beyond_the_horizon_is_cut_off(self) -> None:
+        """What a flat sea could not do: at 506 km of plane nothing is ever hull-down,
+        and a target past the horizon shows its waterline when it should not."""
+        eye = Vector((0.0, 0.0, SCENARIO.rig.height_m))
+        radius = scene.earth_radius_m(SCENARIO.sea.refraction_k)
+        beyond = 18_000.0  # past the 13.3 km horizon of a 12 m rig, inside the grid
+        surface = beyond * beyond / (2.0 * radius)
+
+        waterline = _blocked(eye, Vector((0.0, beyond, -surface)))
+        mast = _blocked(eye, Vector((0.0, beyond, 30.0 - surface)))
+
+        assert waterline, "the bulge has to hide the hull"
+        assert not mast, "and leave what stands above it"
+
+    def test_waves_cost_no_geometry(self) -> None:
+        """The sea carries geometry for the earth's curve and none for its waves.
+
+        Wind changes the wavelength and the slope, so a displaced sea would rebuild.
+        Shading does not: the vertex count is the curvature grid whatever the wind.
+        """
+        blowing = SCENARIO.model_copy(
+            update={"sea": SCENARIO.sea.model_copy(update={"wind_speed_mps": 18.0})}
         )
-        assert len(mesh.vertices) == 4
+
+        before = len(bpy.data.objects["sea"].data.vertices)
+        scene.build(blowing, "eo")
+        after = len(bpy.data.objects["sea"].data.vertices)
+
+        assert before == after == (scene.SEA_CELLS + 1) ** 2
 
     def test_building_twice_leaves_the_same_scene(self) -> None:
         """Node trees leak when a build appends to what is already there."""

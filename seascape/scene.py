@@ -132,22 +132,45 @@ def specular_roughness(wind_speed_mps: float) -> float:
     return math.sqrt(min(math.sqrt(2.0) * unresolved_slope(wind_speed_mps), 1.0))
 
 
-def sea_reach_m(rig: Rig, band: Band) -> float:
-    """Half-width of the sea plane: far enough that its edge lands inside a pixel.
+# Mean radius, IUGG. The sea is curved at this over 1 - k, not at it directly.
+EARTH_RADIUS_M = 6_371_000.0
 
-    The sea is flat, so it has no horizon of its own and runs to the vanishing point.
-    Pushing the edge under the angular resolution of the sharpest camera in the band is
-    what makes that vanishing point read as a horizon. Earth curvature is not modelled,
-    so a target past the true horizon shows when it should be hull-down.
+# Cells per side. Curvature is smooth at this scale -- a cell's sagitta is under a
+# millimetre and subtends 1e-7 of a pixel at the horizon -- so this is not an accuracy
+# knob; it is only enough grid for the tangent point to land on a face.
+SEA_CELLS = 128
+
+# The grid has to contain the horizon with room to spare, or its own edge becomes the
+# horizon. Past the tangent point the surface curves away and is hidden by the bulge.
+SEA_MARGIN = 1.5
+
+
+def earth_radius_m(refraction_k: float) -> float:
+    """Effective radius, R / (1 - k).
+
+    Standard treatment of refraction in surveying: a bent ray over a sphere of radius R
+    is a straight ray over a larger one. `Sea.refraction_k` carries k.
     """
-    ifov_rad = [
-        math.radians(mount.camera.hfov_deg) / mount.camera.width_px
-        for mount in rig.mounts
-        if mount.camera.kind == band
-    ]
-    if not ifov_rad:
-        raise ValueError(f"the rig has no {band} camera to build a {band} scene for")
-    return rig.height_m / math.tan(min(ifov_rad) / 2)
+    return EARTH_RADIUS_M / (1.0 - refraction_k)
+
+
+def horizon_m(height_m: float, refraction_k: float) -> float:
+    """Distance to the horizon from `height_m`, tangent to the effective sphere.
+
+    51.8 m gives 27.5 km at k = 0.13 and 25.7 km geometric. The nautical rule of thumb,
+    3.86 sqrt(h_m) km, agrees to 1%, which is the check that k is a citation and not a
+    number fitted to a render.
+    """
+    return math.sqrt(2.0 * earth_radius_m(refraction_k) * height_m)
+
+
+def sea_reach_m(rig: Rig, sea: Sea) -> float:
+    """Half-width of the sea, from the horizon rather than from pixel size.
+
+    A flat sea has no horizon of its own, so it had to run until its edge fell under a
+    pixel: 506 km at 51.8 m and 4K. A curved one ends itself at 27.5 km.
+    """
+    return SEA_MARGIN * horizon_m(rig.height_m, sea.refraction_k)
 
 
 def _yaw(bearing_deg: float) -> float:
@@ -396,16 +419,28 @@ def _water_material(sea: Sea, seed: int) -> bpy.types.Material:
 
 
 def _sea(sea: Sea, seed: int, reach_m: float, band: Band) -> bpy.types.Object:
-    """One flat plane. The waves are in its material.
+    """A grid curved to the earth. The waves are in its material.
 
-    Nothing is displaced, so it costs four vertices and covers every range the camera
-    can see with no patch edge, tiling seam, or grid to alias.
+    Curvature is geometry and waves are not, which is not a contradiction: a wave is
+    metres across and goes sub-pixel before the horizon, where displaced geometry
+    aliases instead of averaging. The bulge is kilometres across and never does.
+
+    z = -(x^2 + y^2) / 2R is the parabola that osculates the sphere at the origin. It
+    departs from a true sphere by under a millimetre anywhere the camera can see.
     """
-    bpy.ops.mesh.primitive_plane_add(size=1.0)
+    bpy.ops.mesh.primitive_grid_add(
+        x_subdivisions=SEA_CELLS, y_subdivisions=SEA_CELLS, size=2 * reach_m
+    )
     water = bpy.context.object
     water.name = "sea"
     _place(water, 0.0, 0.0, 0.0)
-    water.scale = (2 * reach_m, 2 * reach_m, 1.0)
+    radius_m = earth_radius_m(sea.refraction_k)
+    for vertex in water.data.vertices:
+        x, y, _ = vertex.co
+        vertex.co.z = -(x * x + y * y) / (2.0 * radius_m)
+    # Flat faces would show their edges in the specular, which a sea does not have.
+    for face in water.data.polygons:
+        face.use_smooth = True
     water.data.materials.append(
         _water_material(sea, seed) if band == "eo" else _thermal_sea(sea, seed)
     )
@@ -635,12 +670,15 @@ def build(scenario: Scenario, band: Band = "eo") -> None:
     A scene is EO or LWIR, never both: the two describe different physics and share no
     units. Rendering both bands means building twice, which costs seconds.
     """
+    if not any(mount.camera.kind == band for mount in scenario.rig.mounts):
+        raise ValueError(f"the rig has no {band} camera to build a {band} scene for")
     bpy.ops.wm.read_factory_settings(use_empty=True)
     _output(scenario.outputs, band)
     bpy.context.scene.world = _sky(scenario.sky, band)
-    reach_m = sea_reach_m(scenario.rig, band)
+    reach_m = sea_reach_m(scenario.rig, scenario.sea)
     _sea(scenario.sea, scenario.seed, reach_m, band)
-    # The sea's far corner is reach * sqrt(2) away, so the clip plane has to clear it.
+    # The sea's far corner is reach * sqrt(2) away, so the clip plane has to clear it,
+    # and a target may sit beyond the horizon where only its superstructure shows.
     cameras = _rig(scenario.rig, 1.5 * reach_m)
     if scenario.ownship is not None:
         # At the origin, bow to +Y: the rig's offsets are in that frame. Named for
