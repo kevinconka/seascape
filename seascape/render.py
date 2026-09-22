@@ -69,10 +69,10 @@ def render(scenario: Scenario, into: Path) -> list[Path]:
         if not mounts:
             continue
         thermal_png = band == "ir" and outputs.format == "png"
-        scene.build(scenario, band)
+        built = scene.build(scenario, band)
         sc = bpy.context.scene
         for mount in mounts:
-            sc.camera = bpy.data.objects[mount.name]
+            sc.camera = built.cameras[mount.name]
             sc.render.resolution_x, sc.render.resolution_y = (
                 mount.camera.width_px,
                 mount.camera.height_px,
@@ -83,7 +83,7 @@ def render(scenario: Scenario, into: Path) -> list[Path]:
             if thermal_png:
                 _thermal_png(into / f"{mount.name}.exr", image)
             written.append(image)
-            cameras.append(scene.calibrate(mount, image.name))
+            cameras.append(scene.calibrate(built, mount, image.name))
     if not written:
         # Skipping a band the default asked for is right; writing nothing at all
         # means the scenario names only bands its rig has no camera for.

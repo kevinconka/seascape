@@ -17,7 +17,7 @@ from mathutils import Matrix, Vector
 
 from seascape import panorama, scene
 from seascape.calibration import Calibration
-from seascape.config import Scenario, load
+from seascape.config import Mount, Pod, Scenario, load
 
 SCENARIO: Scenario = load(Path(__file__).parent.parent / "scenarios" / "twin-pod.toml")
 MOUNTS = [pytest.param(mount, id=mount.name) for mount in SCENARIO.rig.mounts]
@@ -25,8 +25,8 @@ PODS = [pytest.param(pod, id=pod.name) for pod in SCENARIO.rig.pods]
 
 
 @pytest.fixture(scope="module", autouse=True)
-def built() -> None:
-    scene.build(SCENARIO, "eo")
+def built() -> scene.Built:
+    return scene.build(SCENARIO, "eo")
 
 
 def targets() -> list[bpy.types.Object]:
@@ -34,12 +34,14 @@ def targets() -> list[bpy.types.Object]:
 
 
 @pytest.mark.parametrize("pod", PODS)
-def test_a_pods_cameras_all_sit_at_its_mount_point(pod) -> None:
+def test_a_pods_cameras_all_sit_at_its_mount_point(
+    pod: Pod, built: scene.Built
+) -> None:
     """Cameras yawed on the centreline pass every bearing check with no baseline."""
     expected = (pod.offset_x_m, pod.offset_y_m, SCENARIO.rig.height_m)
 
     places = {
-        tuple(_in_ship_frame(bpy.data.objects[mount.name]).translation)
+        tuple(_in_ship_frame(built, built.cameras[mount.name]).translation)
         for mount in SCENARIO.rig.mounts
         if mount.pod.name == pod.name
     }
@@ -48,18 +50,18 @@ def test_a_pods_cameras_all_sit_at_its_mount_point(pod) -> None:
     assert places.pop() == pytest.approx(expected)
 
 
-def test_the_ownship_is_at_the_origin() -> None:
+def test_the_ownship_is_at_the_origin(built: scene.Built) -> None:
     """The rig's offsets are in the ownship's frame."""
-    anchor = bpy.data.objects["ownship"]
+    anchor = built.vessel
 
     assert tuple(anchor.location) == pytest.approx((0.0, 0.0, 0.0))
 
 
-def test_the_hull_takes_the_attitude_it_was_given() -> None:
+def test_the_hull_takes_the_attitude_it_was_given(built: scene.Built) -> None:
     """Pins both signs and the order."""
     roll = math.radians(SCENARIO.ownship.roll_deg)
     pitch = math.radians(SCENARIO.ownship.pitch_deg)
-    rotation = bpy.data.objects["ownship"].matrix_world.to_3x3()
+    rotation = built.vessel.matrix_world.to_3x3()
 
     bow = rotation @ Vector((0.0, 1.0, 0.0))
     starboard = rotation @ Vector((1.0, 0.0, 0.0))
@@ -68,13 +70,13 @@ def test_the_hull_takes_the_attitude_it_was_given() -> None:
     assert starboard.z == pytest.approx(-math.cos(pitch) * math.sin(roll))
 
 
-def test_pod_span_and_overlap_measured_from_the_scene() -> None:
+def test_pod_span_and_overlap_measured_from_the_scene(built: scene.Built) -> None:
     """The acceptance numbers, read off the built cameras rather than the config."""
     arcs: dict[tuple[str, str], list[tuple[float, float]]] = {}
     for mount in SCENARIO.rig.mounts:
-        camera = bpy.data.objects[mount.name]
+        camera = built.cameras[mount.name]
         half = math.degrees(camera.data.angle_x) / 2
-        centre, _ = scene.boresight_deg(camera, bpy.data.objects["ownship"])
+        centre, _ = scene.boresight_deg(camera, built.vessel)
         # IR is one camera per pod; its span and overlap are a rig-level property.
         pod = "rig" if mount.camera.kind == "ir" else mount.pod.name
         arcs.setdefault((pod, mount.camera.kind), []).append(
@@ -99,12 +101,14 @@ MAX_BRACKET_M = 5.0
 
 
 @pytest.mark.parametrize("pod", PODS)
-def test_a_pod_stands_on_the_ship_rather_than_beside_it(pod) -> None:
+def test_a_pod_stands_on_the_ship_rather_than_beside_it(
+    pod: Pod, built: scene.Built
+) -> None:
     """A pod at the wrong height is outboard of the hull with nothing under it, and
     bearings, overlaps, lens clearance and target coverage all still pass."""
-    pod_at = bpy.data.objects[f"pod_{pod.name}"].matrix_world.translation
+    pod_at = built.pods[pod.name].matrix_world.translation
 
-    down = bpy.data.objects["ownship"].matrix_world.to_3x3() @ Vector((0.0, 0.0, -1.0))
+    down = built.vessel.matrix_world.to_3x3() @ Vector((0.0, 0.0, -1.0))
 
     drop_m = _distance_to_geometry(pod_at, pod_at + down)
 
@@ -114,10 +118,12 @@ def test_a_pod_stands_on_the_ship_rather_than_beside_it(pod) -> None:
 
 
 @pytest.mark.parametrize("mount", MOUNTS)
-def test_no_camera_is_buried_in_the_structure_it_is_mounted_on(mount) -> None:
+def test_no_camera_is_buried_in_the_structure_it_is_mounted_on(
+    mount: Mount, built: scene.Built
+) -> None:
     """A lens flush with the plate it is bolted to fills the lower frame. Inside the
     near clip the plate is cut away instead, which reads as open sky."""
-    camera = bpy.data.objects[mount.name]
+    camera = built.cameras[mount.name]
     origin = camera.matrix_world.translation
     # The corners, not the axis: a deck the pod stands on is below the optical centre,
     # so a ray down the axis flies over it and the check passes on a buried camera.
@@ -132,9 +138,9 @@ def test_no_camera_is_buried_in_the_structure_it_is_mounted_on(mount) -> None:
 
 
 @pytest.mark.parametrize("mount", MOUNTS)
-def test_every_camera_has_a_target_in_frame(mount) -> None:
+def test_every_camera_has_a_target_in_frame(mount: Mount, built: scene.Built) -> None:
     """Targets are world objects: coverage breaks silently if either geometry moves."""
-    camera = bpy.data.objects[mount.name]
+    camera = built.cameras[mount.name]
 
     framed = [
         target
@@ -173,11 +179,13 @@ def test_the_ring_is_one_mesh_however_many_targets() -> None:
 
 
 def test_the_calibration_projects_every_target_where_blender_draws_it(
-    tmp_path, monkeypatch
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, built: scene.Built
 ) -> None:
     """Read back from disk, so a matrix that does not survive JSON fails here too."""
     written = Calibration(
-        cameras=[scene.calibrate(m, f"{m.name}.png") for m in SCENARIO.rig.mounts]
+        cameras=[
+            scene.calibrate(built, m, f"{m.name}.png") for m in SCENARIO.rig.mounts
+        ]
     ).write(tmp_path)
     render = bpy.context.scene.render
 
@@ -190,7 +198,7 @@ def test_the_calibration_projects_every_target_where_blender_draws_it(
         world_to_cam = np.linalg.inv(camera.extrinsics["world"])
         for target in targets():
             uv = world_to_camera_view(
-                bpy.context.scene, bpy.data.objects[camera.name], target.location
+                bpy.context.scene, built.cameras[camera.name], target.location
             )
             if not _in_frame(uv):
                 continue
@@ -205,9 +213,11 @@ def test_the_calibration_projects_every_target_where_blender_draws_it(
     assert projected, "no target in any frame: the assertions above ran on nothing"
 
 
-def test_a_calibration_with_fields_it_does_not_know_still_reads(tmp_path) -> None:
+def test_a_calibration_with_fields_it_does_not_know_still_reads(
+    tmp_path: Path, built: scene.Built
+) -> None:
     mount = SCENARIO.rig.mounts[0]
-    record = scene.calibrate(mount, "").model_dump()
+    record = scene.calibrate(built, mount, "").model_dump()
     (tmp_path / "calibration.json").write_text(
         json.dumps({"cameras": [{**record, "serial": "X"}], "rig": "Y"})
     )
@@ -218,8 +228,10 @@ def test_a_calibration_with_fields_it_does_not_know_still_reads(tmp_path) -> Non
 
 
 @pytest.mark.parametrize("mount", MOUNTS)
-def test_in_its_pod_a_camera_points_exactly_as_asked(mount) -> None:
-    axis = np.array(scene.calibrate(mount, "").extrinsics["pod"])[:3, 2]
+def test_in_its_pod_a_camera_points_exactly_as_asked(
+    mount: Mount, built: scene.Built
+) -> None:
+    axis = np.array(scene.calibrate(built, mount, "").extrinsics["pod"])[:3, 2]
 
     bearing = math.degrees(math.atan2(axis[0], axis[1]))
     elevation = math.degrees(math.asin(axis[2]))
@@ -230,20 +242,24 @@ def test_in_its_pod_a_camera_points_exactly_as_asked(mount) -> None:
 
 
 @pytest.mark.parametrize("mount", MOUNTS)
-def test_a_panorama_puts_each_principal_point_on_its_boresight(mount) -> None:
+def test_a_panorama_puts_each_principal_point_on_its_boresight(
+    mount: Mount, built: scene.Built
+) -> None:
     """A slip in the stitcher's frame flips or mirrors the panorama."""
-    k, r = panorama.pose(scene.calibrate(mount, ""), "world", 0.0)
+    k, r = panorama.pose(scene.calibrate(built, mount, ""), "world", 0.0)
     warper = cv2.PyRotationWarper("spherical", 1.0)
 
     # Spherical: u is the bearing, v the angle down from straight up.
     u, v = warper.warpPoint((float(k[0, 2]), float(k[1, 2])), k, r)
 
     assert (math.degrees(u), 90.0 - math.degrees(v)) == pytest.approx(
-        scene.boresight_deg(bpy.data.objects[mount.name]), abs=1e-3
+        scene.boresight_deg(built.cameras[mount.name]), abs=1e-3
     )
 
 
-def test_a_panorama_lays_its_cameras_out_in_yaw_order(tmp_path) -> None:
+def test_a_panorama_lays_its_cameras_out_in_yaw_order(
+    tmp_path: Path, built: scene.Built
+) -> None:
     """Each frame one colour, so the stitch shows which camera landed where."""
     first = SCENARIO.rig.mounts[0]
     mounts = [
@@ -256,9 +272,9 @@ def test_a_panorama_lays_its_cameras_out_in_yaw_order(tmp_path) -> None:
         frame = np.zeros((mount.camera.height_px, mount.camera.width_px, 3), np.uint8)
         frame[..., channel] = 255
         cv2.imwrite(str(tmp_path / f"{mount.name}.png"), frame)
-    Calibration(cameras=[scene.calibrate(m, f"{m.name}.png") for m in mounts]).write(
-        tmp_path
-    )
+    Calibration(
+        cameras=[scene.calibrate(built, m, f"{m.name}.png") for m in mounts]
+    ).write(tmp_path)
 
     paths = panorama.panoramas(tmp_path, "cylindrical", "pod", max_width=400)
 
@@ -269,11 +285,13 @@ def test_a_panorama_lays_its_cameras_out_in_yaw_order(tmp_path) -> None:
     assert columns == sorted(columns)
 
 
-def test_the_width_is_capped_and_never_raised(tmp_path) -> None:
+def test_the_width_is_capped_and_never_raised(
+    tmp_path: Path, built: scene.Built
+) -> None:
     mount = SCENARIO.rig.mounts[0]
     frame = np.zeros((mount.camera.height_px, mount.camera.width_px, 3), np.uint8)
     cv2.imwrite(str(tmp_path / "frame.png"), frame)
-    camera = scene.calibrate(mount, "frame.png")
+    camera = scene.calibrate(built, mount, "frame.png")
 
     native = panorama.stitch(tmp_path, [camera], "cylindrical", "pod")
     capped = panorama.stitch(tmp_path, [camera], "cylindrical", "pod", 101)
@@ -283,9 +301,9 @@ def test_the_width_is_capped_and_never_raised(tmp_path) -> None:
     assert uncapped.shape == native.shape
 
 
-def test_rectilinear_refuses_a_camera_behind_its_plane() -> None:
+def test_rectilinear_refuses_a_camera_behind_its_plane(built: scene.Built) -> None:
     """Two cameras back to back: no plane faces both, whatever their field."""
-    camera = scene.calibrate(SCENARIO.rig.mounts[0], "")
+    camera = scene.calibrate(built, SCENARIO.rig.mounts[0], "")
     turned = Matrix.Rotation(math.pi, 4, "Z") @ Matrix(camera.extrinsics["world"])
     behind = camera.model_copy(
         update={"extrinsics": {"world": tuple(map(tuple, turned))}}
@@ -295,22 +313,24 @@ def test_rectilinear_refuses_a_camera_behind_its_plane() -> None:
         panorama.stitch(Path(), [camera, behind], "rectilinear", "world")
 
 
-def test_a_frame_the_calibration_lacks_is_named() -> None:
-    camera = scene.calibrate(SCENARIO.rig.mounts[0], "")
+def test_a_frame_the_calibration_lacks_is_named(built: scene.Built) -> None:
+    camera = scene.calibrate(built, SCENARIO.rig.mounts[0], "")
 
     with pytest.raises(ValueError, match="'deck'"):
         panorama.stitch(Path(), [camera], "cylindrical", "deck")
 
 
-def test_a_max_width_under_a_pixel_is_an_error() -> None:
-    camera = scene.calibrate(SCENARIO.rig.mounts[0], "")
+def test_a_max_width_under_a_pixel_is_an_error(built: scene.Built) -> None:
+    camera = scene.calibrate(built, SCENARIO.rig.mounts[0], "")
 
     with pytest.raises(ValueError, match="max width"):
         panorama.stitch(Path(), [camera], "cylindrical", "pod", 0)
 
 
-def test_a_shrunk_frame_keeps_its_principal_point_at_its_centre() -> None:
-    camera = scene.calibrate(SCENARIO.rig.mounts[0], "")
+def test_a_shrunk_frame_keeps_its_principal_point_at_its_centre(
+    built: scene.Built,
+) -> None:
+    camera = scene.calibrate(built, SCENARIO.rig.mounts[0], "")
     frame = np.zeros((camera.height_px, camera.width_px, 3), np.uint8)
     k, _ = panorama.pose(camera, "pod", 0.0)
 
@@ -321,9 +341,9 @@ def test_a_shrunk_frame_keeps_its_principal_point_at_its_centre() -> None:
     assert k[0, 0] == pytest.approx(camera.K[0][0] * w / camera.width_px)
 
 
-def _in_ship_frame(obj: bpy.types.Object) -> Matrix:
+def _in_ship_frame(built: scene.Built, obj: bpy.types.Object) -> Matrix:
     """The rig is specified on the hull, so it is measured there."""
-    return bpy.data.objects["ownship"].matrix_world.inverted() @ obj.matrix_world
+    return built.vessel.matrix_world.inverted() @ obj.matrix_world
 
 
 def _distance_to_geometry(origin, through) -> float:

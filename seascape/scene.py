@@ -24,6 +24,8 @@ roughness^2 convention Cycles follows.
 
 import math
 from collections.abc import Iterable
+from dataclasses import dataclass
+from typing import NamedTuple
 
 import bpy
 import numpy as np
@@ -518,7 +520,13 @@ def _sea(sea: Sea, seed: int, reach_m: float, band: Band) -> bpy.types.Object:
     return water
 
 
-def _rig(rig: Rig, far_m: float) -> dict[str, bpy.types.Object]:
+class _RigObjects(NamedTuple):
+    root: bpy.types.Object
+    pods: dict[str, bpy.types.Object]
+    cameras: dict[str, bpy.types.Object]
+
+
+def _rig(rig: Rig, far_m: float) -> _RigObjects:
     # Blender takes an inverted frustum without complaint and renders nothing.
     if rig.near_clip_m >= far_m:
         raise ValueError(
@@ -561,7 +569,7 @@ def _rig(rig: Rig, far_m: float) -> dict[str, bpy.types.Object]:
             _yaw(mount.camera.yaw_deg),
         )
         cameras[mount.name] = camera
-    return cameras
+    return _RigObjects(root, pods, cameras)
 
 
 def boresight_deg(
@@ -585,12 +593,22 @@ def boresight_deg(
 _BLENDER_TO_CV = Matrix.Diagonal((1.0, -1.0, -1.0, 1.0))
 
 
-def calibrate(mount: Mount, image: str) -> CameraCalibration:
-    """A built camera's geometry, read off the scene. Build first."""
-    camera = bpy.data.objects[mount.name]
+@dataclass(frozen=True)
+class Built:
+    """What `build` made, by role, valid until the next build. A name in `bpy.data`
+    belongs to whoever took it first, and an imported asset can carry any name."""
+
+    vessel: bpy.types.Object
+    pods: dict[str, bpy.types.Object]
+    cameras: dict[str, bpy.types.Object]
+
+
+def calibrate(built: Built, mount: Mount, image: str) -> CameraCalibration:
+    """A built camera's geometry, read off the scene."""
+    camera = built.cameras[mount.name]
     world = camera.matrix_world @ _BLENDER_TO_CV
-    vessel = bpy.data.objects["ownship"].matrix_world
-    pod = bpy.data.objects[f"pod_{mount.pod.name}"].matrix_world
+    vessel = built.vessel.matrix_world
+    pod = built.pods[mount.pod.name].matrix_world
     width, height = mount.camera.width_px, mount.camera.height_px
     f = (width / 2) / math.tan(camera.data.angle_x / 2)
     return CameraCalibration(
@@ -682,7 +700,9 @@ def _vessel(name: str, t_k: float, band: Band, sky: Sky) -> bpy.types.Object:
     return anchor
 
 
-def _ownship(ownship: Ownship, band: Band, sky: Sky) -> None:
+def _ownship(
+    ownship: Ownship, band: Band, sky: Sky, rig: bpy.types.Object
+) -> bpy.types.Object:
     """At the origin, bow to +Y, carrying the rig: its offsets are in this frame."""
     if ownship.asset is None:
         anchor = bpy.data.objects.new("ownship", None)
@@ -691,7 +711,7 @@ def _ownship(ownship: Ownship, band: Band, sky: Sky) -> None:
     else:
         anchor = _vessel(ownship.asset, ownship.t_k, band, sky)
     anchor.name = "ownship"
-    bpy.data.objects["rig"].parent = anchor
+    rig.parent = anchor
     # YXZ euler is Rz @ Rx @ Ry: roll about the keel, innermost.
     anchor.rotation_mode = "YXZ"
     anchor.rotation_euler = (
@@ -699,6 +719,7 @@ def _ownship(ownship: Ownship, band: Band, sky: Sky) -> None:
         math.radians(ownship.roll_deg),
         0.0,
     )
+    return anchor
 
 
 def _pose(
@@ -817,7 +838,7 @@ def _viewport(near_m: float, far_m: float) -> None:
                     space.clip_start, space.clip_end = near_m, far_m
 
 
-def build(scenario: Scenario, band: Band = "eo") -> None:
+def build(scenario: Scenario, band: Band = "eo") -> Built:
     """Replace the current Blender session's contents with `scenario` in one band.
 
     A scene is EO or LWIR, never both: the two describe different physics and share no
@@ -831,8 +852,8 @@ def build(scenario: Scenario, band: Band = "eo") -> None:
     reach_m = sea_reach_m(scenario.rig, scenario.sea)
     far_m = 1.5 * reach_m  # the sea's corner is reach * sqrt(2) away
     _sea(scenario.sea, scenario.seed, reach_m, band)
-    cameras = _rig(scenario.rig, far_m)
-    _ownship(scenario.ownship, band, scenario.sky)
+    rig = _rig(scenario.rig, far_m)
+    vessel = _ownship(scenario.ownship, band, scenario.sky, rig.root)
     radius_m = earth_radius_m(scenario.sea.refraction_k)
     for spec in scenario.objects:
         _object(spec, band, radius_m, scenario.sky)
@@ -842,7 +863,7 @@ def build(scenario: Scenario, band: Band = "eo") -> None:
     # otherwise open on a camera whose optics belong to the other band.
     first = next(mount for mount in scenario.rig.mounts if mount.camera.kind == band)
     sc = bpy.context.scene
-    sc.camera = cameras[first.name]
+    sc.camera = rig.cameras[first.name]
     sc.render.resolution_x, sc.render.resolution_y = (
         first.camera.width_px,
         first.camera.height_px,
@@ -851,3 +872,4 @@ def build(scenario: Scenario, band: Band = "eo") -> None:
     # Until the depsgraph runs, every child still reports its pre-parenting
     # matrix_world, so anything measuring the scene reads the wrong place.
     bpy.context.view_layer.update()
+    return Built(vessel, rig.pods, rig.cameras)
