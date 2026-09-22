@@ -59,7 +59,7 @@ def test_the_baseline_states_its_own_rig(baseline) -> None:
 
 def test_the_baseline_carries_no_scenario_a_variant_would_inherit(baseline) -> None:
     """`extends` copies whatever is here; a variant never asked for a ring."""
-    assert (baseline.ownship, baseline.targets) == (None, None)
+    assert (baseline.ownship.asset, baseline.targets) == (None, None)
 
 
 def test_a_preset_supplies_optics_and_the_block_supplies_the_mount(twin_pod) -> None:

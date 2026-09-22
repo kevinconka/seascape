@@ -36,6 +36,7 @@ from seascape.config import (
     ImageFormat,
     Object,
     Outputs,
+    Ownship,
     Rig,
     Scenario,
     Sea,
@@ -561,14 +562,16 @@ def _rig(rig: Rig, far_m: float) -> dict[str, bpy.types.Object]:
     return cameras
 
 
-def boresight_deg(camera: bpy.types.Object) -> tuple[float, float]:
-    """Bearing and elevation a built camera actually points at, in degrees.
-
-    Measured, not summed: the rig's pitch sits between the two yaws, so an off-axis
-    camera's azimuth is not their sum -- 0.108 deg at -5 deg of pitch, 9 px at 4K.
-    `matrix_world` is stale until the depsgraph runs, so build first.
+def boresight_deg(
+    camera: bpy.types.Object, frame: bpy.types.Object | None = None
+) -> tuple[float, float]:
+    """Bearing and elevation a built camera points at, in degrees, in the world or in
+    `frame`'s axes. `matrix_world` is stale until the depsgraph runs, so build first.
     """
-    forward = camera.matrix_world.to_3x3() @ Vector((0.0, 0.0, -1.0))
+    rotation = camera.matrix_world.to_3x3()
+    if frame is not None:
+        rotation = frame.matrix_world.to_3x3().inverted() @ rotation
+    forward = rotation @ Vector((0.0, 0.0, -1.0))
     forward.normalize()
     return (
         math.degrees(math.atan2(forward.x, forward.y)),
@@ -640,6 +643,25 @@ def _vessel(name: str, t_k: float, band: Band, sky: Sky) -> bpy.types.Object:
         part.parent = anchor
     _place(anchor, 0.0, 0.0, 0.0)
     return anchor
+
+
+def _ownship(ownship: Ownship, band: Band, sky: Sky) -> None:
+    """At the origin, bow to +Y, carrying the rig: its offsets are in this frame."""
+    if ownship.asset is None:
+        anchor = bpy.data.objects.new("ownship", None)
+        bpy.context.collection.objects.link(anchor)
+        _place(anchor, 0.0, 0.0, 0.0)
+    else:
+        anchor = _vessel(ownship.asset, ownship.t_k, band, sky)
+    anchor.name = "ownship"
+    bpy.data.objects["rig"].parent = anchor
+    # YXZ euler is Rz @ Rx @ Ry: roll about the keel, innermost.
+    anchor.rotation_mode = "YXZ"
+    anchor.rotation_euler = (
+        math.radians(ownship.pitch_deg),
+        math.radians(ownship.roll_deg),
+        0.0,
+    )
 
 
 def _pose(
@@ -773,12 +795,7 @@ def build(scenario: Scenario, band: Band = "eo") -> None:
     far_m = 1.5 * reach_m  # the sea's corner is reach * sqrt(2) away
     _sea(scenario.sea, scenario.seed, reach_m, band)
     cameras = _rig(scenario.rig, far_m)
-    if scenario.ownship is not None:
-        # At the origin, bow to +Y: the rig's offsets are in that frame. Named for
-        # its role, or a target on the same asset takes the name by build order.
-        _vessel(
-            scenario.ownship.asset, scenario.ownship.t_k, band, scenario.sky
-        ).name = "ownship"
+    _ownship(scenario.ownship, band, scenario.sky)
     radius_m = earth_radius_m(scenario.sea.refraction_k)
     for spec in scenario.objects:
         _object(spec, band, radius_m, scenario.sky)

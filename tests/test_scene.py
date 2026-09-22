@@ -399,6 +399,18 @@ def test_pitch_leaves_a_centre_camera_on_its_nominal_bearing(tmp_path) -> None:
     assert bearing == pytest.approx(nominal, abs=1e-4)
 
 
+def test_an_ownship_with_no_hull_still_carries_the_rig(tmp_path) -> None:
+    path = tmp_path / "rolled.toml"
+    path.write_text(f'extends = "{BASELINE}"\n\n[ownship]\nroll_deg = 5.0\n')
+    scene.build(load(path), "eo")
+
+    right = camera_of(SCENARIO.rig.mounts[0]).matrix_world.to_3x3() @ Vector(
+        (1.0, 0.0, 0.0)
+    )
+
+    assert math.degrees(math.asin(-right.z)) == pytest.approx(5.0)
+
+
 def test_a_near_clip_past_the_far_plane_is_an_error(tmp_path) -> None:
     """Blender renders an inverted frustum as an empty frame, reporting nothing."""
     path = tmp_path / "deep.toml"
