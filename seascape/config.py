@@ -116,11 +116,16 @@ class Rig(Model):
 
     @model_validator(mode="after")
     def _names_are_unique(self) -> "Rig":
-        """Two cameras of one name share a datablock and overwrite each other's file.
+        """A pod is one enclosure and a camera is one file, so both names are keys.
 
-        Derived names cannot collide within a pod, so this catches two pods of one
-        name and two cameras given the same authored name.
+        Pods first: `scene._rig` parents each camera through its pod's name, so two
+        pods of one name send every camera to whichever was built last, at the wrong
+        offset and yaw, with nothing raised. Camera names can still collide across
+        pods when authored, which the second check catches.
         """
+        pods = [pod.name for pod in self.pods]
+        if len(set(pods)) != len(pods):
+            raise ValueError(f"two pods share a name: {sorted(pods)}")
         names = [mount.name for mount in self.mounts]
         if len(set(names)) != len(names):
             raise ValueError(f"two cameras share a name: {sorted(names)}")

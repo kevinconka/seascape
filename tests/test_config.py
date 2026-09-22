@@ -309,6 +309,23 @@ def test_two_cameras_cannot_share_a_name() -> None:
         )
 
 
+def test_two_pods_cannot_share_a_name() -> None:
+    """`scene._rig` parents a camera through its pod's name, so a repeat sends every
+    camera to whichever pod was built last, at the wrong offset and yaw. Mount names
+    do not catch it: two pods of one name carrying different bands still differ."""
+    eo = Camera(kind="eo", hfov_deg=45.0, width_px=8, height_px=8)
+    ir = Camera(kind="ir", hfov_deg=24.0, width_px=8, height_px=8)
+
+    with pytest.raises(ValidationError, match="two pods share a name"):
+        Rig(
+            height_m=12.0,
+            pods=[
+                Pod(name="port", yaw_deg=-60.0, offset_x_m=-20.0, cameras=[eo]),
+                Pod(name="port", yaw_deg=+60.0, offset_x_m=+20.0, cameras=[ir]),
+            ],
+        )
+
+
 def test_an_authored_name_wins_over_the_derived_one() -> None:
     """The derived form is stable but mechanical; a sheet wants `EO_PORT_C`."""
     named = Camera(kind="eo", hfov_deg=45.0, width_px=8, height_px=8, name="EO_PORT_C")
