@@ -45,6 +45,9 @@ class Model(BaseModel):
 class Camera(Model):
     kind: Band
     fan_deg: float = 0.0  # relative to the pod axis, positive to starboard
+    # Becomes a filename, so the same charset as a pod. Derived from position
+    # in the pod when absent.
+    name: str | None = Field(default=None, pattern=r"^[A-Za-z0-9_-]+$")
     hfov_deg: float = Field(gt=0.0, lt=180.0)
     width_px: int = Field(gt=0)
     height_px: int = Field(gt=0)
@@ -66,18 +69,19 @@ class Pod(Model):
 
 
 class Mount(NamedTuple):
-    """A camera and the pod that aims it."""
-
     pod: Pod
     camera: Camera
+    index: int
 
     @property
     def name(self) -> str:
-        return f"{self.pod.name}_{self.camera.kind}_{self.bearing_deg:+g}"
+        """Never an angle: re-aiming a rig would invalidate every filename it wrote."""
+        return self.camera.name or f"{self.pod.name}_{self.camera.kind}_{self.index}"
 
     @property
-    def bearing_deg(self) -> float:
-        """Relative to the bow: pod yaw + fan, so re-aiming a pod moves its cameras."""
+    def nominal_bearing_deg(self) -> float:
+        """Not the achieved boresight: tilt sits between the two yaws, so a fanned
+        camera points elsewhere. `scene.boresight_deg` measures the built camera."""
         return self.pod.yaw_deg + self.camera.fan_deg
 
 
@@ -90,14 +94,24 @@ class Rig(Model):
 
     @property
     def mounts(self) -> list[Mount]:
-        return [Mount(pod, camera) for pod in self.pods for camera in pod.cameras]
+        """Counted, not searched: two cameras with the same fields are equal to
+        pydantic, so `index()` would give both the same number."""
+        mounts: list[Mount] = []
+        for pod in self.pods:
+            seen: dict[Band, int] = {}
+            for camera in pod.cameras:
+                index = seen.get(camera.kind, 0)
+                seen[camera.kind] = index + 1
+                mounts.append(Mount(pod, camera, index))
+        return mounts
 
     @model_validator(mode="after")
     def _names_are_unique(self) -> "Rig":
-        """Two cameras of one name share a datablock and overwrite each other's file.
-
-        Checked over mounts: two pods may share a fan angle, not a bearing.
-        """
+        """`scene._rig` parents each camera through its pod's name, so two pods of
+        one name send every camera to the last one built, with nothing raised."""
+        pods = [pod.name for pod in self.pods]
+        if len(set(pods)) != len(pods):
+            raise ValueError(f"two pods share a name: {sorted(pods)}")
         names = [mount.name for mount in self.mounts]
         if len(set(names)) != len(names):
             raise ValueError(f"two cameras share a name: {sorted(names)}")

@@ -34,7 +34,6 @@ from seascape.assets import Asset, fetch, manifest
 from seascape.config import (
     Band,
     ImageFormat,
-    Mount,
     Object,
     Outputs,
     Rig,
@@ -419,7 +418,7 @@ def _rig(rig: Rig, far_m: float) -> dict[str, bpy.types.Object]:
     bpy.context.collection.objects.link(root)
     _place(root, 0.0, 0.0, rig.height_m)
 
-    cameras: dict[str, bpy.types.Object] = {}
+    pods: dict[str, bpy.types.Object] = {}
     for pod in rig.pods:
         empty = bpy.data.objects.new(f"pod_{pod.name}", None)
         bpy.context.collection.objects.link(empty)
@@ -429,28 +428,41 @@ def _rig(rig: Rig, far_m: float) -> dict[str, bpy.types.Object]:
         # axis. Tilt lives on the pod, not the cameras, so the fanned cameras of a
         # tilted pod see a rolled horizon, as on a rigid enclosure.
         empty.rotation_euler = (math.radians(rig.tilt_deg), 0.0, _yaw(pod.yaw_deg))
+        pods[pod.name] = empty
 
-        for mount in (Mount(pod, camera) for camera in pod.cameras):
-            data = bpy.data.cameras.new(mount.name)
-            # AUTO fits the field of view to whichever image dimension is larger, so a
-            # portrait sensor would silently reinterpret hfov as a vertical angle.
-            data.sensor_fit = "HORIZONTAL"
-            data.angle_x = math.radians(mount.camera.hfov_deg)
-            # The default 1000 m puts a 2 km target behind the far plane, where it
-            # renders as sky and the clip boundary reads as the horizon. Nothing warns.
-            data.clip_end = far_m
-            camera = bpy.data.objects.new(data.name, data)
-            bpy.context.collection.objects.link(camera)
-            camera.parent = empty
-            camera.rotation_mode = "XYZ"
-            # A camera looks down its local -Z; +90 deg about X aims it at the horizon.
-            camera.rotation_euler = (
-                math.radians(90.0),
-                0.0,
-                _yaw(mount.camera.fan_deg),
-            )
-            cameras[mount.name] = camera
+    cameras: dict[str, bpy.types.Object] = {}
+    for mount in rig.mounts:
+        data = bpy.data.cameras.new(mount.name)
+        # AUTO fits the field of view to whichever image dimension is larger, so a
+        # portrait sensor would silently reinterpret hfov as a vertical angle.
+        data.sensor_fit = "HORIZONTAL"
+        data.angle_x = math.radians(mount.camera.hfov_deg)
+        # The default 1000 m puts a 2 km target behind the far plane, where it
+        # renders as sky and the clip boundary reads as the horizon. Nothing warns.
+        data.clip_end = far_m
+        camera = bpy.data.objects.new(data.name, data)
+        bpy.context.collection.objects.link(camera)
+        camera.parent = pods[mount.pod.name]
+        camera.rotation_mode = "XYZ"
+        # A camera looks down its local -Z; +90 deg about X aims it at the horizon.
+        camera.rotation_euler = (math.radians(90.0), 0.0, _yaw(mount.camera.fan_deg))
+        cameras[mount.name] = camera
     return cameras
+
+
+def boresight_deg(camera: bpy.types.Object) -> tuple[float, float]:
+    """Bearing and elevation a built camera actually points at, in degrees.
+
+    Measured, not summed: tilt sits between the two yaws, so a fanned camera's
+    azimuth is not `yaw + fan` -- 0.108 deg at -5 deg tilt, nine pixels at 4K.
+    `matrix_world` is stale until the depsgraph runs, so build first.
+    """
+    forward = camera.matrix_world.to_3x3() @ Vector((0.0, 0.0, -1.0))
+    forward.normalize()
+    return (
+        math.degrees(math.atan2(forward.x, forward.y)),
+        math.degrees(math.asin(min(1.0, max(-1.0, forward.z)))),
+    )
 
 
 def _corners(objects: Iterable[bpy.types.Object]) -> list[Vector]:

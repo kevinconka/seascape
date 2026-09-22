@@ -76,16 +76,16 @@ def test_a_preset_supplies_optics_and_the_block_supplies_the_mount(twin_pod) -> 
         640,
         512,
     )
-    assert (eo.pod.name, eo.bearing_deg) == ("port", -100.0)
+    assert (eo.pod.name, eo.nominal_bearing_deg) == ("port", -100.0)
 
 
-def test_a_bearing_is_its_pod_plus_its_fan(twin_pod) -> None:
-    """bearing = pod yaw + fan, so re-aiming a pod moves its cameras."""
+def test_a_nominal_bearing_is_its_pod_plus_its_fan(twin_pod) -> None:
+    """What the scenario asked for. `scene.boresight_deg` measures what it got."""
     port = twin_pod.rig.pods[0]
 
     assert port.yaw_deg == -60.0
     assert [camera.fan_deg for camera in port.cameras] == [-40.0, 0.0, 40.0, 50.0]
-    assert [mount.bearing_deg for mount in twin_pod.rig.mounts][:4] == [
+    assert [mount.nominal_bearing_deg for mount in twin_pod.rig.mounts][:4] == [
         -100.0,
         -60.0,
         -20.0,
@@ -298,25 +298,45 @@ def test_a_pod_cannot_be_path_text(name: str) -> None:
 
 def test_two_cameras_cannot_share_a_name() -> None:
     """They would share a datablock and overwrite each other's render."""
-    twice = {"kind": "eo", "fan_deg": 0.0, "width_px": 8, "height_px": 8}
+    camera = {"kind": "eo", "hfov_deg": 45.0, "width_px": 8, "height_px": 8}
     with pytest.raises(ValidationError, match="share a name"):
         Rig(
             height_m=12.0,
             pods=[
-                Pod(
-                    name="bow",
-                    yaw_deg=0.0,
-                    cameras=[
-                        Camera(**twice, hfov_deg=60.0),
-                        Camera(**twice, hfov_deg=30.0),
-                    ],
-                )
+                Pod(name="bow", yaw_deg=0.0, cameras=[Camera(**camera, name="fwd")]),
+                Pod(name="mast", yaw_deg=0.0, cameras=[Camera(**camera, name="fwd")]),
             ],
         )
 
 
-def test_the_same_fan_angle_on_two_pods_is_fine() -> None:
-    """Names collide on bearing, not fan: mirrored pods share fan angles."""
+def test_two_pods_cannot_share_a_name() -> None:
+    """Mount names miss it -- different bands still differ -- and `scene._rig`
+    then parents every camera to whichever pod was built last."""
+    eo = Camera(kind="eo", hfov_deg=45.0, width_px=8, height_px=8)
+    ir = Camera(kind="ir", hfov_deg=24.0, width_px=8, height_px=8)
+
+    with pytest.raises(ValidationError, match="two pods share a name"):
+        Rig(
+            height_m=12.0,
+            pods=[
+                Pod(name="port", yaw_deg=-60.0, offset_x_m=-20.0, cameras=[eo]),
+                Pod(name="port", yaw_deg=+60.0, offset_x_m=+20.0, cameras=[ir]),
+            ],
+        )
+
+
+def test_an_authored_name_wins_over_the_derived_one() -> None:
+    named = Camera(kind="eo", hfov_deg=45.0, width_px=8, height_px=8, name="EO_PORT_C")
+    plain = Camera(kind="eo", hfov_deg=45.0, width_px=8, height_px=8)
+
+    rig = Rig(
+        height_m=12.0, pods=[Pod(name="port", yaw_deg=0.0, cameras=[named, plain])]
+    )
+
+    assert [mount.name for mount in rig.mounts] == ["EO_PORT_C", "port_eo_1"]
+
+
+def test_the_same_camera_on_two_pods_is_fine() -> None:
     camera = Camera(kind="eo", fan_deg=0.0, hfov_deg=45.0, width_px=8, height_px=8)
 
     rig = Rig(
@@ -327,4 +347,4 @@ def test_the_same_fan_angle_on_two_pods_is_fine() -> None:
         ],
     )
 
-    assert [mount.name for mount in rig.mounts] == ["port_eo_-60", "starboard_eo_+60"]
+    assert [mount.name for mount in rig.mounts] == ["port_eo_0", "starboard_eo_0"]
