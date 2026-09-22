@@ -23,9 +23,6 @@ PROJECTIONS = {
     "equirectangular": "spherical",
 }
 
-# 1 / cos(75 deg) = 3.9: past this a plane is mostly stretch.
-MAX_PLANE_DEG = 75.0
-
 # The stitcher's frame is +X right, +Y down, +Z ahead.
 _TO_CV = np.array([[1.0, 0.0, 0.0], [0.0, 0.0, -1.0], [0.0, 1.0, 0.0]])
 
@@ -67,15 +64,13 @@ def stitch(
     bearing = axis(cameras, frame)
     poses = [pose(camera, frame, bearing) for camera in cameras]
     sizes = [(camera.width_px, camera.height_px) for camera in cameras]
-    if kind == "plane":
-        widest = max(
-            _off_axis_deg(k, r, size) for (k, r), size in zip(poses, sizes, strict=True)
+    if kind == "plane" and not all(
+        _faces_ahead(k, r, size) for (k, r), size in zip(poses, sizes, strict=True)
+    ):
+        raise ValueError(
+            "rectilinear cannot show a ray 90 deg or more off its axis: "
+            "use cylindrical or equirectangular"
         )
-        if widest > MAX_PLANE_DEG:
-            raise ValueError(
-                f"rectilinear reaches {widest:.0f} deg off the pod axis, past "
-                f"{MAX_PLANE_DEG:.0f}: use cylindrical or equirectangular"
-            )
 
     scale = max(float(k[0, 0]) for k, _ in poses)
     if width:
@@ -119,15 +114,13 @@ def stitch(
     return np.clip(image, 0, 255).astype(np.uint8)
 
 
-def _off_axis_deg(k: np.ndarray, r: np.ndarray, size: tuple[int, int]) -> float:
-    """How far across the plane a frame reaches. Its edges stay straight on a
-    gnomonic plane, so the corners are the extremes."""
+def _faces_ahead(k: np.ndarray, r: np.ndarray, size: tuple[int, int]) -> bool:
+    """Whether a whole frame lies less than 90 deg off the stitcher's +Z. Depth is
+    linear across the frame, so the corners decide."""
     w, h = size
     corners = np.array([[0, 0, 1], [w - 1, 0, 1], [0, h - 1, 1], [w - 1, h - 1, 1]])
-    x, _, z = r @ np.linalg.inv(k) @ corners.T
-    if (z <= 0).any():
-        return 90.0
-    return float(np.degrees(np.arctan(np.abs(x / z)).max()))
+    _, _, z = r @ np.linalg.inv(k) @ corners.T
+    return bool((z > 0).all())
 
 
 def _shrink(

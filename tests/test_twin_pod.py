@@ -266,13 +266,13 @@ def test_a_panorama_runs_port_to_starboard(tmp_path) -> None:
     assert [int(np.argmax(pixel)) for pixel in samples] == [0, 1, 2]
 
 
-def test_rectilinear_refuses_a_span_it_would_mostly_stretch() -> None:
-    """Both pods about the bow put the outer cameras past 75 deg off axis."""
+def test_rectilinear_refuses_a_camera_behind_its_plane() -> None:
+    """Both pods about the bow put the outer cameras past 90 deg off axis."""
     cameras = [
         scene.calibrate(m, "") for m in SCENARIO.rig.mounts if m.camera.kind == "eo"
     ]
 
-    with pytest.raises(ValueError, match="rectilinear reaches"):
+    with pytest.raises(ValueError, match="rectilinear cannot show"):
         panorama.stitch(Path(), cameras, "rectilinear", "vessel", 4000)
 
 
