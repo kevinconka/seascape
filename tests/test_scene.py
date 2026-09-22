@@ -400,7 +400,6 @@ def test_pitch_leaves_a_centre_camera_on_its_nominal_bearing(tmp_path) -> None:
 
 
 def test_an_ownship_with_no_hull_still_carries_the_rig(tmp_path) -> None:
-    """Attitude belongs to the platform, not to its mesh."""
     path = tmp_path / "rolled.toml"
     path.write_text(f'extends = "{BASELINE}"\n\n[ownship]\nroll_deg = 5.0\n')
     scene.build(load(path), "eo")

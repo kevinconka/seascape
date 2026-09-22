@@ -176,7 +176,7 @@ class Object(Model):
 
 class Ownship(Model):
     """The vessel the rig is bolted to, rolling and pitching about its origin at the
-    waterline. Without an asset it is the attitude alone, and no hull is in view."""
+    waterline. Without an asset it is the attitude alone."""
 
     asset: str | None = None
     t_k: float = Field(default=296.0, ge=250.0, le=400.0)

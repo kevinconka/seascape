@@ -52,8 +52,7 @@ def test_the_ownship_is_at_the_origin() -> None:
 
 
 def test_the_hull_takes_the_attitude_it_was_given() -> None:
-    """Rz @ Rx @ Ry: the bow rises by sin(pitch), starboard drops by
-    cos(pitch) sin(roll). Pins both signs and the order."""
+    """Pins both signs and the order."""
     roll = math.radians(SCENARIO.ownship.roll_deg)
     pitch = math.radians(SCENARIO.ownship.pitch_deg)
     rotation = bpy.data.objects["ownship"].matrix_world.to_3x3()
@@ -170,7 +169,7 @@ def test_the_ring_is_one_mesh_however_many_targets() -> None:
 
 
 def _in_ship_frame(obj: bpy.types.Object) -> Matrix:
-    """The rig is specified on the hull, so it is measured there, not on the sea."""
+    """The rig is specified on the hull, so it is measured there."""
     return bpy.data.objects["ownship"].matrix_world.inverted() @ obj.matrix_world
 
 

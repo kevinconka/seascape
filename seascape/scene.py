@@ -565,12 +565,8 @@ def _rig(rig: Rig, far_m: float) -> dict[str, bpy.types.Object]:
 def boresight_deg(
     camera: bpy.types.Object, frame: bpy.types.Object | None = None
 ) -> tuple[float, float]:
-    """Bearing and elevation a built camera actually points at, in degrees, in the
-    world or in `frame`'s axes.
-
-    Measured, not summed: the rig's pitch sits between the two yaws, so an off-axis
-    camera's azimuth is not their sum -- 0.108 deg at -5 deg of pitch, 9 px at 4K.
-    `matrix_world` is stale until the depsgraph runs, so build first.
+    """Bearing and elevation a built camera points at, in degrees, in the world or in
+    `frame`'s axes. `matrix_world` is stale until the depsgraph runs, so build first.
     """
     rotation = camera.matrix_world.to_3x3()
     if frame is not None:
@@ -657,7 +653,6 @@ def _ownship(ownship: Ownship, band: Band, sky: Sky) -> None:
         _place(anchor, 0.0, 0.0, 0.0)
     else:
         anchor = _vessel(ownship.asset, ownship.t_k, band, sky)
-    # Named for its role, or a target on the same asset takes the name by build order.
     anchor.name = "ownship"
     bpy.data.objects["rig"].parent = anchor
     # YXZ euler is Rz @ Rx @ Ry: roll about the keel, innermost.
