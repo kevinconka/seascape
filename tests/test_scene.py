@@ -14,7 +14,7 @@ import pytest
 from mathutils import Vector
 
 from seascape import lwir, scene
-from seascape.assets import manifest
+from seascape.assets import Asset, manifest
 from seascape.config import Mount, load
 
 BASELINE = Path(__file__).parent.parent / "scenarios" / "baseline.toml"
@@ -216,6 +216,42 @@ class TestGeometry:
 
 
 @pytest.mark.parametrize("band", ["eo", "ir"])
+@pytest.mark.parametrize(
+    ("bow_deg", "bow_corner"),
+    [(0.0, (0, 5, 0)), (90.0, (5, 0, 0)), (180.0, (0, -5, 0)), (270.0, (-5, 0, 0))],
+)
+def test_a_hull_is_fitted_along_its_own_bow_axis(bow_deg, bow_corner) -> None:
+    """The failure this exists for: the shipped hull is authored at 180, which is its
+    own inverse, so a sign error and a length measured along the wrong axis both
+    passed. Any other bow lands stern-first and scaled by its beam."""
+    asset = Asset(
+        url="x",
+        sha256="0" * 64,
+        length_m=200.0,
+        draught_m=5.0,
+        bow_deg=bow_deg,
+        licence="x",
+        attribution="x",
+    )
+    # a 10 x 2 x 1 box, long axis pointing at the bow, bottom at z = 0
+    long, beam = Vector(bow_corner), Vector((-bow_corner[1], bow_corner[0], 0)) / 5
+    corners = [
+        s * long + b * beam + Vector((0, 0, z))
+        for s in (-1, 1)
+        for b in (-1, 1)
+        for z in (0, 1)
+    ]
+
+    fit = scene._fit(corners, asset)
+    fitted = [fit @ c for c in corners]
+
+    ys = [c.y for c in fitted]
+    assert max(ys) - min(ys) == pytest.approx(200.0), "scaled along the bow axis"
+    assert max(c.x for c in fitted) - min(c.x for c in fitted) == pytest.approx(40.0)
+    assert min(c.z for c in fitted) == pytest.approx(-5.0), "keel at the draught"
+    assert (fit @ long).y == pytest.approx(100.0), "and the bow ends up at +Y"
+
+
 def test_the_active_camera_belongs_to_the_band_built(band) -> None:
     """The scene opens on whichever camera it saved as active, and F12 uses it.
 

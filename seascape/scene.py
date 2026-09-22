@@ -30,7 +30,7 @@ import numpy as np
 from mathutils import Matrix, Vector
 
 from seascape import lwir
-from seascape.assets import fetch, manifest
+from seascape.assets import Asset, fetch, manifest
 from seascape.config import Band, Mount, Object, Rig, Scenario, Sea, Sky, Targets
 
 CURVE_SAMPLES = 256
@@ -442,20 +442,39 @@ def _rig(rig: Rig, far_m: float) -> dict[str, bpy.types.Object]:
     return cameras
 
 
-def _bounds(objects: Iterable[bpy.types.Object]) -> tuple[Vector, Vector]:
-    """World-space extent of the meshes in `objects`.
+def _corners(objects: Iterable[bpy.types.Object]) -> list[Vector]:
+    """World-space bounding corners of the meshes in `objects`.
 
     An empty's `bound_box` is a unit cube at its origin, and an FBX rig is mostly
     empties, so including them silently inflates the extent.
     """
-    corners = [
+    return [
         o.matrix_world @ Vector(corner)
         for o in objects
         if o.type == "MESH"
         for corner in o.bound_box
     ]
-    axes = list(zip(*corners, strict=True))
-    return Vector([min(a) for a in axes]), Vector([max(a) for a in axes])
+
+
+def _fit(corners: Iterable[Vector], asset: Asset) -> Matrix:
+    """The transform that turns a hull's bow to +Y, scales it to the manifest length,
+    centres it, and sets its keel at the draught below the waterline.
+
+    Turned first, so the length is measured bow to stern whichever way the mesh was
+    authored, and centred before it is turned, so it does not spin about a corner.
+    """
+    turn = Matrix.Rotation(_yaw(-asset.bow_deg), 4, "Z")
+    axes = list(zip(*(turn @ c for c in corners), strict=True))
+    low, high = Vector([min(a) for a in axes]), Vector([max(a) for a in axes])
+    scale = asset.length_m / (high.y - low.y)
+    low, high = low * scale, high * scale
+    return (
+        Matrix.Translation(
+            (-(low.x + high.x) / 2, -(low.y + high.y) / 2, -low.z - asset.draught_m)
+        )
+        @ Matrix.Scale(scale, 4)
+        @ turn
+    )
 
 
 def _vessel(name: str, t_k: float, band: Band) -> bpy.types.Object:
@@ -473,21 +492,7 @@ def _vessel(name: str, t_k: float, band: Band) -> bpy.types.Object:
     # under empties, and measuring only the roots would leave them out of the fit.
     parts = [o for o in imported if o.parent is None]
 
-    asset = manifest()[name]
-    low, high = _bounds(imported)
-    scale = asset.length_m / (high.y - low.y)
-    # A uniform scale about the origin, so the fitted bounds follow without remeasuring
-    # -- and without reading matrix_world back on the line after writing it.
-    low, high = low * scale, high * scale
-    # Rz last, so the hull is centred before it is turned: a mesh whose bow points
-    # anywhere but +Y would otherwise be spun about a corner of itself.
-    fit = (
-        Matrix.Rotation(_yaw(asset.bow_deg), 4, "Z")
-        @ Matrix.Translation(
-            (-(low.x + high.x) / 2, -(low.y + high.y) / 2, -low.z - asset.draught_m)
-        )
-        @ Matrix.Scale(scale, 4)
-    )
+    fit = _fit(_corners(imported), manifest()[name])
     for part in parts:
         part.matrix_world = fit @ part.matrix_world
 
