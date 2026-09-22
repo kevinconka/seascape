@@ -96,13 +96,10 @@ def test_a_pod_stands_on_the_ship_rather_than_beside_it(pod) -> None:
     )
 
 
-MIN_CLEARANCE_M = 5.0
-
-
 @pytest.mark.parametrize("mount", MOUNTS)
 def test_no_camera_is_buried_in_the_structure_it_is_mounted_on(mount) -> None:
-    """A lens flush with the plate it is bolted to fills the lower frame, and
-    bearings, overlaps and target coverage all still pass."""
+    """A lens flush with the plate it is bolted to fills the lower frame. Inside the
+    near clip the plate is cut away instead, which reads as open sky."""
     camera = bpy.data.objects[mount.name]
     origin = camera.matrix_world.translation
     # The corners, not the axis: a deck the pod stands on is below the optical centre,
@@ -114,7 +111,7 @@ def test_no_camera_is_buried_in_the_structure_it_is_mounted_on(mount) -> None:
 
     nearest_m = min(_distance_to_geometry(origin, corner) for corner in corners)
 
-    assert nearest_m > MIN_CLEARANCE_M
+    assert nearest_m > SCENARIO.rig.near_clip_m
 
 
 @pytest.mark.parametrize("mount", MOUNTS)
