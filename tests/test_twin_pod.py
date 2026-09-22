@@ -231,8 +231,7 @@ def test_in_its_pod_a_camera_points_exactly_as_asked(mount) -> None:
 
 @pytest.mark.parametrize("mount", MOUNTS)
 def test_a_panorama_puts_each_principal_point_on_its_boresight(mount) -> None:
-    """A slip in the stitcher's frame flips or mirrors the panorama, with nothing
-    else failing."""
+    """A slip in the stitcher's frame flips or mirrors the panorama."""
     k, r = panorama.pose(scene.calibrate(mount, ""), "world", 0.0)
     warper = cv2.PyRotationWarper("spherical", 1.0)
 

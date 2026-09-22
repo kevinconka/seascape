@@ -105,8 +105,8 @@ def main(argv: list[str] | None = None) -> int:
     stitch.add_argument(
         "--frame",
         default="world",
-        help="an extrinsics frame in calibration.json. A render writes world, "
-        "vessel and pod: level to the horizon, the deck, or the enclosure",
+        help="an extrinsics frame in calibration.json, which sets what is level: "
+        "world the horizon, vessel the deck, pod the enclosure",
     )
     stitch.add_argument(
         "--max-width", type=int, help="pixels; native resolution when absent"

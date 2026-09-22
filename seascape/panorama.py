@@ -1,15 +1,9 @@
-"""Stitch each pod's cameras into one panorama, from a render's calibration.json.
+"""Stitch a render's frames into panoramas, from its calibration.json.
 
 The poses are known, so this is OpenCV's stitching pipeline with its estimation
-stages skipped: `cv2.PyRotationWarper` projects each camera and
-`cv2.detail.MultiBandBlender` joins the overlaps. No Blender.
+stages skipped. No Blender.
 
-Every panorama is built about its cameras' mean axis, so x = 0 is that bearing in
-the chosen frame, and the frame decides what is level: in a seascape render `world`
-levels the horizon, `vessel` the deck and `pod` the enclosure.
-
-Frames are stitched as they are. A render's ir pngs are each stretched to their own
-temperature range, so several of them side by side meet at a step in brightness.
+Frames are stitched as they are, with no exposure compensation.
 """
 
 from pathlib import Path
@@ -19,7 +13,7 @@ import numpy as np
 
 from seascape.calibration import Calibration, CameraCalibration
 
-# OpenCV's names for them.
+# CLI name to cv2.PyRotationWarper type.
 PROJECTIONS = {
     "rectilinear": "plane",
     "cylindrical": "cylindrical",
@@ -59,8 +53,9 @@ def stitch(
     frame: str,
     max_width: int | None = None,
 ) -> np.ndarray:
-    """At native resolution unless that is wider than `max_width`. Native is fx: pixels
-    per radian on axis, where every projection here runs at one unit per radian."""
+    """At native resolution unless that is wider than `max_width`. Native is the
+    largest fx: pixels per radian on axis, where every projection here runs at one
+    unit per radian."""
     if max_width is not None and max_width < 1:
         raise ValueError(f"max width is {max_width}: it must be a pixel or more")
     if missing := [c.name for c in cameras if frame not in c.extrinsics]:
