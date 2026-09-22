@@ -85,8 +85,8 @@ MAX_BRACKET_M = 5.0
 
 @pytest.mark.parametrize("pod", PODS)
 def test_a_pod_stands_on_the_ship_rather_than_beside_it(pod) -> None:
-    """`extends` once carried baseline's 12 m in, putting both pods 40 m under their
-    bridge wings and outboard of the hull. Every other test still passed."""
+    """A pod at the wrong height is outboard of the hull with nothing under it, and
+    bearings, overlaps, lens clearance and target coverage all still pass."""
     pod_at = bpy.data.objects[f"pod_{pod.name}"].matrix_world.translation
 
     drop_m = _distance_to_geometry(pod_at, pod_at + Vector((0.0, 0.0, -1.0)))
@@ -101,8 +101,8 @@ MIN_CLEARANCE_M = 5.0
 
 @pytest.mark.parametrize("mount", MOUNTS)
 def test_no_camera_is_buried_in_the_structure_it_is_mounted_on(mount) -> None:
-    """`height_m` at the wing's top face put every lens 0.2 m from the plate, which
-    filled the lower frame. Every other test still passed."""
+    """A lens flush with the plate it is bolted to fills the lower frame, and
+    bearings, overlaps and target coverage all still pass."""
     camera = bpy.data.objects[mount.name]
     origin = camera.matrix_world.translation
     # The corners, not the axis: a deck the pod stands on is below the optical centre,
