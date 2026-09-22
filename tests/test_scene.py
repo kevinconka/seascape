@@ -381,6 +381,51 @@ class TestIrBand:
         assert curve[-1] < 0.5 * ambient, "the zenith is much colder than ambient"
         assert np.all(np.diff(curve) <= 1e-6), "radiance falls towards the zenith"
 
+    def test_a_vessel_reflects_what_it_does_not_emit(self) -> None:
+        """A pure emitter leaves one radiance in every direction, so a hull renders as
+        a single flat value whichever way it is turned. Reflecting the rest gives back
+        the angular structure: a deck faces the cold zenith, a side half sky, half sea.
+
+        Diffuse, where the sea is glossy: flat paint scatters this band.
+        """
+        skin = next(m for m in bpy.data.materials if m.name.endswith("_ir"))
+        # The outermost mix, not the one grading emission from shaded to sunlit.
+        output = next(
+            n for n in skin.node_tree.nodes if n.bl_idname == "ShaderNodeOutputMaterial"
+        )
+        mix = output.inputs["Surface"].links[0].from_node
+
+        assert scene.PAINT_EMISSIVITY < 1.0, "a blackbody has no angular structure"
+        assert mix.inputs["Factor"].default_value == pytest.approx(
+            scene.PAINT_EMISSIVITY
+        )
+        assert mix.inputs[1].links[0].from_node.bl_idname == "ShaderNodeBsdfDiffuse"
+
+    def test_a_vessel_is_hotter_on_the_side_the_sun_is_on(self) -> None:
+        """One temperature over a whole hull leaves out the pattern this band shows
+        most: a lit side against a shaded one, and decks hotter than either.
+
+        Two emissions mixed by the cosine, so both ends are the exact band radiance;
+        no shader node can evaluate the Planck integral at a blended temperature.
+        """
+        skin = next(m for m in bpy.data.materials if m.name.endswith("_ir"))
+        output = next(
+            n for n in skin.node_tree.nodes if n.bl_idname == "ShaderNodeOutputMaterial"
+        )
+        grade = output.inputs["Surface"].links[0].from_node.inputs[2].links[0].from_node
+
+        shaded, sunlit = (grade.inputs[i].links[0].from_node for i in (1, 2))
+        assert (shaded.bl_idname, sunlit.bl_idname) == (
+            "ShaderNodeEmission",
+            "ShaderNodeEmission",
+        )
+        assert sunlit.inputs["Strength"].default_value == pytest.approx(
+            lwir.band_radiance(SCENARIO.objects[0].t_k + SCENARIO.sky.solar_gain_k),
+            rel=1e-5,
+        )
+        # Clamped at zero: a surface turned away cannot cool below shaded.
+        assert grade.inputs["Factor"].links[0].from_node.operation == "MAXIMUM"
+
     def test_the_sea_reflects_what_it_does_not_emit(self) -> None:
         """Emission alone falls to a fiftieth of ambient by 2 km.
 

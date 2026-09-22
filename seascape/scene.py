@@ -132,6 +132,11 @@ def specular_roughness(wind_speed_mps: float) -> float:
     return math.sqrt(min(math.sqrt(2.0) * unresolved_slope(wind_speed_mps), 1.0))
 
 
+# Flat paint over steel, 8-14 um. Paints sit at 0.94-0.96 across this band and the
+# colour does not matter, only how flat the finish is; metallic paints are far lower
+# and are not what a hull is coated with.
+PAINT_EMISSIVITY = 0.94
+
 # Mean radius, IUGG.
 EARTH_RADIUS_M = 6_371_000.0
 
@@ -276,16 +281,83 @@ def _thermal_sky(world: bpy.types.World, t_air_k: float) -> bpy.types.World:
     return world
 
 
-def _blackbody_material(name: str, radiance: float) -> bpy.types.Material:
-    """Emission of `radiance` W m^-2 sr^-1: a target with no measured emissivity."""
+def _sun_vector(sky: Sky) -> tuple[float, float, float]:
+    """Unit vector towards the sun. A direction, so the bearing is not negated: that
+    belongs to rotations, and `_pose` places by the same sin/cos."""
+    elevation = math.radians(sky.sun_elevation_deg)
+    bearing = math.radians(sky.sun_bearing_deg)
+    return (
+        math.cos(elevation) * math.sin(bearing),
+        math.cos(elevation) * math.cos(bearing),
+        math.sin(elevation),
+    )
+
+
+def _thermal_skin(name: str, t_k: float, sky: Sky) -> bpy.types.Material:
+    """eps of a painted hull emitted, the remaining 1 - eps reflected from the sky.
+
+    The sea's shape, for the sea's reason. A pure emitter leaves the same radiance in
+    every direction, so a vessel renders as one flat value however it is lit or turned.
+    Reflecting the other 6% gives it back the angular structure a real hull has: a deck
+    faces the cold zenith, a vertical side sees half sky and half sea.
+
+    Diffuse rather than glossy, which is where this parts from the sea: flat marine
+    paint is near-Lambertian in this band, so a hull scatters the sky rather than
+    mirroring it.
+    """
     material = bpy.data.materials.new(name)
     tree = material.node_tree
     tree.nodes.clear()
-    emission = tree.nodes.new("ShaderNodeEmission")
-    emission.inputs["Strength"].default_value = radiance
+    # White: the Mix Shader already applies the 1 - eps weighting, so a grey here would
+    # absorb part of the reflected sky a second time.
+    scatter = tree.nodes.new("ShaderNodeBsdfDiffuse")
+    scatter.inputs["Color"].default_value = (1.0, 1.0, 1.0, 1.0)
+    mix = tree.nodes.new("ShaderNodeMixShader")
+    # Mix Shader names both shader inputs "Shader", so they can only be indexed.
+    mix.inputs["Factor"].default_value = PAINT_EMISSIVITY
     output = tree.nodes.new("ShaderNodeOutputMaterial")
-    tree.links.new(emission.outputs["Emission"], output.inputs["Surface"])
+
+    link = tree.links.new
+    link(scatter.outputs["BSDF"], mix.inputs[1])
+    link(_sunlit_emission(tree, t_k, sky), mix.inputs[2])
+    link(mix.outputs["Shader"], output.inputs["Surface"])
     return material
+
+
+def _sunlit_emission(
+    tree: bpy.types.NodeTree, t_k: float, sky: Sky
+) -> bpy.types.NodeSocket:
+    """Emission graded from shaded to sunlit by Lambert's cosine on the real sun.
+
+    Two emissions mixed by `max(0, n . sun)`, so both ends are the exact band radiance
+    and only the middle interpolates -- 0.2% out against evaluating the Planck integral
+    at the blended temperature, which no shader node can do.
+
+    A single temperature leaves the pattern a hull shows in this band on the floor: a
+    lit side against a shaded one, and decks hotter than either.
+    """
+    shaded = tree.nodes.new("ShaderNodeEmission")
+    shaded.inputs["Strength"].default_value = lwir.band_radiance(t_k)
+    sunlit = tree.nodes.new("ShaderNodeEmission")
+    sunlit.inputs["Strength"].default_value = lwir.band_radiance(t_k + sky.solar_gain_k)
+
+    geometry = tree.nodes.new("ShaderNodeNewGeometry")
+    facing = tree.nodes.new("ShaderNodeVectorMath")
+    facing.operation = "DOT_PRODUCT"
+    facing.inputs[1].default_value = _sun_vector(sky)
+    # Clamped, or a surface turned away from the sun would cool below shaded.
+    lit = tree.nodes.new("ShaderNodeMath")
+    lit.operation = "MAXIMUM"
+    lit.inputs[1].default_value = 0.0
+
+    grade = tree.nodes.new("ShaderNodeMixShader")
+    link = tree.links.new
+    link(geometry.outputs["Normal"], facing.inputs[0])
+    link(facing.outputs["Value"], lit.inputs[0])
+    link(lit.outputs["Value"], grade.inputs["Factor"])
+    link(shaded.outputs["Emission"], grade.inputs[1])
+    link(sunlit.outputs["Emission"], grade.inputs[2])
+    return grade.outputs["Shader"]
 
 
 def _wave_normals(
@@ -529,7 +601,7 @@ def _fit(corners: Iterable[Vector], asset: Asset) -> Matrix:
     )
 
 
-def _vessel(name: str, t_k: float, band: Band) -> bpy.types.Object:
+def _vessel(name: str, t_k: float, band: Band, sky: Sky) -> bpy.types.Object:
     """Import a hull, fit it, and anchor it at the origin under an empty.
 
     An asset arrives in its author's units, off-origin, in many parts.
@@ -547,7 +619,7 @@ def _vessel(name: str, t_k: float, band: Band) -> bpy.types.Object:
 
     if band == "ir":
         # The asset's own materials are albedo, which says nothing about 8-14 um.
-        skin = _blackbody_material(f"{name}_ir", lwir.band_radiance(t_k))
+        skin = _thermal_skin(f"{name}_ir", t_k, sky)
         for part in parts:
             for mesh in [part, *part.children_recursive]:
                 if mesh.type == "MESH":
@@ -597,8 +669,10 @@ def _copy_tree(
     return clone
 
 
-def _targets(spec: Targets, band: Band, radius_m: float) -> list[bpy.types.Object]:
-    first = _vessel(spec.asset, spec.t_k, band)
+def _targets(
+    spec: Targets, band: Band, radius_m: float, sky: Sky
+) -> list[bpy.types.Object]:
+    first = _vessel(spec.asset, spec.t_k, band, sky)
     poses = spec.poses()
     anchors = [first, *(_copy_tree(first, None) for _ in poses[1:])]
     for i, (anchor, (bearing_deg, heading_deg)) in enumerate(
@@ -609,8 +683,8 @@ def _targets(spec: Targets, band: Band, radius_m: float) -> list[bpy.types.Objec
     return anchors
 
 
-def _object(spec: Object, band: Band, radius_m: float) -> bpy.types.Object:
-    anchor = _vessel(spec.asset, spec.t_k, band)
+def _object(spec: Object, band: Band, radius_m: float, sky: Sky) -> bpy.types.Object:
+    anchor = _vessel(spec.asset, spec.t_k, band, sky)
     _pose(anchor, spec.range_m, spec.bearing_deg, spec.heading_deg, radius_m)
     return anchor
 
@@ -682,12 +756,14 @@ def build(scenario: Scenario, band: Band = "eo") -> None:
     if scenario.ownship is not None:
         # At the origin, bow to +Y: the rig's offsets are in that frame. Named for
         # its role, or a target on the same asset takes the name by build order.
-        _vessel(scenario.ownship.asset, scenario.ownship.t_k, band).name = "ownship"
+        _vessel(
+            scenario.ownship.asset, scenario.ownship.t_k, band, scenario.sky
+        ).name = "ownship"
     radius_m = earth_radius_m(scenario.sea.refraction_k)
     for spec in scenario.objects:
-        _object(spec, band, radius_m)
+        _object(spec, band, radius_m, scenario.sky)
     if scenario.targets is not None:
-        _targets(scenario.targets, band, radius_m)
+        _targets(scenario.targets, band, radius_m, scenario.sky)
     # Scenario order, so the first camera is EO in the baseline: an IR build would
     # otherwise open on a camera whose optics belong to the other band.
     first = next(mount for mount in scenario.rig.mounts if mount.camera.kind == band)

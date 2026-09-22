@@ -293,6 +293,12 @@
           "title": "Sun Bearing Deg",
           "type": "number"
         },
+        "solar_gain_k": {
+          "default": 8.5,
+          "minimum": 0.0,
+          "title": "Solar Gain K",
+          "type": "number"
+        },
         "aerosol_density": {
           "default": 1.0,
           "maximum": 10.0,
