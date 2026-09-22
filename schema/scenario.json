@@ -218,7 +218,7 @@
     },
     "Samples": {
       "additionalProperties": false,
-      "description": "Cycles samples per band.\n\nA model rather than a `dict[Band, int]`: a table merges field by field, so stating\none band keeps the other's default. A dict replaces outright and the band left out\ngoes missing, which surfaces as a KeyError partway through a render.",
+      "description": "Cycles samples per band.\n\nA model so an override merges field by field; a dict would replace it whole\nand drop the band left out.",
       "properties": {
         "eo": {
           "default": 16,

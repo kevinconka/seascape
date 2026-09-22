@@ -181,9 +181,8 @@ class Targets(Model):
 class Samples(Model):
     """Cycles samples per band.
 
-    A model rather than a `dict[Band, int]`: a table merges field by field, so stating
-    one band keeps the other's default. A dict replaces outright and the band left out
-    goes missing, which surfaces as a KeyError partway through a render.
+    A model so an override merges field by field; a dict would replace it whole
+    and drop the band left out.
     """
 
     # eo is denoised: 16 is enough. ir is not, and needs 64 for the grain to go.
@@ -293,8 +292,7 @@ def _read(path: Path, chain: tuple[Path, ...] = ()) -> dict[str, Any]:
 def load(path: str | Path, overrides: Iterable[str] = ()) -> Scenario:
     """Read a scenario TOML, resolving `extends` and `preset`, and validate it.
 
-    Each override is one dotted-key TOML assignment merged over the file, so
-    `rig.tilt_deg = -5` is the line it would be written as in the scenario.
+    Each override is a TOML assignment merged over the file: `rig.tilt_deg = -5`.
     """
     data = _read(Path(path))
     for assignment in overrides:

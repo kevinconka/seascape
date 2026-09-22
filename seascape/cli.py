@@ -43,9 +43,13 @@ def _render(scenario_path: Path, output: Path | None, overrides: list[str]) -> N
 
 
 def _add_set(command: argparse.ArgumentParser) -> None:
-    """A repeatable override: one dotted-key TOML line, e.g. 'rig.tilt_deg = -5'."""
     command.add_argument(
-        "--set", action="append", default=[], dest="overrides", metavar="KEY=VALUE"
+        "--set",
+        action="append",
+        default=[],
+        dest="overrides",
+        metavar="KEY=VALUE",
+        help="override a field, written as TOML: 'rig.tilt_deg = -5'. Repeatable.",
     )
 
 

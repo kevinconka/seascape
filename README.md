@@ -51,7 +51,7 @@ uv run seascape render scenarios/twin-pod.toml --set 'rig.tilt_deg = -5'
 uv run seascape render scenarios/baseline.toml --set 'outputs.samples.eo = 8' --set 'sky.sun_elevation_deg = 5'
 ```
 
-A variant worth keeping and rendering again is a file, and `extends` makes it a diff:
+A variant worth keeping is a file, and `extends` makes it a diff:
 
 ```toml
 extends = "twin-pod.toml"
