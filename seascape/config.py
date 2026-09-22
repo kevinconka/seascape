@@ -147,6 +147,13 @@ class Sky(Model):
 
     sun_elevation_deg: float = Field(default=30.0, ge=-90.0, le=90.0)
     sun_bearing_deg: float = 0.0
+    # How far a sunlit surface sits above a shaded one, in K. Steady state, where
+    # absorbed sun balances convection and re-radiation:
+    #   dT = a E / (h + 4 eps sigma T^3)
+    # a = 0.30 for light marine paint, E = 1000 W m^-2 for a clear sky, and
+    # h = 10.45 - v + 10 sqrt(v) = 30 W m^-2 K^-1 at 7 m/s. Weakly held: it runs 10 K
+    # at 3 m/s and 7.8 at 12, and a dark hull absorbs three times what a light one does.
+    solar_gain_k: float = Field(default=8.5, ge=0.0)
     aerosol_density: float = Field(default=1.0, ge=0.0, le=10.0)
     t_air_k: float = Field(default=lwir.T_AIR_K, ge=250.0, le=320.0)
 
