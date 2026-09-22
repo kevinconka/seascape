@@ -23,6 +23,7 @@ classifiers = [
 ]
 dependencies = [
     "numpy>=2.0",
+    "pillow>=12.3.0",
     "pydantic>=2.9",
 ]
 
