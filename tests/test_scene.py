@@ -77,11 +77,7 @@ class TestGeometry:
         scene.build(SCENARIO, "eo")
 
     def test_a_flat_rig_points_where_the_scenario_asked(self) -> None:
-        """The one negation. Two of them cancel and the whole rig mirrors unnoticed.
-
-        Flat, so nominal and achieved agree; under tilt they do not, which is what
-        `test_tilt_moves_a_fanned_camera_off_its_nominal_bearing` holds.
-        """
+        """The one negation. Two of them cancel and the whole rig mirrors unnoticed."""
         for mount in SCENARIO.rig.mounts:
             bearing, _ = scene.boresight_deg(camera_of(mount))
             assert bearing == pytest.approx(mount.nominal_bearing_deg, abs=1e-6)
@@ -286,18 +282,15 @@ def _tilted(tmp_path, fan_deg: float, tilt_deg: float = -5.0):
 
 @pytest.mark.parametrize("fan_deg", [-40.0, 40.0])
 def test_tilt_moves_a_fanned_camera_off_its_nominal_bearing(tmp_path, fan_deg) -> None:
-    """Why a name cannot carry a bearing. The chain is Rz(-yaw) Rx(tilt) Rz(-fan), so
-    tilt sits between the two yaws; at -5 deg this is 0.108 deg, nine pixels at 4K."""
+    """The chain is Rz(-yaw) Rx(tilt) Rz(-fan), so tilt sits between the two yaws;
+    at -5 deg this is 0.108 deg, nine pixels at 4K."""
     bearing, nominal = _tilted(tmp_path, fan_deg)
 
     assert abs(bearing - nominal) > 0.1
 
 
 def test_tilt_leaves_a_centre_camera_on_its_nominal_bearing(tmp_path) -> None:
-    """Exact down the pod axis, which is why the error survived review.
-
-    Microdegrees, not zero: composed through the pod transform, matrix_world is float32.
-    """
+    """Exact down the pod axis. Microdegrees, not zero: matrix_world is float32."""
     bearing, nominal = _tilted(tmp_path, 0.0)
 
     assert bearing == pytest.approx(nominal, abs=1e-4)

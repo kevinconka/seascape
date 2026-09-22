@@ -45,8 +45,8 @@ class Model(BaseModel):
 class Camera(Model):
     kind: Band
     fan_deg: float = 0.0  # relative to the pod axis, positive to starboard
-    # Becomes a filename, so the same charset as a pod. Derived from position in the
-    # pod when absent; never from an angle, which the chain can contradict under tilt.
+    # Becomes a filename, so the same charset as a pod. Derived from position
+    # in the pod when absent.
     name: str | None = Field(default=None, pattern=r"^[A-Za-z0-9_-]+$")
     hfov_deg: float = Field(gt=0.0, lt=180.0)
     width_px: int = Field(gt=0)
@@ -69,26 +69,19 @@ class Pod(Model):
 
 
 class Mount(NamedTuple):
-    """A camera, the pod that aims it, and which of that pod's cameras it is."""
-
     pod: Pod
     camera: Camera
     index: int
 
     @property
     def name(self) -> str:
-        """Authored, or position in the chain. Never an angle: a name is a filename,
-        and a rig can be re-aimed without every file it wrote becoming a lie."""
+        """Never an angle: re-aiming a rig would invalidate every filename it wrote."""
         return self.camera.name or f"{self.pod.name}_{self.camera.kind}_{self.index}"
 
     @property
     def nominal_bearing_deg(self) -> float:
-        """Pod yaw plus fan, as designed.
-
-        Not the achieved boresight: the chain composes Rz(-yaw) Rx(tilt) Rz(-fan), so a
-        fanned camera on a tilted pod points elsewhere. `scene.boresight_deg` measures
-        the built camera; this is only what the scenario asked for.
-        """
+        """Not the achieved boresight: tilt sits between the two yaws, so a fanned
+        camera points elsewhere. `scene.boresight_deg` measures the built camera."""
         return self.pod.yaw_deg + self.camera.fan_deg
 
 
@@ -101,10 +94,8 @@ class Rig(Model):
 
     @property
     def mounts(self) -> list[Mount]:
-        """Index counts a pod's cameras of one band, so `port_eo_0` is that pod's first
-        EO camera whatever else it carries. Counted, not searched: two cameras with the
-        same fields are equal to pydantic and a lookup would give both the same index.
-        """
+        """Counted, not searched: two cameras with the same fields are equal to
+        pydantic, so `index()` would give both the same number."""
         mounts: list[Mount] = []
         for pod in self.pods:
             seen: dict[Band, int] = {}
@@ -116,13 +107,8 @@ class Rig(Model):
 
     @model_validator(mode="after")
     def _names_are_unique(self) -> "Rig":
-        """A pod is one enclosure and a camera is one file, so both names are keys.
-
-        Pods first: `scene._rig` parents each camera through its pod's name, so two
-        pods of one name send every camera to whichever was built last, at the wrong
-        offset and yaw, with nothing raised. Camera names can still collide across
-        pods when authored, which the second check catches.
-        """
+        """`scene._rig` parents each camera through its pod's name, so two pods of
+        one name send every camera to the last one built, with nothing raised."""
         pods = [pod.name for pod in self.pods]
         if len(set(pods)) != len(pods):
             raise ValueError(f"two pods share a name: {sorted(pods)}")

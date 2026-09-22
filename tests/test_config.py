@@ -310,9 +310,8 @@ def test_two_cameras_cannot_share_a_name() -> None:
 
 
 def test_two_pods_cannot_share_a_name() -> None:
-    """`scene._rig` parents a camera through its pod's name, so a repeat sends every
-    camera to whichever pod was built last, at the wrong offset and yaw. Mount names
-    do not catch it: two pods of one name carrying different bands still differ."""
+    """Mount names miss it -- different bands still differ -- and `scene._rig`
+    then parents every camera to whichever pod was built last."""
     eo = Camera(kind="eo", hfov_deg=45.0, width_px=8, height_px=8)
     ir = Camera(kind="ir", hfov_deg=24.0, width_px=8, height_px=8)
 
@@ -327,7 +326,6 @@ def test_two_pods_cannot_share_a_name() -> None:
 
 
 def test_an_authored_name_wins_over_the_derived_one() -> None:
-    """The derived form is stable but mechanical; a sheet wants `EO_PORT_C`."""
     named = Camera(kind="eo", hfov_deg=45.0, width_px=8, height_px=8, name="EO_PORT_C")
     plain = Camera(kind="eo", hfov_deg=45.0, width_px=8, height_px=8)
 
@@ -339,7 +337,6 @@ def test_an_authored_name_wins_over_the_derived_one() -> None:
 
 
 def test_the_same_camera_on_two_pods_is_fine() -> None:
-    """A name is pod and position, so mirrored pods with identical cameras differ."""
     camera = Camera(kind="eo", fan_deg=0.0, hfov_deg=45.0, width_px=8, height_px=8)
 
     rig = Rig(

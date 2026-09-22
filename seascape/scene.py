@@ -453,10 +453,9 @@ def _rig(rig: Rig, far_m: float) -> dict[str, bpy.types.Object]:
 def boresight_deg(camera: bpy.types.Object) -> tuple[float, float]:
     """Bearing and elevation a built camera actually points at, in degrees.
 
-    Read off the composed transform rather than added up from the scenario: the chain
-    is Rz(-yaw) Rx(tilt) Rz(-fan), so tilt sits between the two yaws and a fanned
-    camera's azimuth is not `yaw + fan`. At -5 deg tilt that is 0.108 deg, nine pixels
-    at 4K. `matrix_world` is stale until the depsgraph runs, so build first.
+    Measured, not summed: tilt sits between the two yaws, so a fanned camera's
+    azimuth is not `yaw + fan` -- 0.108 deg at -5 deg tilt, nine pixels at 4K.
+    `matrix_world` is stale until the depsgraph runs, so build first.
     """
     forward = camera.matrix_world.to_3x3() @ Vector((0.0, 0.0, -1.0))
     forward.normalize()
