@@ -1,5 +1,9 @@
 # Daylight camera.
+#
+# Native resolution: a 25 x 12 m merchant at 7 NM is ~6 px, the Johnson detection
+# limit. Downsample in the pipeline, never render smaller.
 kind = "eo"
+# Pod spec says 42-45; 45 gives the spec's 125 deg span and 5 deg overlap at 40 deg pitch.
 hfov_deg = 45.0
-width_px = 1920
-height_px = 1080
+width_px = 3840
+height_px = 2160

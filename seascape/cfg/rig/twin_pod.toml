@@ -1,48 +1,61 @@
-# Two EO pods flanking the bow, plus a bow-centred LWIR pair. Eight cameras.
+# Two pods on the bridge wings, both forward-facing. Eight cameras.
 #
-# Bearings are relative to the bow, positive to starboard. Each pod's three EO
-# cameras sit 40.0 deg apart, giving a 125.0 deg pod span with 5.0 deg of overlap
-# between neighbours; the pods themselves overlap by 5.0 deg across the bow.
+# Pod axis +-60 deg from the bow. Spec says 58.5, but 60 is what gives the spec's 5 deg
+# forward EO overlap; the overlap is what gets measured, so it wins.
+#
+# EO: 3 x 45 deg at 40 deg pitch = 125 deg per pod, 5 deg overlap, 245 deg total.
+# IR: 50 deg inboard of the pod axis = +-10 deg off the bow, 44 deg pair, 4 deg overlap.
+#
+# Offsets: bridge-wing tops of the container_ship mesh, +-21.5 m (half the 43 m beam)
+# and 68.2 m aft of midships.
 
-height_m = 12.0
+# Wing top is 49.8 m; 2 m of bracket keeps the deck plate out of every lower frame edge.
+height_m = 51.8
 tilt_deg = 0.0
 
-[[cameras]]
-preset = "eo"
-pod = "port"
-bearing_deg = -100.0
+[[pods]]
+name = "port"
+yaw_deg = -60.0
+# Real lateral separation: the pods overlap in angle but only cross in space a few
+# hundred metres out, leaving a blind wedge ahead.
+offset_x_m = -21.5
+offset_y_m = -68.2
 
-[[cameras]]
+[[pods.cameras]]
 preset = "eo"
-pod = "port"
-bearing_deg = -60.0
+fan_deg = -40.0
 
-[[cameras]]
+[[pods.cameras]]
 preset = "eo"
-pod = "port"
-bearing_deg = -20.0
+fan_deg = 0.0
 
-[[cameras]]
+[[pods.cameras]]
 preset = "eo"
-pod = "starboard"
-bearing_deg = 20.0
+fan_deg = 40.0
 
-[[cameras]]
-preset = "eo"
-pod = "starboard"
-bearing_deg = 60.0
-
-[[cameras]]
-preset = "eo"
-pod = "starboard"
-bearing_deg = 100.0
-
-[[cameras]]
+[[pods.cameras]]
 preset = "ir"
-pod = "bow"
-bearing_deg = -10.0
+# Inboard, so the pair straddles the bow at +-10 deg.
+fan_deg = +50.0
 
-[[cameras]]
+[[pods]]
+name = "starboard"
+yaw_deg = +60.0
+offset_x_m = +21.5
+offset_y_m = -68.2
+
+[[pods.cameras]]
+preset = "eo"
+fan_deg = -40.0
+
+[[pods.cameras]]
+preset = "eo"
+fan_deg = 0.0
+
+[[pods.cameras]]
+preset = "eo"
+fan_deg = 40.0
+
+[[pods.cameras]]
 preset = "ir"
-pod = "bow"
-bearing_deg = 10.0
+fan_deg = -50.0

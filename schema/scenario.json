@@ -13,13 +13,9 @@
         "kind": {
           "$ref": "#/$defs/Band"
         },
-        "pod": {
-          "pattern": "^[A-Za-z0-9_-]+$",
-          "title": "Pod",
-          "type": "string"
-        },
-        "bearing_deg": {
-          "title": "Bearing Deg",
+        "fan_deg": {
+          "default": 0.0,
+          "title": "Fan Deg",
           "type": "number"
         },
         "hfov_deg": {
@@ -41,8 +37,6 @@
       },
       "required": [
         "kind",
-        "pod",
-        "bearing_deg",
         "hfov_deg",
         "width_px",
         "height_px"
@@ -141,18 +135,27 @@
       "title": "Outputs",
       "type": "object"
     },
-    "Rig": {
+    "Pod": {
       "additionalProperties": false,
-      "description": "The sensor mast on the ownship.",
+      "description": "One enclosure: several cameras behind one yaw and one mount point.\n\nOffsets matter: pods a beam apart overlap in angle before they overlap in space,\nwhich is the blind wedge over the bow. Coincident cameras would hide it.",
       "properties": {
-        "height_m": {
-          "exclusiveMinimum": 0.0,
-          "title": "Height M",
+        "name": {
+          "pattern": "^[A-Za-z0-9_-]+$",
+          "title": "Name",
+          "type": "string"
+        },
+        "yaw_deg": {
+          "title": "Yaw Deg",
           "type": "number"
         },
-        "tilt_deg": {
+        "offset_x_m": {
           "default": 0.0,
-          "title": "Tilt Deg",
+          "title": "Offset X M",
+          "type": "number"
+        },
+        "offset_y_m": {
+          "default": 0.0,
+          "title": "Offset Y M",
           "type": "number"
         },
         "cameras": {
@@ -165,8 +168,39 @@
         }
       },
       "required": [
-        "height_m",
+        "name",
+        "yaw_deg",
         "cameras"
+      ],
+      "title": "Pod",
+      "type": "object"
+    },
+    "Rig": {
+      "additionalProperties": false,
+      "description": "The pods on the ownship.",
+      "properties": {
+        "height_m": {
+          "exclusiveMinimum": 0.0,
+          "title": "Height M",
+          "type": "number"
+        },
+        "tilt_deg": {
+          "default": 0.0,
+          "title": "Tilt Deg",
+          "type": "number"
+        },
+        "pods": {
+          "items": {
+            "$ref": "#/$defs/Pod"
+          },
+          "minItems": 1,
+          "title": "Pods",
+          "type": "array"
+        }
+      },
+      "required": [
+        "height_m",
+        "pods"
       ],
       "title": "Rig",
       "type": "object"

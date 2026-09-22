@@ -31,7 +31,7 @@ from mathutils import Matrix, Vector
 
 from seascape import lwir
 from seascape.assets import fetch, manifest
-from seascape.config import Band, Object, Rig, Scenario, Sea, Sky
+from seascape.config import Band, Mount, Object, Rig, Scenario, Sea, Sky
 
 CURVE_SAMPLES = 256
 
@@ -131,9 +131,9 @@ def sea_reach_m(rig: Rig, band: Band) -> float:
     so a target past the true horizon shows when it should be hull-down.
     """
     ifov_rad = [
-        math.radians(camera.hfov_deg) / camera.width_px
-        for camera in rig.cameras
-        if camera.kind == band
+        math.radians(mount.camera.hfov_deg) / mount.camera.width_px
+        for mount in rig.mounts
+        if mount.camera.kind == band
     ]
     if not ifov_rad:
         raise ValueError(f"the rig has no {band} camera to build a {band} scene for")
@@ -402,27 +402,43 @@ def _sea(sea: Sea, seed: int, reach_m: float, band: Band) -> bpy.types.Object:
     return water
 
 
-def _cameras(rig: Rig, far_m: float) -> list[bpy.types.Object]:
-    cameras = []
-    for spec in rig.cameras:
-        data = bpy.data.cameras.new(spec.name)
-        # AUTO fits the field of view to whichever image dimension is larger, so a
-        # portrait sensor would silently reinterpret hfov as a vertical angle.
-        data.sensor_fit = "HORIZONTAL"
-        data.angle_x = math.radians(spec.hfov_deg)
-        # The default 1000 m puts a 2 km target behind the far plane, where it renders
-        # as sky and the clip boundary reads as the horizon. Neither reports anything.
-        data.clip_end = far_m
-        camera = bpy.data.objects.new(data.name, data)
-        bpy.context.collection.objects.link(camera)
-        _place(camera, 0.0, 0.0, rig.height_m)
-        # A camera looks down its local -Z, so +90 deg about X aims it at the horizon.
-        camera.rotation_euler = (
-            math.radians(90.0 + rig.tilt_deg),
-            0.0,
-            _yaw(spec.bearing_deg),
-        )
-        cameras.append(camera)
+def _rig(rig: Rig, far_m: float) -> dict[str, bpy.types.Object]:
+    """Root at deck height, an empty per pod, cameras carrying only their fan angle."""
+    root = bpy.data.objects.new("rig", None)
+    bpy.context.collection.objects.link(root)
+    _place(root, 0.0, 0.0, rig.height_m)
+
+    cameras: dict[str, bpy.types.Object] = {}
+    for pod in rig.pods:
+        empty = bpy.data.objects.new(f"pod_{pod.name}", None)
+        bpy.context.collection.objects.link(empty)
+        empty.parent = root
+        _place(empty, pod.offset_x_m, pod.offset_y_m, 0.0)
+        # XYZ euler is Rz @ Ry @ Rx: yaw, then pitch about the pod's own transverse
+        # axis. Tilt lives on the pod, not the cameras, so the fanned cameras of a
+        # tilted pod see a rolled horizon, as on a rigid enclosure.
+        empty.rotation_euler = (math.radians(rig.tilt_deg), 0.0, _yaw(pod.yaw_deg))
+
+        for mount in (Mount(pod, camera) for camera in pod.cameras):
+            data = bpy.data.cameras.new(mount.name)
+            # AUTO fits the field of view to whichever image dimension is larger, so a
+            # portrait sensor would silently reinterpret hfov as a vertical angle.
+            data.sensor_fit = "HORIZONTAL"
+            data.angle_x = math.radians(mount.camera.hfov_deg)
+            # The default 1000 m puts a 2 km target behind the far plane, where it
+            # renders as sky and the clip boundary reads as the horizon. Nothing warns.
+            data.clip_end = far_m
+            camera = bpy.data.objects.new(data.name, data)
+            bpy.context.collection.objects.link(camera)
+            camera.parent = empty
+            camera.rotation_mode = "XYZ"
+            # A camera looks down its local -Z; +90 deg about X aims it at the horizon.
+            camera.rotation_euler = (
+                math.radians(90.0),
+                0.0,
+                _yaw(mount.camera.fan_deg),
+            )
+            cameras[mount.name] = camera
     return cameras
 
 
@@ -509,16 +525,14 @@ def build(scenario: Scenario, band: Band = "eo") -> None:
     reach_m = sea_reach_m(scenario.rig, band)
     _sea(scenario.sea, scenario.seed, reach_m, band)
     # The sea's far corner is reach * sqrt(2) away, so the clip plane has to clear it.
-    cameras = _cameras(scenario.rig, 1.5 * reach_m)
+    cameras = _rig(scenario.rig, 1.5 * reach_m)
     for spec in scenario.objects:
         _object(spec, band)
     # Scenario order, so the first camera is EO in the baseline: an IR build would
     # otherwise open on a camera whose optics belong to the other band.
-    bpy.context.scene.camera = next(
-        obj
-        for obj, spec in zip(cameras, scenario.rig.cameras, strict=True)
-        if spec.kind == band
-    )
+    bpy.context.scene.camera = cameras[
+        next(mount.name for mount in scenario.rig.mounts if mount.camera.kind == band)
+    ]
     # Until the depsgraph runs, every child still reports its pre-parenting
     # matrix_world, so anything measuring the scene reads the wrong place.
     bpy.context.view_layer.update()
