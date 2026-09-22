@@ -45,6 +45,9 @@ class Model(BaseModel):
 class Camera(Model):
     kind: Band
     fan_deg: float = 0.0  # relative to the pod axis, positive to starboard
+    # Pitch in the camera's own frame, so a fanned camera's horizon stays level and
+    # its bearing stays exact. Sign as `Rig.tilt_deg`: negative is down.
+    tilt_deg: float = Field(default=0.0, gt=-90.0, lt=90.0)
     # Becomes a filename, so the same charset as a pod. Derived from position
     # in the pod when absent.
     name: str | None = Field(default=None, pattern=r"^[A-Za-z0-9_-]+$")

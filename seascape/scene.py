@@ -528,8 +528,8 @@ def _rig(rig: Rig, far_m: float) -> dict[str, bpy.types.Object]:
         empty.parent = root
         _place(empty, pod.offset_x_m, pod.offset_y_m, 0.0)
         # XYZ euler is Rz @ Ry @ Rx: yaw, then pitch about the pod's own transverse
-        # axis. Tilt lives on the pod, not the cameras, so the fanned cameras of a
-        # tilted pod see a rolled horizon, as on a rigid enclosure.
+        # axis. The enclosure pitches as one rigid unit, so its fanned cameras see a
+        # rolled horizon; `Camera.tilt_deg` is the per-lens angle and rolls nothing.
         empty.rotation_euler = (math.radians(rig.tilt_deg), 0.0, _yaw(pod.yaw_deg))
         pods[pod.name] = empty
 
@@ -547,8 +547,14 @@ def _rig(rig: Rig, far_m: float) -> dict[str, bpy.types.Object]:
         bpy.context.collection.objects.link(camera)
         camera.parent = pods[mount.pod.name]
         camera.rotation_mode = "XYZ"
-        # A camera looks down its local -Z; +90 deg about X aims it at the horizon.
-        camera.rotation_euler = (math.radians(90.0), 0.0, _yaw(mount.camera.fan_deg))
+        # A camera looks down its local -Z; +90 deg about X aims it at the horizon,
+        # and its own tilt pitches it from there. Rx is inside the fan yaw, so the
+        # camera's transverse axis stays in the pod's horizontal plane.
+        camera.rotation_euler = (
+            math.radians(90.0 + mount.camera.tilt_deg),
+            0.0,
+            _yaw(mount.camera.fan_deg),
+        )
         cameras[mount.name] = camera
     return cameras
 

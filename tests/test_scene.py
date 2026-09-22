@@ -269,8 +269,8 @@ def test_the_active_camera_belongs_to_the_band_built(band) -> None:
 def test_a_tilted_pod_rolls_the_horizon_of_its_fanned_cameras(
     tmp_path, fan_deg
 ) -> None:
-    """Tilt pitches the pod, not each lens: a fanned camera sees the horizon rolled by
-    asin(sin(tilt) sin(fan)). Per-camera tilt would hold every horizon level.
+    """The enclosure pitches as one unit, so a fanned camera sees the horizon rolled
+    by asin(sin(tilt) sin(fan)). `Camera.tilt_deg` is the per-lens angle and does not.
     """
     tilt_deg = -5.0
     path = tmp_path / "tilted.toml"
@@ -294,6 +294,44 @@ def test_a_tilted_pod_rolls_the_horizon_of_its_fanned_cameras(
     assert math.degrees(math.asin(across.normalized().z)) == pytest.approx(
         expected, abs=1e-6
     )
+
+
+def _lens_tilted(tmp_path, fan_deg: float, tilt_deg: float):
+    """A yawed one-pod rig whose single camera carries the tilt, not the pod."""
+    path = tmp_path / "lens.toml"
+    path.write_text(
+        f'extends = "{BASELINE}"\n\n'
+        '[[rig.pods]]\nname = "port"\nyaw_deg = -60.0\n\n'
+        f'[[rig.pods.cameras]]\npreset = "eo"\n'
+        f"fan_deg = {fan_deg}\ntilt_deg = {tilt_deg}\n"
+    )
+    scenario = load(path)
+    scene.build(scenario, "eo")
+    return scenario.rig.mounts[0]
+
+
+@pytest.mark.parametrize("fan_deg", [-40.0, 0.0, 40.0])
+def test_a_tilted_lens_points_exactly_where_it_was_asked_to(tmp_path, fan_deg) -> None:
+    """Rx inside the fan yaw: unlike pod tilt, neither angle disturbs the other."""
+    tilt_deg = -10.0
+
+    mount = _lens_tilted(tmp_path, fan_deg, tilt_deg)
+
+    bearing, elevation = scene.boresight_deg(bpy.data.objects[mount.name])
+    assert bearing == pytest.approx(mount.nominal_bearing_deg, abs=1e-4)
+    assert elevation == pytest.approx(tilt_deg, abs=1e-4)
+
+
+@pytest.mark.parametrize("fan_deg", [-40.0, 0.0, 40.0])
+def test_a_tilted_lens_keeps_its_horizon_level(tmp_path, fan_deg) -> None:
+    """A rolled horizon is the pod-tilt signature; per-lens tilt must not show it."""
+    mount = _lens_tilted(tmp_path, fan_deg, -10.0)
+
+    across = bpy.data.objects[mount.name].matrix_world.to_3x3() @ Vector(
+        (1.0, 0.0, 0.0)
+    )
+
+    assert across.normalized().z == pytest.approx(0.0, abs=1e-6)
 
 
 def _tilted(tmp_path, fan_deg: float, tilt_deg: float = -5.0):
