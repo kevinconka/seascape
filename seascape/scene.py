@@ -31,9 +31,11 @@ from mathutils import Matrix, Vector
 
 from seascape import lwir
 from seascape.assets import Asset, fetch, manifest
+from seascape.calibration import CameraCalibration, Matrix4
 from seascape.config import (
     Band,
     ImageFormat,
+    Mount,
     Object,
     Outputs,
     Ownship,
@@ -577,6 +579,41 @@ def boresight_deg(
         math.degrees(math.atan2(forward.x, forward.y)),
         math.degrees(math.asin(min(1.0, max(-1.0, forward.z)))),
     )
+
+
+# Blender's camera looks down -Z with +Y up; OpenCV's looks down +Z with +Y down.
+_BLENDER_TO_CV = Matrix.Diagonal((1.0, -1.0, -1.0, 1.0))
+
+
+def calibrate(mount: Mount, image: str) -> CameraCalibration:
+    """A built camera's geometry, read off the scene. Build first."""
+    camera = bpy.data.objects[mount.name]
+    world = camera.matrix_world @ _BLENDER_TO_CV
+    vessel = bpy.data.objects.get("ownship")
+    pod = bpy.data.objects[f"pod_{mount.pod.name}"].matrix_world
+    width, height = mount.camera.width_px, mount.camera.height_px
+    f = (width / 2) / math.tan(camera.data.angle_x / 2)
+    return CameraCalibration(
+        name=mount.name,
+        band=mount.camera.kind,
+        image=image,
+        pod=mount.pod.name,
+        width_px=width,
+        height_px=height,
+        # Blender's frame spans pixel edges, so its centre is half a pixel past
+        # OpenCV's.
+        K=((f, 0.0, (width - 1) / 2), (0.0, f, (height - 1) / 2), (0.0, 0.0, 1.0)),
+        T_world_cam=_rows(world),
+        T_vessel_cam=_rows(
+            world if vessel is None else vessel.matrix_world.inverted() @ world
+        ),
+        T_pod_cam=_rows(pod.inverted() @ world),
+    )
+
+
+def _rows(m: Matrix) -> Matrix4:
+    x, y, z, w = map(tuple, m)
+    return x, y, z, w
 
 
 def _corners(objects: Iterable[bpy.types.Object]) -> list[Vector]:

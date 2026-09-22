@@ -72,7 +72,7 @@ uv run seascape montage scenarios/twin-pod.toml -o out/   # out/montage.png
 ```
 
 > [!NOTE]
-> `seascape build` writes the `.blend` to open in Blender; `seascape render` writes the images. There is no ground-truth file yet.
+> `seascape build` writes the `.blend` to open in Blender; `seascape render` writes the images and `calibration.json`, each camera's K and its pose in the world, vessel and pod frames. There is no target ground truth yet.
 
 ## Blender MCP (optional)
 
