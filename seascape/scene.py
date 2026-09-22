@@ -516,6 +516,11 @@ def _sea(sea: Sea, seed: int, reach_m: float, band: Band) -> bpy.types.Object:
 
 
 def _rig(rig: Rig, far_m: float) -> dict[str, bpy.types.Object]:
+    # Blender takes an inverted frustum without complaint and renders nothing.
+    if rig.near_clip_m >= far_m:
+        raise ValueError(
+            f"near clip {rig.near_clip_m} m is past the far plane at {far_m:.0f} m"
+        )
     root = bpy.data.objects.new("rig", None)
     bpy.context.collection.objects.link(root)
     _place(root, 0.0, 0.0, rig.height_m)
@@ -538,6 +543,7 @@ def _rig(rig: Rig, far_m: float) -> dict[str, bpy.types.Object]:
         # portrait sensor would silently reinterpret hfov as a vertical angle.
         data.sensor_fit = "HORIZONTAL"
         data.angle_x = math.radians(mount.camera.hfov_deg)
+        data.clip_start = rig.near_clip_m
         # The default 1000 m puts a 2 km target behind the far plane, where it
         # renders as sky and the clip boundary reads as the horizon. Nothing warns.
         data.clip_end = far_m
@@ -740,6 +746,18 @@ def _output(outputs: Outputs, band: Band) -> None:
     sc.render.image_settings.color_depth = depth
 
 
+def _viewport(near_m: float, far_m: float) -> None:
+    """Blender's view clip defaults to 0.01-1000 m, which cuts a sea reaching tens
+    of km."""
+    for screen in bpy.data.screens:
+        for area in screen.areas:
+            if area.type != "VIEW_3D":
+                continue
+            for space in area.spaces:
+                if space.type == "VIEW_3D":
+                    space.clip_start, space.clip_end = near_m, far_m
+
+
 def build(scenario: Scenario, band: Band = "eo") -> None:
     """Replace the current Blender session's contents with `scenario` in one band.
 
@@ -752,9 +770,9 @@ def build(scenario: Scenario, band: Band = "eo") -> None:
     _output(scenario.outputs, band)
     bpy.context.scene.world = _sky(scenario.sky, band)
     reach_m = sea_reach_m(scenario.rig, scenario.sea)
+    far_m = 1.5 * reach_m  # the sea's corner is reach * sqrt(2) away
     _sea(scenario.sea, scenario.seed, reach_m, band)
-    # The sea's far corner is reach * sqrt(2) away, so the clip plane has to clear it.
-    cameras = _rig(scenario.rig, 1.5 * reach_m)
+    cameras = _rig(scenario.rig, far_m)
     if scenario.ownship is not None:
         # At the origin, bow to +Y: the rig's offsets are in that frame. Named for
         # its role, or a target on the same asset takes the name by build order.
@@ -775,6 +793,7 @@ def build(scenario: Scenario, band: Band = "eo") -> None:
         first.camera.width_px,
         first.camera.height_px,
     )
+    _viewport(scenario.rig.near_clip_m, far_m)
     # Until the depsgraph runs, every child still reports its pre-parenting
     # matrix_world, so anything measuring the scene reads the wrong place.
     bpy.context.view_layer.update()

@@ -100,6 +100,29 @@ class TestGeometry:
             assert data.sensor_fit == "HORIZONTAL"
             assert math.degrees(data.angle_x) == pytest.approx(mount.camera.hfov_deg)
 
+    def test_the_near_clip_leaves_the_depth_buffer_usable_at_range(self) -> None:
+        for mount in SCENARIO.rig.mounts:
+            data = camera_of(mount).data
+            assert data.clip_start == SCENARIO.rig.near_clip_m
+            assert data.clip_start < data.clip_end
+
+    def test_every_3d_view_clips_past_the_sea(self) -> None:
+        """Blender's 1000 m default cuts a sea reaching tens of km."""
+        corner_m = math.sqrt(2) * scene.sea_reach_m(SCENARIO.rig, SCENARIO.sea)
+        views = [
+            space
+            for screen in bpy.data.screens
+            for area in screen.areas
+            if area.type == "VIEW_3D"
+            for space in area.spaces
+            if space.type == "VIEW_3D"
+        ]
+
+        assert views, "no 3D view to clip: the assertions below would pass on nothing"
+        for space in views:
+            assert space.clip_start == SCENARIO.rig.near_clip_m
+            assert space.clip_end > corner_m
+
     def test_the_far_clip_clears_every_target(self) -> None:
         """Blender's default 1000 m renders a 2 km target as sky, reporting nothing."""
         furthest = max(spec.range_m for spec in SCENARIO.objects)
@@ -374,6 +397,15 @@ def test_pitch_leaves_a_centre_camera_on_its_nominal_bearing(tmp_path) -> None:
     bearing, nominal = _pod_pitched(tmp_path, 0.0)
 
     assert bearing == pytest.approx(nominal, abs=1e-4)
+
+
+def test_a_near_clip_past_the_far_plane_is_an_error(tmp_path) -> None:
+    """Blender renders an inverted frustum as an empty frame, reporting nothing."""
+    path = tmp_path / "deep.toml"
+    path.write_text(f'extends = "{BASELINE}"\n\n[rig]\nnear_clip_m = 500000.0\n')
+
+    with pytest.raises(ValueError, match="near clip"):
+        scene.build(load(path), "eo")
 
 
 def test_a_band_the_rig_cannot_see_is_an_error(tmp_path) -> None:

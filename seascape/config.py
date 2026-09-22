@@ -92,6 +92,10 @@ class Rig(Model):
 
     height_m: float = Field(gt=0.0)
     pitch_deg: float = Field(default=0.0, gt=-90.0, lt=90.0)
+    # Depth precision goes as far / near, and the far plane is tens of km, so larger
+    # is better. The bound is a lens's clearance from its own structure: anything
+    # nearer than this is clipped out of frame.
+    near_clip_m: float = Field(default=5.0, gt=0.0)
     pods: list[Pod] = Field(min_length=1)
 
     @property

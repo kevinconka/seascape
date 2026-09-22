@@ -222,6 +222,12 @@
           "title": "Pitch Deg",
           "type": "number"
         },
+        "near_clip_m": {
+          "default": 5.0,
+          "exclusiveMinimum": 0.0,
+          "title": "Near Clip M",
+          "type": "number"
+        },
         "pods": {
           "items": {
             "$ref": "#/$defs/Pod"
