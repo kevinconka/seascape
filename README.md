@@ -77,7 +77,7 @@ uv run seascape montage scenarios/twin-pod.toml -o out/   # out/montage.png
 uv run seascape panorama out/ --projection rectilinear --frame pod
 ```
 
-`--frame` picks what is level: `world` the horizon, `vessel` the deck, `pod` the enclosure.
+`--frame` picks what is level: `world` the horizon, `vessel` the deck, `pod` the enclosure. Output is native resolution; `--max-width` caps it.
 
 > [!NOTE]
 > `seascape build` writes the `.blend` to open in Blender; `seascape render` writes the images and `calibration.json`.

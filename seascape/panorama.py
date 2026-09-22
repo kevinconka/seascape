@@ -4,9 +4,12 @@ The poses are known, so this is OpenCV's stitching pipeline with its estimation
 stages skipped: `cv2.PyRotationWarper` projects each camera and
 `cv2.detail.MultiBandBlender` joins the overlaps. No Blender.
 
-Every panorama is built about its pod's axis, so x = 0 is the pod's bearing. The
-frame decides what is level: `world` levels the horizon, `vessel` the deck, `pod`
-the enclosure.
+Every panorama is built about its cameras' mean axis, so x = 0 is that bearing in
+the chosen frame, and the frame decides what is level: in a seascape render `world`
+levels the horizon, `vessel` the deck and `pod` the enclosure.
+
+Frames are stitched as they are. A render's ir pngs are each stretched to their own
+temperature range, so several of them side by side meet at a step in brightness.
 """
 
 from pathlib import Path
@@ -14,7 +17,7 @@ from pathlib import Path
 import cv2
 import numpy as np
 
-from seascape.calibration import Calibration, CameraCalibration, Frame
+from seascape.calibration import Calibration, CameraCalibration
 
 # OpenCV's names for them.
 PROJECTIONS = {
@@ -27,18 +30,18 @@ PROJECTIONS = {
 _TO_CV = np.array([[1.0, 0.0, 0.0], [0.0, 0.0, -1.0], [0.0, 1.0, 0.0]])
 
 
-def rotation(camera: CameraCalibration, frame: Frame) -> np.ndarray:
-    return np.array(getattr(camera, f"T_{frame}_cam"))[:3, :3]
+def rotation(camera: CameraCalibration, frame: str) -> np.ndarray:
+    return np.array(camera.extrinsics[frame])[:3, :3]
 
 
-def axis(cameras: list[CameraCalibration], frame: Frame) -> float:
+def axis(cameras: list[CameraCalibration], frame: str) -> float:
     """Bearing of the summed optical axes, which cannot wrap as a mean of angles can."""
     x, y, _ = np.sum([rotation(camera, frame)[:, 2] for camera in cameras], axis=0)
     return float(np.arctan2(x, y))
 
 
 def pose(
-    camera: CameraCalibration, frame: Frame, bearing: float
+    camera: CameraCalibration, frame: str, bearing: float
 ) -> tuple[np.ndarray, np.ndarray]:
     """K and R as the stitcher takes them, turned so `bearing` is straight ahead."""
     c, s = np.cos(bearing), np.sin(bearing)
@@ -53,13 +56,15 @@ def stitch(
     folder: Path,
     cameras: list[CameraCalibration],
     projection: str,
-    frame: Frame,
-    width: int,
+    frame: str,
+    max_width: int | None = None,
 ) -> np.ndarray:
-    """A width of 0 is native: fx is pixels per radian on axis, where every
-    projection here runs at one unit per radian."""
-    if width < 0:
-        raise ValueError(f"width is {width}: 0 for native, or pixels")
+    """At native resolution unless that is wider than `max_width`. Native is fx: pixels
+    per radian on axis, where every projection here runs at one unit per radian."""
+    if max_width is not None and max_width < 1:
+        raise ValueError(f"max width is {max_width}: it must be a pixel or more")
+    if missing := [c.name for c in cameras if frame not in c.extrinsics]:
+        raise ValueError(f"no {frame!r} extrinsics for {', '.join(missing)}")
     kind = PROJECTIONS[projection]
     bearing = axis(cameras, frame)
     poses = [pose(camera, frame, bearing) for camera in cameras]
@@ -73,7 +78,7 @@ def stitch(
         )
 
     scale = max(float(k[0, 0]) for k, _ in poses)
-    if width:
+    if max_width is not None:
         native = cv2.PyRotationWarper(kind, scale)
         rois = [
             native.warpRoi(size, k, r)
@@ -82,7 +87,7 @@ def stitch(
         _, _, span, _ = cv2.detail.resultRoi(
             corners=[roi[:2] for roi in rois], sizes=[roi[2:] for roi in rois]
         )
-        scale *= width / span
+        scale *= min(1.0, max_width / span)
     warper = cv2.PyRotationWarper(kind, scale)
 
     warped = []
@@ -111,7 +116,13 @@ def stitch(
         blender.feed(pixels.astype(np.int16), mask, corner)
     image, _ = blender.blend(np.empty(0, np.int16), np.empty(0, np.uint8))
     # The pyramid overshoots at edges; clip, where convertScaleAbs would fold it back.
-    return np.clip(image, 0, 255).astype(np.uint8)
+    image = np.clip(image, 0, 255).astype(np.uint8)
+    h, w = image.shape[:2]
+    if max_width is not None and w > max_width:
+        # The warper rounds its extent outward, a pixel past the scale asked for.
+        size = (max_width, round(h * max_width / w))
+        image = cv2.resize(image, size, interpolation=cv2.INTER_AREA)
+    return image
 
 
 def _faces_ahead(k: np.ndarray, r: np.ndarray, size: tuple[int, int]) -> bool:
@@ -147,17 +158,20 @@ def _shrink(
     return small, k
 
 
-def panoramas(folder: Path, projection: str, frame: Frame, width: int) -> list[Path]:
+def panoramas(
+    folder: Path, projection: str, frame: str, max_width: int | None = None
+) -> list[Path]:
     """One panorama per pod and band, written beside the frames."""
-    groups: dict[tuple[str, str], list[CameraCalibration]] = {}
+    groups: dict[tuple[str | None, str], list[CameraCalibration]] = {}
     for camera in Calibration.read(folder).cameras:
         groups.setdefault((camera.pod, camera.band), []).append(camera)
 
     written = []
     for (pod, band), cameras in groups.items():
-        path = folder / f"panorama_{pod}_{band}_{projection}_{frame}.png"
+        name = "_".join(part for part in (pod, band, projection, frame) if part)
+        path = folder / f"panorama_{name}.png"
         try:
-            image = stitch(folder, cameras, projection, frame, width)
+            image = stitch(folder, cameras, projection, frame, max_width)
         except cv2.error as error:
             raise RuntimeError(f"{path.name}: {error.err}") from error
         cv2.imwrite(str(path), image)
