@@ -115,7 +115,7 @@ def test_every_target_sits_at_the_configured_range() -> None:
 
 
 def test_the_ring_is_one_mesh_however_many_targets() -> None:
-    """Clones share datablocks; copied meshes show only when a build runs out of memory."""
+    """Clones share datablocks; copied meshes show only when a build runs out of RAM."""
     assert SCENARIO.targets is not None
     hulls = [obj for obj in bpy.data.objects if obj.name.startswith("target_")]
 
