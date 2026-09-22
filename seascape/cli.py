@@ -11,8 +11,10 @@ from pathlib import Path
 from seascape.config import Band, Scenario, load
 
 
-def _build(scenario_path: Path, output: Path | None, band: Band) -> None:
-    scenario = load(scenario_path)
+def _build(
+    scenario_path: Path, output: Path | None, band: Band, overrides: list[str]
+) -> None:
+    scenario = load(scenario_path, overrides)
     # Imported here, not at module scope: bpy is a 400 MB library and `schema` and a
     # failed validation should not wait for it.
     import bpy
@@ -29,8 +31,8 @@ def _build(scenario_path: Path, output: Path | None, band: Band) -> None:
     )
 
 
-def _render(scenario_path: Path, output: Path | None) -> None:
-    scenario = load(scenario_path)
+def _render(scenario_path: Path, output: Path | None, overrides: list[str]) -> None:
+    scenario = load(scenario_path, overrides)
     from seascape import render
 
     into = output or scenario_path.with_suffix("")
@@ -38,6 +40,17 @@ def _render(scenario_path: Path, output: Path | None) -> None:
     for path in written:
         print(path)
     print(f"{len(written)} images in {into}")
+
+
+def _add_set(command: argparse.ArgumentParser) -> None:
+    command.add_argument(
+        "--set",
+        action="append",
+        default=[],
+        dest="overrides",
+        metavar="KEY=VALUE",
+        help="override a field, written as TOML: 'rig.tilt_deg = -5'. Repeatable.",
+    )
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -49,12 +62,14 @@ def main(argv: list[str] | None = None) -> int:
     build.add_argument("-o", "--output", type=Path, help="default: alongside the input")
     # A scene is one band or the other: EO and LWIR share no units.
     build.add_argument("--band", choices=("eo", "ir"), default="eo")
+    _add_set(build)
 
     shoot = commands.add_parser("render", help="write one image per camera")
     shoot.add_argument("scenario", type=Path)
     shoot.add_argument(
         "-o", "--output", type=Path, help="directory, default: alongside the input"
     )
+    _add_set(shoot)
 
     commands.add_parser("schema", help="print the scenario JSON schema on stdout")
 
@@ -64,9 +79,9 @@ def main(argv: list[str] | None = None) -> int:
         return 0
     try:
         if args.command == "render":
-            _render(args.scenario, args.output)
+            _render(args.scenario, args.output, args.overrides)
         else:
-            _build(args.scenario, args.output, args.band)
+            _build(args.scenario, args.output, args.band, args.overrides)
     except (
         OSError,
         ValueError,

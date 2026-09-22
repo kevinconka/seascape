@@ -7,11 +7,22 @@ it off a built scene is a separate check.
 import json
 import tomllib
 from pathlib import Path
+from typing import get_args
 
 import pytest
 from pydantic import ValidationError
 
-from seascape.config import CFG_DIR, Camera, Outputs, Pod, Rig, Scenario, load
+from seascape.config import (
+    CFG_DIR,
+    Band,
+    Camera,
+    Outputs,
+    Pod,
+    Rig,
+    Samples,
+    Scenario,
+    load,
+)
 
 SCENARIOS = Path(__file__).parents[1] / "scenarios"
 BASELINE = SCENARIOS / "baseline.toml"
@@ -85,6 +96,45 @@ def test_a_bearing_is_its_pod_plus_its_fan(twin_pod) -> None:
 def test_the_installed_rig_takes_its_height_from_the_preset(twin_pod) -> None:
     """An inherited 12 m hung both pods 40 m below their bridge wings."""
     assert twin_pod.rig.height_m == 51.8
+
+
+def test_samples_covers_every_band() -> None:
+    """`scene._output` reads this with `getattr(samples, band)`, so a band added to the
+    Literal without a field here fails mid-build rather than in validation."""
+    assert set(Samples.model_fields) == set(get_args(Band.__value__))
+
+
+def test_an_override_is_the_toml_line_it_would_be_written_as(baseline) -> None:
+    scenario = load(BASELINE, ["rig.tilt_deg = -5"])
+
+    assert scenario.rig.tilt_deg == -5.0
+    assert scenario.rig.height_m == baseline.rig.height_m
+
+
+def test_an_override_merges_a_table_rather_than_replacing_it() -> None:
+    scenario = load(BASELINE, ["outputs.samples.eo = 8"])
+
+    assert (scenario.outputs.samples.eo, scenario.outputs.samples.ir) == (8, 64)
+
+
+def test_overrides_apply_in_order() -> None:
+    scenario = load(BASELINE, ["rig.tilt_deg = -5", "rig.tilt_deg = -10"])
+
+    assert scenario.rig.tilt_deg == -10.0
+
+
+@pytest.mark.parametrize(
+    ("override", "error"),
+    [
+        pytest.param("rig.tlit_deg = -5", ValidationError, id="misspelt-key"),
+        pytest.param("outputs.format = png", ValueError, id="unquoted-string"),
+        pytest.param("garbage", ValueError, id="not-an-assignment"),
+    ],
+)
+def test_a_bad_override_is_refused(override: str, error: type[Exception]) -> None:
+    """`tomllib.TOMLDecodeError` is a `ValueError`: the CLI reports both alike."""
+    with pytest.raises(error):
+        load(BASELINE, [override])
 
 
 def test_objects_merge_their_preset(baseline) -> None:
