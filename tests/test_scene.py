@@ -97,8 +97,10 @@ class TestGeometry:
         for mount in SCENARIO.rig.mounts:
             camera = camera_of(mount)
             half = math.degrees(camera.data.angle_x) / 2
-            # Blender yaw is the bearing negated, so read the bearing back out.
-            centre = -math.degrees(camera.matrix_world.to_euler("XYZ").z)
+            # The boresight as a direction, then its bearing. A euler angle read off
+            # the matrix is neither once a pod is tilted.
+            forward = camera.matrix_world.to_3x3() @ Vector((0.0, 0.0, -1.0))
+            centre = math.degrees(math.atan2(forward.x, forward.y))
             # The IR pair is one camera per pod, so it is grouped across the rig: its
             # span and overlap are what the two pods achieve together.
             pod = "rig" if mount.camera.kind == "ir" else mount.pod.name
