@@ -1,4 +1,4 @@
-"""The geometry a render was made with, written beside its frames.
+"""The geometry a render was made with, written beside its images.
 
 Imports no Blender, so a consumer reads it without the bpy wheel.
 """
@@ -23,7 +23,7 @@ class _Record(Model):
 
 
 class CameraCalibration(_Record):
-    """An ideal pinhole with no distortion, in OpenCV's conventions.
+    """A pinhole with no distortion, in OpenCV's conventions.
 
     Camera frame: +X right, +Y down, +Z along the optical axis. Pixel centres sit at
     integer coordinates.
@@ -31,7 +31,7 @@ class CameraCalibration(_Record):
 
     name: str
     band: str
-    image: str = Field(description="relative to the calibration file")
+    image: str = Field(description="relative to the calibration file's folder")
     pod: str | None = None
     width_px: int = Field(gt=0)
     height_px: int = Field(gt=0)
@@ -39,8 +39,8 @@ class CameraCalibration(_Record):
     extrinsics: dict[str, Matrix4] = Field(
         min_length=1,
         description=(
-            "camera to each named frame. seascape writes world (+X east, +Y north, "
-            "+Z up, at sea level), vessel (+X starboard, +Y bow, +Z up, moving with "
+            "camera to each named frame: world (+X east, +Y north, +Z up, at sea "
+            "level), vessel (+X starboard, +Y bow, +Z up, moving with "
             "the hull) and pod (the enclosure, +Y along its axis)"
         ),
     )
