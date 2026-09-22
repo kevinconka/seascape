@@ -568,8 +568,7 @@ def _object(spec: Object, band: Band) -> bpy.types.Object:
     return anchor
 
 
-# Blender's format identifier and bit depth. 32-bit EXR, not half: an 11-bit
-# mantissa loses radiance.
+# Blender's identifier and bit depth. EXR is 32-bit float; ir pixels are radiance.
 _FORMATS: dict[ImageFormat, tuple[str, str]] = {
     "exr": ("OPEN_EXR", "32"),
     "png": ("PNG", "8"),
