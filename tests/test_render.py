@@ -147,8 +147,7 @@ class TestSettings:
 
     @pytest.mark.parametrize("band", get_args(Band))
     def test_both_bands_render_in_cycles(self, band: Band) -> None:
-        """EEVEE returns half the sea: no second bounce for facets that reflect the sea
-        into the sea, which at grazing view is most of them."""
+        """EEVEE renders the sea at half its radiance."""
         render._settings(self.scenario, band, "exr", on_gpu=False)
 
         assert bpy.context.scene.render.engine == "CYCLES"

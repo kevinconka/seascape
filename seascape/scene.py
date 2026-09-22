@@ -115,11 +115,9 @@ def specular_roughness(wind_speed_mps: float) -> float:
     Cycles' GGX takes alpha = roughness^2, and a Gaussian slope of sigma maps to
     alpha = sqrt(2) sigma. This is the consistent partner to an emissivity curve
     averaged over the same slopes: the surface cannot be rough enough to change how
-    much it reflects and still be smooth enough to reflect sharply. A target at
-    detection range leaves no measurable reflection -- switching a hull at 7 NM on and
-    off changes the water by 0.000 -- but a close one very much does: a 400 K slab at
-    300 m moves the sea under it by 136 W m^-2 sr^-1, a hundred times the wave
-    variation. Reflections are a near-field cue, not an absent one.
+    much it reflects and still be smooth enough to reflect sharply. A hull at
+    7 NM leaves no measurable reflection (0.000 change); a 400 K slab at 300 m moves
+    the sea under it by 136 W m^-2 sr^-1, a hundred times the wave variation.
     """
     return math.sqrt(min(math.sqrt(2.0) * unresolved_slope(wind_speed_mps), 1.0))
 
@@ -274,9 +272,8 @@ def _wave_normals(
     sub-pixel made the far field more aliased relative to its own texture, not less.
     """
     length_m = wave_length_m(sea.wind_speed_mps)
-    # position / wavelength + offset, in one node. The sea lies in z = 0, so a z offset
-    # picks the slice of the 3-D field: the seed moves the waves without moving the sea.
-    # 3-D, not 4-D with the seed in W: same field, 20% less of a 4K frame.
+    # The sea lies in z = 0, so a seeded z offset slices the 3-D field: waves move, sea
+    # does not. 3-D rather than 4-D with the seed in W: same field, 20% cheaper at 4K.
     scale = tree.nodes.new("ShaderNodeVectorMath")
     scale.operation = "MULTIPLY_ADD"
     scale.inputs[1].default_value = (1.0 / length_m,) * 3

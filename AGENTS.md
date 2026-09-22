@@ -70,19 +70,16 @@ These produce wrong output with no error. They are the reason this file exists.
 - **An image's `colorspace_settings` must be set before its pixels, never after.** Assigning it second re-reads the buffer that is already there and leaves the image black, with no error.
 - **`view_settings.exposure` is part of the display transform.** A png carries it, a float EXR ignores it. Same scene, same knob, two formats, and nothing reports the difference.
 - **EEVEE renders the sea at half its radiance, in both bands.** At grazing view most
-  wave facets reflect the sea into the sea, and Cycles bounces that ray on into the
-  horizon sky. EEVEE has no second bounce for world light and reads the black below
-  the horizon instead. A flat mirror is exact in both engines, and so is the bump under
-  a uniform sky, which is why the failure hides: it needs the sky's gradient and a
-  grazing view, i.e. every frame this project renders. No probe, clamp, threshold or
-  raytracing setting recovers it; a planar probe with raytracing reaches 0.79 and a sky
-  mirrored below the horizon 0.82. Cycles for anything a pixel value is read from.
-- **`refresh_devices()` is what actually enables the GPU.** Setting
-  `compute_device_type` and `scene.cycles.device` without it leaves Cycles on the CPU,
-  silently, at roughly the same speed -- which reads as "the GPU does not help here".
-  `denoising_use_gpu` changes nothing measurable at 4K. Configure the device once
-  before the first render: switching mid-process pays Metal kernel compilation, which
-  shows up as a render three times slower and is easy to misread as the device losing.
+  wave facets reflect the sea into the sea; Cycles bounces that ray on to the horizon
+  sky, EEVEE has no second bounce for world light and reads black. A flat mirror or a
+  bump under a uniform sky is exact in both engines, so it only shows with a sky
+  gradient at grazing view. No probe or raytracing setting recovers it (best 0.82).
+  Cycles for anything a pixel value is read from.
+- **`refresh_devices()` is what actually enables the GPU.** Without it
+  `compute_device_type` and `scene.cycles.device` leave Cycles on the CPU, silently, at
+  about the same speed. `denoising_use_gpu` changes nothing measurable at 4K. Configure
+  the device once before the first render: switching mid-process pays Metal kernel
+  compilation and the render comes out three times slower.
 - **The Sky Texture's `turbidity` does nothing under the scattering models.** It belongs to Preetham and Hosek-Wilkie. Haze there is `aerosol_density`. Setting the wrong one is accepted in silence and changes no pixel, which was verified by rendering both.
 
 ## Conventions

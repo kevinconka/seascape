@@ -24,10 +24,8 @@ _FORMATS: dict[ImageFormat, tuple[str, str]] = {
 def _enable_gpu() -> bool:
     """Point Cycles at a GPU, once, before anything renders.
 
-    `refresh_devices()` is the call that actually enables it: without it Cycles stays
-    on the CPU whatever `compute_device_type` says, silently and at a similar speed,
-    which reads as the GPU not helping. Switching device mid-process pays kernel
-    compilation instead, which reads as the GPU losing.
+    Without `refresh_devices()` Cycles stays on the CPU silently; switching device
+    mid-process pays kernel compilation.
     """
     preferences = bpy.context.preferences.addons["cycles"].preferences
     for backend in ("METAL", "OPTIX", "CUDA", "HIP", "ONEAPI"):
@@ -38,7 +36,7 @@ def _enable_gpu() -> bool:
         preferences.refresh_devices()
         if any(device.type != "CPU" for device in preferences.devices):
             for device in preferences.devices:
-                # The CPU alongside a GPU costs sync and wins nothing here.
+                # CPU alongside the GPU wins nothing here.
                 device.use = device.type != "CPU"
             return True
     return False
@@ -49,8 +47,7 @@ def _settings(
 ) -> None:
     outputs = scenario.outputs
     sc = bpy.context.scene
-    # Cycles for both bands. EEVEE has no second bounce for world light, and at grazing
-    # view most wave facets reflect the sea into the sea: it returns half the radiance.
+    # Not EEVEE: no second bounce for world light, so the sea comes out at half radiance.
     sc.render.engine = "CYCLES"
     sc.cycles.samples = outputs.samples[band]
     sc.cycles.device = "GPU" if on_gpu else "CPU"
@@ -61,7 +58,7 @@ def _settings(
     # default. On a world flat at 290.00 K it returns 282.43-293.00 K and breaks the
     # R=G=B the scene guarantees, which is the channel `_thermal_png` reads.
     sc.cycles.use_denoising = band == "eo"
-    # HIGH costs 16 s of a 4K frame against 5 s for FAST, for 0.8% of pixel change.
+    # HIGH: 16 s vs 5 s per 4K frame, 0.8% pixel change.
     sc.cycles.denoising_quality = "FAST"
     file_format, depth = _FORMATS[writing]
     sc.render.image_settings.file_format = file_format

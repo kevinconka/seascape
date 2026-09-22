@@ -128,8 +128,7 @@ class Outputs(Model):
     bands: tuple[Band, ...] = Field(
         default=("eo", "ir"), min_length=1, json_schema_extra={"uniqueItems": True}
     )
-    # Per band: eo is denoised and stops changing at 16; ir has no denoiser and its
-    # Monte Carlo grain only leaves at 64, which its 25x fewer pixels make cheap.
+    # eo is denoised and stops changing at 16; undenoised ir needs 64 before the grain goes.
     samples: dict[Band, int] = {"eo": 16, "ir": 64}
     format: ImageFormat = "exr"
     # Stops, and EO clips to white without them: a sunlit sea renders at 3 to 13 where
