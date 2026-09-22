@@ -140,44 +140,18 @@ class TestSettings:
 
     @pytest.mark.parametrize(("band", "denoised"), [("eo", True), ("ir", False)])
     def test_only_eo_is_denoised(self, band: Band, denoised: bool) -> None:
-        """OIDN invents 10 K of structure on a field that is flat by construction.
-
-        Forced to Cycles: denoising is a Cycles setting, and eo renders in EEVEE by
-        default, where the knob is never read.
-        """
-        forced = self.scenario.model_copy(
-            update={
-                "outputs": self.scenario.outputs.model_copy(update={"engine": "cycles"})
-            }
-        )
-
-        render._settings(forced, band, "exr", on_gpu=False)
+        """OIDN invents 10 K of structure on a field that is flat by construction."""
+        render._settings(self.scenario, band, "exr", on_gpu=False)
 
         assert bpy.context.scene.cycles.use_denoising is denoised
 
-    @pytest.mark.parametrize(
-        ("band", "choice", "expected"),
-        [
-            ("eo", "auto", "EEVEE"),
-            ("ir", "auto", "CYCLES"),
-            ("eo", "cycles", "CYCLES"),
-            ("ir", "cycles", "CYCLES"),
-        ],
-    )
-    def test_the_thermal_band_is_always_cycles(
-        self, band: Band, choice: str, expected: str
-    ) -> None:
-        """EEVEE returns a quarter of the world's reflected radiance, which leaves the
-        LWIR sea 14% cold and target contrast 79% high. eo depends on none of it."""
-        scenario = self.scenario.model_copy(
-            update={
-                "outputs": self.scenario.outputs.model_copy(update={"engine": choice})
-            }
-        )
+    @pytest.mark.parametrize("band", get_args(Band))
+    def test_both_bands_render_in_cycles(self, band: Band) -> None:
+        """EEVEE returns half the sea: no second bounce for facets that reflect the sea
+        into the sea, which at grazing view is most of them."""
+        render._settings(self.scenario, band, "exr", on_gpu=False)
 
-        render._settings(scenario, band, "exr", on_gpu=False)
-
-        assert expected in bpy.context.scene.render.engine
+        assert bpy.context.scene.render.engine == "CYCLES"
 
     def test_radiance_keeps_its_full_float(self) -> None:
         render._settings(self.scenario, "ir", "exr", on_gpu=False)

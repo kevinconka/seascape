@@ -155,13 +155,9 @@ class TestGeometry:
         """Wind reaches the waves through wavelength and slope, or it is a dead knob."""
         tree = bpy.data.materials["sea"].node_tree
         wind = SCENARIO.sea.wind_speed_mps
-        scaling = next(
-            n
-            for n in tree.nodes
-            if n.bl_idname == "ShaderNodeVectorMath" and n.operation == "SCALE"
-        )
-        assert scaling.inputs["Scale"].default_value == pytest.approx(
-            1.0 / scene.wave_length_m(wind)
+        scaling = next(n for n in tree.nodes if n.bl_idname == "ShaderNodeVectorMath")
+        assert tuple(scaling.inputs[1].default_value) == pytest.approx(
+            (1.0 / scene.wave_length_m(wind),) * 3
         )
         bump = next(n for n in tree.nodes if n.bl_idname == "ShaderNodeBump")
         assert bump.inputs["Distance"].default_value == pytest.approx(

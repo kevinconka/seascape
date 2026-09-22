@@ -11,7 +11,7 @@ import bpy
 import numpy as np
 
 from seascape import lwir, scene
-from seascape.config import Band, Engine, ImageFormat, Scenario
+from seascape.config import Band, ImageFormat, Scenario
 
 # Blender's format identifier and bit depth. 32-bit EXR, not half: an 11-bit
 # mantissa loses radiance.
@@ -19,31 +19,6 @@ _FORMATS: dict[ImageFormat, tuple[str, str]] = {
     "exr": ("OPEN_EXR", "32"),
     "png": ("PNG", "8"),
 }
-
-
-def _eevee() -> str:
-    """Whichever identifier this build calls EEVEE.
-
-    `BLENDER_EEVEE` is Legacy on <=4.1 and Next on >=5.0, with `BLENDER_EEVEE_NEXT` in
-    between, so the name is asserted against the enum rather than assumed.
-    """
-    options = bpy.types.RenderSettings.bl_rna.properties["engine"].enum_items.keys()
-    for identifier in ("BLENDER_EEVEE_NEXT", "BLENDER_EEVEE"):
-        if identifier in options:
-            return identifier
-    raise ValueError(f"no EEVEE in this build: {sorted(options)}")
-
-
-def _engine_for(band: Band, choice: Engine) -> str:
-    """Cycles for the thermal band always; EEVEE for eo unless cycles is forced.
-
-    EEVEE's glossy reflection of the world returns a quarter of its radiance, which
-    leaves the LWIR sea 14% cold and target contrast 79% high. EO has nothing that
-    depends on it and renders 17x faster.
-    """
-    if choice == "cycles" or band == "ir":
-        return "CYCLES"
-    return _eevee()
 
 
 def _enable_gpu() -> bool:
@@ -74,22 +49,20 @@ def _settings(
 ) -> None:
     outputs = scenario.outputs
     sc = bpy.context.scene
-    sc.render.engine = _engine_for(band, outputs.engine)
-    if sc.render.engine == "CYCLES":
-        sc.cycles.samples = outputs.samples
-        sc.cycles.device = "GPU" if on_gpu else "CPU"
-        # OIDN runs on the CPU unless told otherwise, which is a third of a 4K frame.
-        sc.cycles.denoising_use_gpu = on_gpu
-    else:
-        sc.eevee.taa_render_samples = outputs.samples
+    # Cycles for both bands. EEVEE has no second bounce for world light, and at grazing
+    # view most wave facets reflect the sea into the sea: it returns half the radiance.
+    sc.render.engine = "CYCLES"
+    sc.cycles.samples = outputs.samples
+    sc.cycles.device = "GPU" if on_gpu else "CPU"
     if band == "eo":
         # ir pixels are radiance; gain on them belongs to the display mapping.
         sc.view_settings.exposure = outputs.exposure_ev
     # OIDN is an edge-aware image filter, not a radiometric one, and it is on by
     # default. On a world flat at 290.00 K it returns 282.43-293.00 K and breaks the
     # R=G=B the scene guarantees, which is the channel `_thermal_png` reads.
-    if sc.render.engine == "CYCLES":
-        sc.cycles.use_denoising = band == "eo"
+    sc.cycles.use_denoising = band == "eo"
+    # HIGH costs 16 s of a 4K frame against 5 s for FAST, for 0.8% of pixel change.
+    sc.cycles.denoising_quality = "FAST"
     file_format, depth = _FORMATS[writing]
     sc.render.image_settings.file_format = file_format
     sc.render.image_settings.color_depth = depth
