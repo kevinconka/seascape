@@ -47,7 +47,7 @@ A scenario is a TOML file describing the world, the platform, the sensors and th
 `--set` overrides any field for one run, as the TOML line it would be written as:
 
 ```bash
-uv run seascape render scenarios/twin-pod.toml --set 'rig.tilt_deg = -5'
+uv run seascape render scenarios/twin-pod.toml --set 'rig.pitch_deg = -5'
 uv run seascape render scenarios/baseline.toml --set 'outputs.samples.eo = 8' --set 'sky.sun_elevation_deg = 5'
 ```
 
@@ -57,7 +57,7 @@ A variant worth keeping is a file, and `extends` makes it a diff:
 extends = "twin-pod.toml"
 
 [rig]
-tilt_deg = -5.0
+pitch_deg = -5.0
 ```
 
 Scenarios carry a `#:schema` line, so editors with a TOML language server give you key completion, inline validation and hover docs. `seascape schema` regenerates `schema/scenario.json` from the models.

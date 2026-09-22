@@ -516,7 +516,6 @@ def _sea(sea: Sea, seed: int, reach_m: float, band: Band) -> bpy.types.Object:
 
 
 def _rig(rig: Rig, far_m: float) -> dict[str, bpy.types.Object]:
-    """Root at deck height, an empty per pod, cameras carrying only their fan angle."""
     root = bpy.data.objects.new("rig", None)
     bpy.context.collection.objects.link(root)
     _place(root, 0.0, 0.0, rig.height_m)
@@ -528,9 +527,8 @@ def _rig(rig: Rig, far_m: float) -> dict[str, bpy.types.Object]:
         empty.parent = root
         _place(empty, pod.offset_x_m, pod.offset_y_m, 0.0)
         # XYZ euler is Rz @ Ry @ Rx: yaw, then pitch about the pod's own transverse
-        # axis. Tilt lives on the pod, not the cameras, so the fanned cameras of a
-        # tilted pod see a rolled horizon, as on a rigid enclosure.
-        empty.rotation_euler = (math.radians(rig.tilt_deg), 0.0, _yaw(pod.yaw_deg))
+        # axis, so a pitched pod rolls the horizon of its off-axis cameras.
+        empty.rotation_euler = (math.radians(rig.pitch_deg), 0.0, _yaw(pod.yaw_deg))
         pods[pod.name] = empty
 
     cameras: dict[str, bpy.types.Object] = {}
@@ -548,7 +546,11 @@ def _rig(rig: Rig, far_m: float) -> dict[str, bpy.types.Object]:
         camera.parent = pods[mount.pod.name]
         camera.rotation_mode = "XYZ"
         # A camera looks down its local -Z; +90 deg about X aims it at the horizon.
-        camera.rotation_euler = (math.radians(90.0), 0.0, _yaw(mount.camera.fan_deg))
+        camera.rotation_euler = (
+            math.radians(90.0 + mount.camera.pitch_deg),
+            0.0,
+            _yaw(mount.camera.yaw_deg),
+        )
         cameras[mount.name] = camera
     return cameras
 
@@ -556,8 +558,8 @@ def _rig(rig: Rig, far_m: float) -> dict[str, bpy.types.Object]:
 def boresight_deg(camera: bpy.types.Object) -> tuple[float, float]:
     """Bearing and elevation a built camera actually points at, in degrees.
 
-    Measured, not summed: tilt sits between the two yaws, so a fanned camera's
-    azimuth is not `yaw + fan` -- 0.108 deg at -5 deg tilt, nine pixels at 4K.
+    Measured, not summed: the rig's pitch sits between the two yaws, so an off-axis
+    camera's azimuth is not their sum -- 0.108 deg at -5 deg of pitch, 9 px at 4K.
     `matrix_world` is stale until the depsgraph runs, so build first.
     """
     forward = camera.matrix_world.to_3x3() @ Vector((0.0, 0.0, -1.0))

@@ -67,7 +67,7 @@ def test_a_preset_supplies_optics_and_the_block_supplies_the_mount(twin_pod) -> 
     eo, ir = twin_pod.rig.mounts[0], twin_pod.rig.mounts[-1]
 
     assert (eo.camera.hfov_deg, eo.camera.width_px, eo.camera.height_px) == (
-        45.0,
+        49.0,
         3840,
         2160,
     )
@@ -84,7 +84,7 @@ def test_a_nominal_bearing_is_its_pod_plus_its_fan(twin_pod) -> None:
     port = twin_pod.rig.pods[0]
 
     assert port.yaw_deg == -60.0
-    assert [camera.fan_deg for camera in port.cameras] == [-40.0, 0.0, 40.0, 50.0]
+    assert [camera.yaw_deg for camera in port.cameras] == [-40.0, 0.0, 40.0, 50.0]
     assert [mount.nominal_bearing_deg for mount in twin_pod.rig.mounts][:4] == [
         -100.0,
         -60.0,
@@ -105,9 +105,9 @@ def test_samples_covers_every_band() -> None:
 
 
 def test_an_override_is_the_toml_line_it_would_be_written_as(baseline) -> None:
-    scenario = load(BASELINE, ["rig.tilt_deg = -5"])
+    scenario = load(BASELINE, ["rig.pitch_deg = -5"])
 
-    assert scenario.rig.tilt_deg == -5.0
+    assert scenario.rig.pitch_deg == -5.0
     assert scenario.rig.height_m == baseline.rig.height_m
 
 
@@ -118,9 +118,9 @@ def test_an_override_merges_a_table_rather_than_replacing_it() -> None:
 
 
 def test_overrides_apply_in_order() -> None:
-    scenario = load(BASELINE, ["rig.tilt_deg = -5", "rig.tilt_deg = -10"])
+    scenario = load(BASELINE, ["rig.pitch_deg = -5", "rig.pitch_deg = -10"])
 
-    assert scenario.rig.tilt_deg == -10.0
+    assert scenario.rig.pitch_deg == -10.0
 
 
 @pytest.mark.parametrize(
@@ -153,7 +153,7 @@ def test_a_block_overrides_its_own_preset(tmp_path) -> None:
         )
     )
     camera = scenario.rig.mounts[0].camera
-    assert camera.hfov_deg == 10.0  # preset says 45.0
+    assert camera.hfov_deg == 10.0  # preset says 49.0
     assert camera.width_px == 3840  # untouched by the block
 
 
@@ -337,7 +337,7 @@ def test_an_authored_name_wins_over_the_derived_one() -> None:
 
 
 def test_the_same_camera_on_two_pods_is_fine() -> None:
-    camera = Camera(kind="eo", fan_deg=0.0, hfov_deg=45.0, width_px=8, height_px=8)
+    camera = Camera(kind="eo", yaw_deg=0.0, hfov_deg=45.0, width_px=8, height_px=8)
 
     rig = Rig(
         height_m=12.0,

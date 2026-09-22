@@ -58,7 +58,7 @@ def _add_set(command: argparse.ArgumentParser) -> None:
         default=[],
         dest="overrides",
         metavar="KEY=VALUE",
-        help="override a field, written as TOML: 'rig.tilt_deg = -5'. Repeatable.",
+        help="override a field, written as TOML: 'rig.pitch_deg = -5'. Repeatable.",
     )
 
 
