@@ -37,10 +37,13 @@ def test_a_band_gets_its_own_row(twin_pod, tmp_path) -> None:
     """An ir png is stretched per frame, so its greys never read as comparable to eo."""
     into = frames(twin_pod, tmp_path)
 
-    height = Image.open(montage.compose(twin_pod, into)).height
+    sheet = Image.open(montage.compose(twin_pod, into))
 
     rows = len({mount.camera.kind for mount in twin_pod.rig.mounts})
-    assert height == rows * (montage.TILE_H + montage.CAPTION_H) + montage.GUTTER
+    tile_h = (sheet.height - montage.GUTTER * (rows - 1)) / rows - montage.CAPTION_H
+    assert sheet.height == rows * (tile_h + montage.CAPTION_H) + montage.GUTTER * (
+        rows - 1
+    )
 
 
 def test_the_caption_sits_under_the_frame_and_never_on_it(twin_pod, tmp_path) -> None:
@@ -48,9 +51,33 @@ def test_the_caption_sits_under_the_frame_and_never_on_it(twin_pod, tmp_path) ->
     flat = (90, 110, 130)
 
     sheet = Image.open(montage.compose(twin_pod, into))
+    tile_h = sheet.height // 2 - montage.CAPTION_H - montage.GUTTER // 2
 
-    assert sheet.getpixel((0, montage.TILE_H // 2)) == flat  # frame, untouched
-    assert sheet.getpixel((0, montage.TILE_H + 2)) == montage.MATTE  # caption band
+    assert sheet.getpixel((0, tile_h // 2)) == flat  # frame, untouched
+    assert sheet.getpixel((0, tile_h + 2)) == montage.MATTE  # caption band
+
+
+def test_the_busiest_row_fills_the_sheet(twin_pod, tmp_path) -> None:
+    """Tile height follows the content: a six-camera row and a two-camera one cannot
+    both be sized by one constant without one of them wasting the sheet.
+
+    Frames bigger than a tile, so the sheet's width governs rather than the cap that
+    stops a tile being scaled past the resolution it was rendered at."""
+    into = frames(twin_pod, tmp_path, size=(640, 360))
+
+    width = Image.open(montage.compose(twin_pod, into)).width
+
+    assert width == pytest.approx(montage.SHEET_W, abs=montage.GUTTER * 8)
+
+
+def test_a_tile_is_never_scaled_past_its_own_resolution(twin_pod, tmp_path) -> None:
+    """Upscaling invents pixels, and a row of narrow frames would demand a great many
+    of them to reach the sheet's width."""
+    into = frames(twin_pod, tmp_path, size=(64, 36))
+
+    sheet = Image.open(montage.compose(twin_pod, into))
+
+    assert sheet.width < montage.SHEET_W
 
 
 def test_the_caption_band_holds_the_font_it_is_drawn_in() -> None:
@@ -76,10 +103,14 @@ def test_an_unrendered_scenario_is_an_error(twin_pod, tmp_path) -> None:
 
 
 def test_a_sliver_of_a_frame_still_gets_a_tile(twin_pod, tmp_path) -> None:
-    """A 1:1000 camera rounds to no width at all, which Pillow refuses to resize."""
-    into = frames(twin_pod, tmp_path, size=(1, 1000))
+    """A frame far taller than wide rounds to no width at all, which Pillow refuses to
+    resize, and sizing the sheet off its aspect alone runs to millions of pixels."""
+    into = frames(twin_pod, tmp_path, size=(1, 400))
 
-    assert Image.open(montage.compose(twin_pod, into)).width > 0
+    sheet = Image.open(montage.compose(twin_pod, into))
+
+    assert sheet.width > 0
+    assert sheet.height < 4 * montage.SHEET_W
 
 
 def test_a_camera_named_montage_is_an_error(twin_pod, tmp_path) -> None:
