@@ -33,7 +33,6 @@ def baked(name: str) -> np.ndarray:
 
 
 def _blocked(origin: Vector, target: Vector) -> bool:
-    """Is the straight line between these two points interrupted by the sea?"""
     ray = target - origin
     hit, *_ = bpy.context.scene.ray_cast(
         bpy.context.evaluated_depsgraph_get(),
@@ -148,8 +147,7 @@ class TestGeometry:
         tree = bpy.data.materials["sea"].node_tree
         wind = SCENARIO.sea.wind_speed_mps
         scaling = next(n for n in tree.nodes if n.bl_idname == "ShaderNodeVectorMath")
-        # Zero on z: the seed owns that axis, so the curve under the sea cannot
-        # slide the wave field and `refraction_k` cannot reshuffle it.
+        # Zero on z: the seed owns that axis, so `refraction_k` cannot reshuffle waves.
         assert tuple(scaling.inputs[1].default_value) == pytest.approx(
             (1.0 / scene.wave_length_m(wind), 1.0 / scene.wave_length_m(wind), 0.0)
         )
@@ -165,11 +163,7 @@ class TestGeometry:
         )
 
     def test_the_sea_reaches_past_its_own_horizon(self) -> None:
-        """The grid has to contain the tangent point, or its edge becomes the horizon.
-
-        A flat sea had no horizon and ran until its edge fell under a pixel, which at
-        4K meant 506 km. A curved one ends itself, and only has to outrun that.
-        """
+        """The grid must contain the tangent point, or its edge becomes the horizon."""
         corners = [
             bpy.data.objects["sea"].matrix_world @ Vector(c)
             for c in bpy.data.objects["sea"].bound_box
@@ -181,9 +175,8 @@ class TestGeometry:
         assert reach > max(spec.range_m for spec in SCENARIO.objects)
 
     def test_a_hull_floats_on_the_sea_and_not_on_the_tangent_plane(self) -> None:
-        """The failure this exists for: the sea curves away from z = 0, so hulls left
-        there fly -- the 7 NM ring stood 11.5 m up, and a vessel at 40 km stood 109 m.
-        Nothing caught it, because range and bearing were still right."""
+        """Hulls left at z = 0 fly: 11.5 m at 7 NM, 109 m at 40 km, with range and
+        bearing still right, so nothing else catches it."""
         radius = scene.earth_radius_m(SCENARIO.sea.refraction_k)
 
         for spec in SCENARIO.objects:
@@ -193,8 +186,7 @@ class TestGeometry:
             assert up == pytest.approx(scene.sea_z_m(east, north, radius), abs=1e-3)
 
     def test_a_hull_beyond_the_horizon_is_cut_off(self) -> None:
-        """What a flat sea could not do: at 506 km of plane nothing is ever hull-down,
-        and a target past the horizon shows its waterline when it should not."""
+        """A target past the horizon shows its waterline when it should be hull-down."""
         eye = Vector((0.0, 0.0, SCENARIO.rig.height_m))
         radius = scene.earth_radius_m(SCENARIO.sea.refraction_k)
         beyond = 18_000.0  # past the 13.3 km horizon of a 12 m rig, inside the grid
@@ -207,11 +199,8 @@ class TestGeometry:
         assert not mast, "and leave what stands above it"
 
     def test_waves_cost_no_geometry(self) -> None:
-        """The sea carries geometry for the earth's curve and none for its waves.
-
-        Wind changes the wavelength and the slope, so a displaced sea would rebuild.
-        Shading does not: the vertex count is the curvature grid whatever the wind.
-        """
+        """Wind changes wavelength and slope. A displaced sea would rebuild; the
+        vertex count here is the curvature grid whatever the wind."""
         blowing = SCENARIO.model_copy(
             update={"sea": SCENARIO.sea.model_copy(update={"wind_speed_mps": 18.0})}
         )

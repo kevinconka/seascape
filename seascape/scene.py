@@ -132,24 +132,21 @@ def specular_roughness(wind_speed_mps: float) -> float:
     return math.sqrt(min(math.sqrt(2.0) * unresolved_slope(wind_speed_mps), 1.0))
 
 
-# Mean radius, IUGG. The sea is curved at this over 1 - k, not at it directly.
+# Mean radius, IUGG.
 EARTH_RADIUS_M = 6_371_000.0
 
-# Cells per side. Curvature is smooth at this scale -- a cell's sagitta is under a
-# millimetre and subtends 1e-7 of a pixel at the horizon -- so this is not an accuracy
-# knob; it is only enough grid for the tangent point to land on a face.
+# Cells per side. A cell's sagitta is under a millimetre, 1e-7 of a pixel at the
+# horizon: grid enough for the tangent point to land on a face, not an accuracy knob.
 SEA_CELLS = 128
 
-# The grid has to contain the horizon with room to spare, or its own edge becomes the
-# horizon. Past the tangent point the surface curves away and is hidden by the bulge.
+# Margin on the horizon, or the grid's own edge becomes the horizon.
 SEA_MARGIN = 1.5
 
 
 def earth_radius_m(refraction_k: float) -> float:
     """Effective radius, R / (1 - k).
 
-    Standard treatment of refraction in surveying: a bent ray over a sphere of radius R
-    is a straight ray over a larger one. `Sea.refraction_k` carries k.
+    Surveying's standard refraction treatment: a bent ray over R is straight over R'.
     """
     return EARTH_RADIUS_M / (1.0 - refraction_k)
 
@@ -157,9 +154,7 @@ def earth_radius_m(refraction_k: float) -> float:
 def sea_z_m(east_m: float, north_m: float, radius_m: float) -> float:
     """Height of the sea at a point, relative to the tangent plane at the origin.
 
-    The parabola that osculates the sphere. One definition, so a hull floats on the
-    same surface the mesh is built from rather than on z = 0, which the sea curves
-    away from: 11.5 m at 7 NM and 109 m at 40 km.
+    The parabola that osculates the sphere; one definition, so hull and mesh share it.
     """
     return -(east_m * east_m + north_m * north_m) / (2.0 * radius_m)
 
@@ -167,19 +162,14 @@ def sea_z_m(east_m: float, north_m: float, radius_m: float) -> float:
 def horizon_m(height_m: float, refraction_k: float) -> float:
     """Distance to the horizon from `height_m`, tangent to the effective sphere.
 
-    51.8 m gives 27.5 km at k = 0.13 and 25.7 km geometric. The nautical rule of thumb,
-    3.86 sqrt(h_m) km, agrees to 1%, which is the check that k is a citation and not a
-    number fitted to a render.
+    51.8 m gives 27.5 km at k = 0.13, 25.7 km geometric; the 3.86 sqrt(h_m) km rule
+    of thumb agrees to 1%.
     """
     return math.sqrt(2.0 * earth_radius_m(refraction_k) * height_m)
 
 
 def sea_reach_m(rig: Rig, sea: Sea) -> float:
-    """Half-width of the sea, from the horizon rather than from pixel size.
-
-    A flat sea has no horizon of its own, so it had to run until its edge fell under a
-    pixel: 506 km at 51.8 m and 4K. A curved one ends itself at 27.5 km.
-    """
+    """Half-width of the sea, a margin past the horizon."""
     return SEA_MARGIN * horizon_m(rig.height_m, sea.refraction_k)
 
 
@@ -315,11 +305,9 @@ def _wave_normals(
     sub-pixel made the far field more aliased relative to its own texture, not less.
     """
     length_m = wave_length_m(sea.wind_speed_mps)
-    # Horizontal position only: the z multiplier is 0, so the seed alone reaches the
-    # third axis and the sea curving underneath cannot slide the wave field. Scaling z
-    # too drifts the sample three noise periods across the grid and makes the pattern
-    # depend on `refraction_k`. 3-D rather than 4-D with the seed in W: same field,
-    # 20% cheaper at 4K.
+    # z multiplier 0: the seed owns that axis, so the sea curving under it cannot slide
+    # the wave field. Scaling z drifts the sample three noise periods and ties it to k.
+    # 3-D rather than 4-D with the seed in W: same field, 20% cheaper at 4K.
     scale = tree.nodes.new("ShaderNodeVectorMath")
     scale.operation = "MULTIPLY_ADD"
     scale.inputs[1].default_value = (1.0 / length_m, 1.0 / length_m, 0.0)
@@ -434,12 +422,8 @@ def _water_material(sea: Sea, seed: int) -> bpy.types.Material:
 def _sea(sea: Sea, seed: int, reach_m: float, band: Band) -> bpy.types.Object:
     """A grid curved to the earth. The waves are in its material.
 
-    Curvature is geometry and waves are not, which is not a contradiction: a wave is
-    metres across and goes sub-pixel before the horizon, where displaced geometry
-    aliases instead of averaging. The bulge is kilometres across and never does.
-
-    z = -(x^2 + y^2) / 2R is the parabola that osculates the sphere at the origin. It
-    departs from a true sphere by under a millimetre anywhere the camera can see.
+    z = -(x^2 + y^2) / 2R osculates the sphere, within a millimetre over the grid.
+    Geometry here and not for waves: the bulge is kilometres across, never sub-pixel.
     """
     bpy.ops.mesh.primitive_grid_add(
         x_subdivisions=SEA_CELLS, y_subdivisions=SEA_CELLS, size=2 * reach_m
@@ -450,7 +434,7 @@ def _sea(sea: Sea, seed: int, reach_m: float, band: Band) -> bpy.types.Object:
     radius_m = earth_radius_m(sea.refraction_k)
     for vertex in water.data.vertices:
         vertex.co.z = sea_z_m(vertex.co.x, vertex.co.y, radius_m)
-    # Flat faces would show their edges in the specular, which a sea does not have.
+    # Flat faces would show their edges in the specular.
     for face in water.data.polygons:
         face.use_smooth = True
     water.data.materials.append(
@@ -587,12 +571,10 @@ def _pose(
 ) -> None:
     """Put a hull on the sea at a bearing and range, steering the given course.
 
-    The sea falls away from the tangent plane, so a hull left at z = 0 flies: the ring
-    at 7 NM floated 11.5 m and a vessel at 40 km floated 109 m.
+    A hull left at z = 0 flies: 11.5 m at 7 NM, 109 m at 40 km.
 
-    Not tilted to the local vertical. That angle is range / R -- 0.18 m of bow-to-stern
-    difference on a 200 m hull at 7 NM, against a 5 m draught -- so it is under the
-    waterline everywhere the sea is rendered.
+    Not tilted to the local vertical: range / R is 0.18 m across a 200 m hull at
+    7 NM, under a 5 m draught.
     """
     east = range_m * math.sin(math.radians(bearing_deg))
     north = range_m * math.cos(math.radians(bearing_deg))
@@ -695,8 +677,7 @@ def build(scenario: Scenario, band: Band = "eo") -> None:
     bpy.context.scene.world = _sky(scenario.sky, band)
     reach_m = sea_reach_m(scenario.rig, scenario.sea)
     _sea(scenario.sea, scenario.seed, reach_m, band)
-    # The sea's far corner is reach * sqrt(2) away, so the clip plane has to clear it,
-    # and a target may sit beyond the horizon where only its superstructure shows.
+    # The sea's far corner is reach * sqrt(2) away, so the clip plane has to clear it.
     cameras = _rig(scenario.rig, 1.5 * reach_m)
     if scenario.ownship is not None:
         # At the origin, bow to +Y: the rig's offsets are in that frame. Named for

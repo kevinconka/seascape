@@ -128,9 +128,8 @@ class Sea(Model):
     t_sea_k: float = Field(default=lwir.T_SEA_K, ge=271.0, le=311.0)
     wind_speed_mps: float = Field(default=7.0, ge=0.0)
     # Coefficient of terrestrial refraction: the atmosphere bends a ray down, so the
-    # sea curves at R / (1 - k) rather than R, which is where the horizon falls. 0.13
-    # is the standard survey value for average air, 0.13-0.16 the usual range, and 0.0
-    # the geometric horizon. Below 1.0, where the effective radius goes infinite.
+    # sea curves at R / (1 - k). 0.13 is the standard survey value for average air
+    # (0.13-0.16 usual); 0.0 is geometric. At k = 1 the effective radius is infinite.
     refraction_k: float = Field(default=0.13, ge=0.0, lt=1.0)
 
 
