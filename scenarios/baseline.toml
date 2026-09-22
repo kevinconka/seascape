@@ -26,7 +26,7 @@ height_px = 512
 
 [sea]
 # Warmer than the air: global-mean sea-air difference is under 1 K
-# (Kara et al. 2007, doi:10.1029/2006JC003833); 3 K for a clearer thermal scene.
+# (Kara et al. 2007, https://doi.org/10.1029/2006JC003833); 3 K for a clearer scene.
 t_sea_k = 291.0
 
 [sky]
