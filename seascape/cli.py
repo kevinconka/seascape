@@ -40,7 +40,7 @@ def _render(scenario_path: Path, output: Path | None, overrides: list[str]) -> N
     written = render.render(scenario, into)
     for path in written:
         print(path)
-    print(f"{len(written)} images in {into}")
+    print(f"{len(written)} files in {into}")
 
 
 def _montage(scenario_path: Path, output: Path | None, overrides: list[str]) -> None:

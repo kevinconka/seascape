@@ -3,16 +3,19 @@
 One global Blender session, so the scene is built once per module.
 """
 
+import json
 import math
 from itertools import pairwise
 from pathlib import Path
 
 import bpy
+import numpy as np
 import pytest
 from bpy_extras.object_utils import world_to_camera_view
 from mathutils import Matrix, Vector
 
 from seascape import scene
+from seascape.calibration import Calibration
 from seascape.config import Scenario, load
 
 SCENARIO: Scenario = load(Path(__file__).parent.parent / "scenarios" / "twin-pod.toml")
@@ -166,6 +169,63 @@ def test_the_ring_is_one_mesh_however_many_targets() -> None:
 
     assert len(hulls) == SCENARIO.targets.count
     assert len(meshes) == per_target
+
+
+def test_the_calibration_projects_every_target_where_blender_draws_it(
+    tmp_path, monkeypatch
+) -> None:
+    """Read back from disk, so a matrix that does not survive JSON fails here too."""
+    written = Calibration(
+        cameras=[scene.calibrate(m, f"{m.name}.png") for m in SCENARIO.rig.mounts]
+    ).write(tmp_path)
+    render = bpy.context.scene.render
+
+    projected = 0
+    for camera in Calibration.read(written.parent).cameras:
+        w, h = camera.width_px, camera.height_px
+        # world_to_camera_view takes its aspect from the scene's resolution.
+        monkeypatch.setattr(render, "resolution_x", w)
+        monkeypatch.setattr(render, "resolution_y", h)
+        world_to_cam = np.linalg.inv(camera.extrinsics["world"])
+        for target in targets():
+            uv = world_to_camera_view(
+                bpy.context.scene, bpy.data.objects[camera.name], target.location
+            )
+            if not _in_frame(uv):
+                continue
+            x, y, z, _ = world_to_cam @ (*target.location, 1.0)
+            u, v, _ = np.array(camera.K) @ (x, y, z) / z
+            # Blender's view runs 0-1 across pixel edges, bottom up.
+            assert (u, v) == pytest.approx(
+                (uv.x * w - 0.5, (1.0 - uv.y) * h - 0.5), abs=1e-3
+            ), camera.name
+            projected += 1
+
+    assert projected, "no target in any frame: the assertions above ran on nothing"
+
+
+def test_a_calibration_with_fields_it_does_not_know_still_reads(tmp_path) -> None:
+    mount = SCENARIO.rig.mounts[0]
+    record = scene.calibrate(mount, "").model_dump()
+    (tmp_path / "calibration.json").write_text(
+        json.dumps({"cameras": [{**record, "serial": "X"}], "rig": "Y"})
+    )
+
+    (camera,) = Calibration.read(tmp_path).cameras
+
+    assert camera.name == mount.name
+
+
+@pytest.mark.parametrize("mount", MOUNTS)
+def test_in_its_pod_a_camera_points_exactly_as_asked(mount) -> None:
+    axis = np.array(scene.calibrate(mount, "").extrinsics["pod"])[:3, 2]
+
+    bearing = math.degrees(math.atan2(axis[0], axis[1]))
+    elevation = math.degrees(math.asin(axis[2]))
+
+    assert (bearing, elevation) == pytest.approx(
+        (mount.camera.yaw_deg, mount.camera.pitch_deg), abs=1e-4
+    )
 
 
 def _in_ship_frame(obj: bpy.types.Object) -> Matrix:

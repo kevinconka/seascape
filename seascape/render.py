@@ -11,6 +11,7 @@ import bpy
 import numpy as np
 
 from seascape import lwir, scene
+from seascape.calibration import Calibration, CameraCalibration
 from seascape.config import Scenario
 
 
@@ -57,10 +58,11 @@ def _thermal_png(exr: Path, png: Path) -> None:
 
 
 def render(scenario: Scenario, into: Path) -> list[Path]:
-    """Write one image per camera into `into`, building each band's scene once."""
+    """Write one image per camera into `into`, and their calibration beside them."""
     into.mkdir(parents=True, exist_ok=True)
     outputs = scenario.outputs
     written: list[Path] = []
+    cameras: list[CameraCalibration] = []
     for band in outputs.bands:
         # The default bands ask for both, so an EO-only rig must skip ir, not fail.
         mounts = [m for m in scenario.rig.mounts if m.camera.kind == band]
@@ -81,10 +83,12 @@ def render(scenario: Scenario, into: Path) -> list[Path]:
             if thermal_png:
                 _thermal_png(into / f"{mount.name}.exr", image)
             written.append(image)
+            cameras.append(scene.calibrate(mount, image.name))
     if not written:
         # Skipping a band the default asked for is right; writing nothing at all
         # means the scenario names only bands its rig has no camera for.
         raise ValueError(
             f"the rig has no camera in any of {outputs.bands}: nothing to render"
         )
+    written.append(Calibration(cameras=cameras).write(into))
     return written
