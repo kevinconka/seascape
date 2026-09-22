@@ -94,7 +94,7 @@ def test_a_nominal_bearing_is_its_pod_plus_its_fan(twin_pod) -> None:
 
 
 def test_the_installed_rig_takes_its_height_from_the_preset(twin_pod) -> None:
-    """An inherited 12 m hung both pods 40 m below their bridge wings."""
+    """The pods stand on the bridge wings; any lower and they hang under them."""
     assert twin_pod.rig.height_m == 51.8
 
 

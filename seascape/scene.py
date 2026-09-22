@@ -132,22 +132,45 @@ def specular_roughness(wind_speed_mps: float) -> float:
     return math.sqrt(min(math.sqrt(2.0) * unresolved_slope(wind_speed_mps), 1.0))
 
 
-def sea_reach_m(rig: Rig, band: Band) -> float:
-    """Half-width of the sea plane: far enough that its edge lands inside a pixel.
+# Mean radius, IUGG.
+EARTH_RADIUS_M = 6_371_000.0
 
-    The sea is flat, so it has no horizon of its own and runs to the vanishing point.
-    Pushing the edge under the angular resolution of the sharpest camera in the band is
-    what makes that vanishing point read as a horizon. Earth curvature is not modelled,
-    so a target past the true horizon shows when it should be hull-down.
+# Cells per side. A cell's sagitta is under a millimetre, 1e-7 of a pixel at the
+# horizon: grid enough for the tangent point to land on a face, not an accuracy knob.
+SEA_CELLS = 128
+
+# Margin on the horizon, or the grid's own edge becomes the horizon.
+SEA_MARGIN = 1.5
+
+
+def earth_radius_m(refraction_k: float) -> float:
+    """Effective radius, R / (1 - k).
+
+    Surveying's standard refraction treatment: a bent ray over R is straight over R'.
     """
-    ifov_rad = [
-        math.radians(mount.camera.hfov_deg) / mount.camera.width_px
-        for mount in rig.mounts
-        if mount.camera.kind == band
-    ]
-    if not ifov_rad:
-        raise ValueError(f"the rig has no {band} camera to build a {band} scene for")
-    return rig.height_m / math.tan(min(ifov_rad) / 2)
+    return EARTH_RADIUS_M / (1.0 - refraction_k)
+
+
+def sea_z_m(east_m: float, north_m: float, radius_m: float) -> float:
+    """Height of the sea at a point, relative to the tangent plane at the origin.
+
+    The parabola that osculates the sphere; one definition, so hull and mesh share it.
+    """
+    return -(east_m * east_m + north_m * north_m) / (2.0 * radius_m)
+
+
+def horizon_m(height_m: float, refraction_k: float) -> float:
+    """Distance to the horizon from `height_m`, tangent to the effective sphere.
+
+    51.8 m gives 27.5 km at k = 0.13, 25.7 km geometric; the 3.86 sqrt(h_m) km rule
+    of thumb agrees to 1%.
+    """
+    return math.sqrt(2.0 * earth_radius_m(refraction_k) * height_m)
+
+
+def sea_reach_m(rig: Rig, sea: Sea) -> float:
+    """Half-width of the sea, a margin past the horizon."""
+    return SEA_MARGIN * horizon_m(rig.height_m, sea.refraction_k)
 
 
 def _yaw(bearing_deg: float) -> float:
@@ -282,11 +305,12 @@ def _wave_normals(
     sub-pixel made the far field more aliased relative to its own texture, not less.
     """
     length_m = wave_length_m(sea.wind_speed_mps)
-    # The sea lies in z = 0, so a seeded z offset slices the 3-D field: waves move, sea
-    # does not. 3-D rather than 4-D with the seed in W: same field, 20% cheaper at 4K.
+    # z multiplier 0: the seed owns that axis, so the sea curving under it cannot slide
+    # the wave field. Scaling z drifts the sample three noise periods and ties it to k.
+    # 3-D rather than 4-D with the seed in W: same field, 20% cheaper at 4K.
     scale = tree.nodes.new("ShaderNodeVectorMath")
     scale.operation = "MULTIPLY_ADD"
-    scale.inputs[1].default_value = (1.0 / length_m,) * 3
+    scale.inputs[1].default_value = (1.0 / length_m, 1.0 / length_m, 0.0)
     scale.inputs[2].default_value = (
         0.0,
         0.0,
@@ -396,16 +420,23 @@ def _water_material(sea: Sea, seed: int) -> bpy.types.Material:
 
 
 def _sea(sea: Sea, seed: int, reach_m: float, band: Band) -> bpy.types.Object:
-    """One flat plane. The waves are in its material.
+    """A grid curved to the earth. The waves are in its material.
 
-    Nothing is displaced, so it costs four vertices and covers every range the camera
-    can see with no patch edge, tiling seam, or grid to alias.
+    z = -(x^2 + y^2) / 2R osculates the sphere, within a millimetre over the grid.
+    Geometry here and not for waves: the bulge is kilometres across, never sub-pixel.
     """
-    bpy.ops.mesh.primitive_plane_add(size=1.0)
+    bpy.ops.mesh.primitive_grid_add(
+        x_subdivisions=SEA_CELLS, y_subdivisions=SEA_CELLS, size=2 * reach_m
+    )
     water = bpy.context.object
     water.name = "sea"
     _place(water, 0.0, 0.0, 0.0)
-    water.scale = (2 * reach_m, 2 * reach_m, 1.0)
+    radius_m = earth_radius_m(sea.refraction_k)
+    for vertex in water.data.vertices:
+        vertex.co.z = sea_z_m(vertex.co.x, vertex.co.y, radius_m)
+    # Flat faces would show their edges in the specular.
+    for face in water.data.polygons:
+        face.use_smooth = True
     water.data.materials.append(
         _water_material(sea, seed) if band == "eo" else _thermal_sea(sea, seed)
     )
@@ -536,14 +567,18 @@ def _pose(
     range_m: float,
     bearing_deg: float,
     heading_deg: float,
+    radius_m: float,
 ) -> None:
-    """Put a hull on a bearing at a range, steering the given course."""
-    _place(
-        anchor,
-        range_m * math.sin(math.radians(bearing_deg)),
-        range_m * math.cos(math.radians(bearing_deg)),
-        0.0,
-    )
+    """Put a hull on the sea at a bearing and range, steering the given course.
+
+    A hull left at z = 0 flies: 11.5 m at 7 NM, 109 m at 40 km.
+
+    Not tilted to the local vertical: range / R is 0.18 m across a 200 m hull at
+    7 NM, under a 5 m draught.
+    """
+    east = range_m * math.sin(math.radians(bearing_deg))
+    north = range_m * math.cos(math.radians(bearing_deg))
+    _place(anchor, east, north, sea_z_m(east, north, radius_m))
     anchor.rotation_euler = (0.0, 0.0, _yaw(heading_deg))
 
 
@@ -562,7 +597,7 @@ def _copy_tree(
     return clone
 
 
-def _targets(spec: Targets, band: Band) -> list[bpy.types.Object]:
+def _targets(spec: Targets, band: Band, radius_m: float) -> list[bpy.types.Object]:
     first = _vessel(spec.asset, spec.t_k, band)
     poses = spec.poses()
     anchors = [first, *(_copy_tree(first, None) for _ in poses[1:])]
@@ -570,13 +605,13 @@ def _targets(spec: Targets, band: Band) -> list[bpy.types.Object]:
         zip(anchors, poses, strict=True)
     ):
         anchor.name = f"target_{i}"
-        _pose(anchor, spec.range_m, bearing_deg, heading_deg)
+        _pose(anchor, spec.range_m, bearing_deg, heading_deg, radius_m)
     return anchors
 
 
-def _object(spec: Object, band: Band) -> bpy.types.Object:
+def _object(spec: Object, band: Band, radius_m: float) -> bpy.types.Object:
     anchor = _vessel(spec.asset, spec.t_k, band)
-    _pose(anchor, spec.range_m, spec.bearing_deg, spec.heading_deg)
+    _pose(anchor, spec.range_m, spec.bearing_deg, spec.heading_deg, radius_m)
     return anchor
 
 
@@ -635,10 +670,12 @@ def build(scenario: Scenario, band: Band = "eo") -> None:
     A scene is EO or LWIR, never both: the two describe different physics and share no
     units. Rendering both bands means building twice, which costs seconds.
     """
+    if not any(mount.camera.kind == band for mount in scenario.rig.mounts):
+        raise ValueError(f"the rig has no {band} camera to build a {band} scene for")
     bpy.ops.wm.read_factory_settings(use_empty=True)
     _output(scenario.outputs, band)
     bpy.context.scene.world = _sky(scenario.sky, band)
-    reach_m = sea_reach_m(scenario.rig, band)
+    reach_m = sea_reach_m(scenario.rig, scenario.sea)
     _sea(scenario.sea, scenario.seed, reach_m, band)
     # The sea's far corner is reach * sqrt(2) away, so the clip plane has to clear it.
     cameras = _rig(scenario.rig, 1.5 * reach_m)
@@ -646,10 +683,11 @@ def build(scenario: Scenario, band: Band = "eo") -> None:
         # At the origin, bow to +Y: the rig's offsets are in that frame. Named for
         # its role, or a target on the same asset takes the name by build order.
         _vessel(scenario.ownship.asset, scenario.ownship.t_k, band).name = "ownship"
+    radius_m = earth_radius_m(scenario.sea.refraction_k)
     for spec in scenario.objects:
-        _object(spec, band)
+        _object(spec, band, radius_m)
     if scenario.targets is not None:
-        _targets(scenario.targets, band)
+        _targets(scenario.targets, band, radius_m)
     # Scenario order, so the first camera is EO in the baseline: an IR build would
     # otherwise open on a camera whose optics belong to the other band.
     first = next(mount for mount in scenario.rig.mounts if mount.camera.kind == band)

@@ -265,6 +265,13 @@
           "minimum": 0.0,
           "title": "Wind Speed Mps",
           "type": "number"
+        },
+        "refraction_k": {
+          "default": 0.13,
+          "exclusiveMaximum": 1.0,
+          "minimum": 0.0,
+          "title": "Refraction K",
+          "type": "number"
         }
       },
       "title": "Sea",
