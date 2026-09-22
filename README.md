@@ -116,6 +116,23 @@ lsof -nP -iTCP:9876 -sTCP:LISTEN
 
 `AGENTS.md` covers the conventions and the Blender traps to know before changing anything.
 
+Install the hooks once, before your first commit:
+
+```bash
+uvx pre-commit install
+```
+
+That runs `ruff check --fix` and `ruff format` on what you staged. The rest of CI is four commands, all of which have to pass:
+
+```bash
+uvx ruff check .
+uvx ruff format --check .
+uvx ty check
+uv run pytest
+```
+
+`uv run pytest --render` adds the render-drift checks. They need a GPU, CI never runs them, and they are the only thing that catches a sea or sky shader rendering wrong — run them before touching that chain.
+
 ## Licence
 
 MIT — see [LICENSE](LICENSE). Bundled 3D assets carry their own licences, recorded in `seascape/assets.toml`; some require attribution, which travels with any released dataset.
