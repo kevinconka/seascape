@@ -121,8 +121,12 @@ class TestThermalPng:
 
 def built(band: Band, **outputs: object) -> bpy.types.Scene:
     scenario = load(BASELINE)
+    # No ship: these are render settings, and a hull is a second of FBX import.
     scenario = scenario.model_copy(
-        update={"outputs": scenario.outputs.model_copy(update=outputs)}
+        update={
+            "objects": [],
+            "outputs": scenario.outputs.model_copy(update=outputs),
+        }
     )
     scene.build(scenario, band)
     return bpy.context.scene
