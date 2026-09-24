@@ -7,6 +7,7 @@ Frames are stitched as they are, with no exposure compensation.
 """
 
 import math
+from functools import cache
 from pathlib import Path
 from typing import NamedTuple
 
@@ -60,6 +61,7 @@ class Layout(NamedTuple):
     scale: float
     axis: float  # the bearing the panorama is turned to, radians, in its frame
     left: int  # projection x of column 0
+    top: int  # projection y of row 0
     resize: float  # the final shrink to max_width, 1.0 when none
 
 
@@ -76,30 +78,42 @@ def column(layout: Layout, bearing_deg: float) -> float | None:
         return None
     c, s = math.cos(b), math.sin(b)
     r = np.array([[c, 0.0, s], [0.0, 1.0, 0.0], [-s, 0.0, c]], np.float32)
-    warper = cv2.PyRotationWarper(layout.kind, layout.scale)
-    u, _ = warper.warpPoint((0.0, 0.0), np.eye(3, dtype=np.float32), r)
-    return (u - layout.left) * layout.resize
+    u, _ = _warper(layout.kind, layout.scale).warpPoint(
+        (0.0, 0.0), np.eye(3, dtype=np.float32), r
+    )
+    # Pixel centres sit at integers, so the resize scales about -0.5.
+    return (u - layout.left + 0.5) * layout.resize - 0.5
 
 
-def ruled(image: np.ndarray, layout: Layout) -> np.ndarray:
-    """`image` over a strip of bearing ticks, in degrees of its frame."""
+@cache
+def _warper(kind: str, scale: float) -> cv2.PyRotationWarper:
+    return cv2.PyRotationWarper(kind, scale)
+
+
+def ruled(image: np.ndarray, layout: Layout, true: bool = False) -> np.ndarray:
+    """`image` over a strip of bearing ticks, in degrees of its frame: 000-359 when
+    `true`, as a chart writes true bearings, else signed about the frame's axis."""
     w = image.shape[1]
     size = max(1.0, w / 2000)
     strip = np.full((round(36 * size), w, 3), MATTE, np.uint8)
     tick = round(8 * size)
     font, scale = cv2.FONT_HERSHEY_SIMPLEX, 0.5 * size
+    line = max(1, round(size))
     for bearing in range(-180, 180, TICK_DEG):
         x = column(layout, bearing)
         if x is None or not 0 <= x < w:
             continue
         x = round(x)
         labelled = bearing % LABEL_DEG == 0
-        cv2.line(strip, (x, 0), (x, tick * (2 if labelled else 1)), INK, 1)
+        cv2.line(strip, (x, 0), (x, tick * (2 if labelled else 1)), INK, line)
         if labelled:
-            text = f"{bearing:+d}" if bearing else "0"
-            (tw, th), _ = cv2.getTextSize(text, font, scale, 1)
+            if true:
+                text = f"{bearing % 360:03d}"
+            else:
+                text = f"{bearing:+d}" if bearing else "0"
+            (tw, th), _ = cv2.getTextSize(text, font, scale, line)
             origin = (x - tw // 2, 2 * tick + th + round(4 * size))
-            cv2.putText(strip, text, origin, font, scale, INK, 1, cv2.LINE_AA)
+            cv2.putText(strip, text, origin, font, scale, INK, line, cv2.LINE_AA)
     return np.vstack([image, strip])
 
 
@@ -174,7 +188,7 @@ def stitch(
         resize = max_width / w
         size = (max_width, round(h * resize))
         image = cv2.resize(image, size, interpolation=cv2.INTER_AREA)
-    return image, Layout(kind, scale, bearing, roi[0], resize)
+    return image, Layout(kind, scale, bearing, roi[0], roi[1], resize)
 
 
 def _faces_ahead(k: np.ndarray, r: np.ndarray, size: tuple[int, int]) -> bool:
@@ -231,7 +245,8 @@ def panoramas(
         except cv2.error as error:
             raise RuntimeError(f"{path.name}: {error.err}") from error
         if ruler:
-            image = ruled(image, layout)
+            # World bearings are true bearings; every other frame's are relative.
+            image = ruled(image, layout, true=frame == "world")
         cv2.imwrite(str(path), image)
         written.append(path)
     return written

@@ -18,6 +18,7 @@ from mathutils import Matrix, Vector
 from seascape import panorama, scene
 from seascape.calibration import Calibration
 from seascape.config import Mount, Pod, Scenario, load
+from seascape.montage import INK
 
 SCENARIO: Scenario = load(Path(__file__).parent.parent / "scenarios" / "twin-pod.toml")
 MOUNTS = [pytest.param(mount, id=mount.name) for mount in SCENARIO.rig.mounts]
@@ -332,6 +333,28 @@ def test_a_bearing_lands_where_the_stitch_put_it(
         window = image[:, max(0, round(expected) - 40) : round(expected) + 41, 0]
         found = max(0, round(expected) - 40) + int(window.sum(axis=0).argmax())
         assert found == pytest.approx(expected, abs=1.5), camera.name
+
+
+def test_the_ruler_ticks_under_the_image_where_column_says(
+    tmp_path: Path, built: scene.Built
+) -> None:
+    mount = SCENARIO.rig.mounts[0]
+    frame = np.zeros((mount.camera.height_px, mount.camera.width_px, 3), np.uint8)
+    cv2.imwrite(str(tmp_path / "frame.png"), frame)
+    camera = scene.calibrate(built, mount, "frame.png")
+    image, layout = panorama.stitch(tmp_path, [camera], "cylindrical", "pod", 1000)
+    # The labelled bearing nearest the camera's axis, so it is in frame.
+    x, y, _ = np.array(camera.extrinsics["pod"])[:3, 2]
+    bearing = panorama.LABEL_DEG * round(
+        math.degrees(math.atan2(x, y)) / panorama.LABEL_DEG
+    )
+
+    ruled = panorama.ruled(image, layout)
+
+    strip = ruled[image.shape[0] :]
+    assert (ruled[: image.shape[0]] == image).all()
+    tick = strip[:16, round(panorama.column(layout, bearing) or -1)]
+    assert (tick == INK).all()
 
 
 def test_rectilinear_refuses_a_camera_behind_its_plane(built: scene.Built) -> None:
