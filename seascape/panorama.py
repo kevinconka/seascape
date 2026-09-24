@@ -87,6 +87,7 @@ def ruled(image: np.ndarray, layout: Layout) -> np.ndarray:
     size = max(1.0, w / 2000)
     strip = np.full((round(36 * size), w, 3), MATTE, np.uint8)
     tick = round(8 * size)
+    font, scale = cv2.FONT_HERSHEY_SIMPLEX, 0.5 * size
     for bearing in range(-180, 180, TICK_DEG):
         x = column(layout, bearing)
         if x is None or not 0 <= x < w:
@@ -96,18 +97,9 @@ def ruled(image: np.ndarray, layout: Layout) -> np.ndarray:
         cv2.line(strip, (x, 0), (x, tick * (2 if labelled else 1)), INK, 1)
         if labelled:
             text = f"{bearing:+d}" if bearing else "0"
-            (tw, th), _ = cv2.getTextSize(text, cv2.FONT_HERSHEY_SIMPLEX, 0.5 * size, 1)
+            (tw, th), _ = cv2.getTextSize(text, font, scale, 1)
             origin = (x - tw // 2, 2 * tick + th + round(4 * size))
-            cv2.putText(
-                strip,
-                text,
-                origin,
-                cv2.FONT_HERSHEY_SIMPLEX,
-                0.5 * size,
-                INK,
-                1,
-                cv2.LINE_AA,
-            )
+            cv2.putText(strip, text, origin, font, scale, INK, 1, cv2.LINE_AA)
     return np.vstack([image, strip])
 
 

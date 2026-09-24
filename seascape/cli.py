@@ -52,13 +52,6 @@ def _montage(scenario_path: Path, output: Path | None, overrides: list[str]) -> 
     print(montage.compose(scenario, into))
 
 
-def _panorama(
-    folder: Path, projection: str, frame: str, max_width: int | None, ruler: bool
-) -> None:
-    for path in panorama.panoramas(folder, projection, frame, max_width, ruler):
-        print(path)
-
-
 def _add_set(command: argparse.ArgumentParser) -> None:
     command.add_argument(
         "--set",
@@ -129,9 +122,10 @@ def main(argv: list[str] | None = None) -> int:
         elif args.command == "montage":
             _montage(args.scenario, args.output, args.overrides)
         elif args.command == "panorama":
-            _panorama(
+            for path in panorama.panoramas(
                 args.folder, args.projection, args.frame, args.max_width, args.ruler
-            )
+            ):
+                print(path)
         else:
             _build(args.scenario, args.output, args.band, args.overrides)
     except (
