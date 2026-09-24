@@ -1,13 +1,10 @@
-"""Command line entry point.
-
-`build` writes a .blend, `render` writes the images, `montage` lays them out for
-review, `panorama` stitches each pod's frames, `schema` prints the JSON schema.
-"""
+"""Command line entry point."""
 
 import argparse
 import json
 import sys
 from pathlib import Path
+from typing import get_args
 
 from seascape import panorama
 from seascape.config import Band, Scenario, load
@@ -17,7 +14,7 @@ def _build(
     scenario_path: Path, output: Path | None, band: Band, overrides: list[str]
 ) -> None:
     scenario = load(scenario_path, overrides)
-    # Imported here, not at module scope: bpy is a 400 MB library and `schema` and a
+    # Imported here, not at module scope: bpy is hundreds of MB and `schema` and a
     # failed validation should not wait for it.
     import bpy
 
@@ -76,7 +73,7 @@ def main(argv: list[str] | None = None) -> int:
     build.add_argument("scenario", type=Path)
     build.add_argument("-o", "--output", type=Path, help="default: alongside the input")
     # A scene is one band or the other: EO and LWIR share no units.
-    build.add_argument("--band", choices=("eo", "ir"), default="eo")
+    build.add_argument("--band", choices=get_args(Band.__value__), default="eo")
     _add_set(build)
 
     shoot = commands.add_parser("render", help="write one image per camera")

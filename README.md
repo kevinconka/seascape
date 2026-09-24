@@ -42,7 +42,7 @@ uv run seascape build scenarios/baseline.toml            # scenarios/baseline.eo
 uv run seascape build scenarios/baseline.toml -o /tmp/look.blend
 ```
 
-A scenario is a TOML file describing the world, the platform, the sensors and the targets. `scenarios/baseline.toml` is the smallest one: one pod, one camera per band, one ship.
+A scenario is a TOML file describing the world, the platform, the sensors and the targets. `scenarios/baseline.toml` is the smallest one.
 
 `--set` overrides any field for one run, as the TOML line it would be written as:
 
@@ -135,7 +135,7 @@ Install the hooks once, before your first commit:
 uvx pre-commit install
 ```
 
-That runs `ruff check --fix` and `ruff format` on what you staged. The rest of CI is four commands, all of which have to pass:
+That runs `ruff check --fix` and `ruff format` on what you staged. The rest of CI is these commands, all of which have to pass:
 
 ```bash
 uvx ruff check .

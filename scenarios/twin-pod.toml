@@ -1,7 +1,7 @@
 #:schema ../schema/scenario.json
 
 # The rig as installed: two pods on a container ship's bridge wings, a ring of
-# traffic at 7 NM. The preset carries the pods and their 51.8 m height.
+# traffic at 7 NM. The preset carries the pods and their height.
 
 seed = 20260920
 
@@ -13,7 +13,7 @@ preset = "twin_pod"
 t_sea_k = 291.0
 
 [sky]
-# Keeps the sun disc and its glitter out of frame.
+# Keeps the sun disc and its glitter out of frame: `test_the_sun_is_out_of_every_frame`.
 sun_bearing_deg = 135.0
 
 [ownship]
@@ -26,20 +26,19 @@ pitch_deg = 0.5
 asset = "container_ship"
 # 7 NM, the EO detection range the pod is specified against.
 range_m = 12964.0
-# One per camera: 34 deg apart across 249 deg of EO. `test_twin_pod` holds it.
+# Enough that every camera sees one: `test_every_camera_has_a_target_in_frame`.
 count = 8
 bearing_deg = [-120.0, 120.0]
 
-# Two closer ships, one for each thermal camera: the IR pair spans 44 deg across
-# the bow, so a bearing inside one pod's 24 deg sector is outside the other's.
+# Two closer ships, one for each thermal camera.
 [[objects]]
 preset = "container_ship"
-range_m = 3704.0  # 2 NM, on the port IR's axis
+range_m = 3704.0  # 2 NM
 bearing_deg = -10.0
 heading_deg = 80.0  # beam-on, so it presents its length
 
 [[objects]]
 preset = "container_ship"
-range_m = 7408.0  # 4 NM, on the starboard IR's axis
+range_m = 7408.0  # 4 NM
 bearing_deg = 10.0
 heading_deg = 280.0

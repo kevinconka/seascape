@@ -127,8 +127,8 @@ class Rig(Model):
 class Sea(Model):
     """Sea state. Wind reaches the waves through wavelength and slope; see `scene`.
 
-    271-311 K is the span of the shipped optical-constant table. `lwir` clamps to it;
-    here it is an error.
+    The temperature bound is the span of the shipped optical-constant table. `lwir`
+    clamps to it; here it is an error.
     """
 
     t_sea_k: float = Field(default=lwir.T_SEA_K, ge=271.0, le=311.0)

@@ -1,17 +1,17 @@
-# Two pods on the bridge wings, both forward-facing. Eight cameras.
+# Two pods on the bridge wings, both forward-facing.
 #
 # Pod axis +-60 deg from the bow; the spec's mounting angle is 58.5.
 #
-# EO: 3 x 49 deg at 40 deg apart = 129 deg per pod, 9 deg overlap, 249 deg total.
-# IR: 50 deg inboard of the pod axis = +-10 deg off the bow, 44 deg pair, 4 deg overlap.
+# EO: 129 deg per pod, 9 deg overlap. IR: one camera per pod, turned inboard so the
+# pair straddles the bow, 44 deg across with 4 deg overlap.
+# `test_pod_span_and_overlap_measured_from_the_scene` holds these.
 #
-# Headroom above the horizon is half the vertical field minus the pitch: 4.4 deg EO
-# (28.8 deg field), 3.7 deg IR (19.3 deg).
+# Headroom above the horizon is half the vertical field minus the pitch.
 #
-# Offsets: bridge-wing tops of the container_ship mesh, +-21.5 m (half the 43 m beam)
-# and 68.2 m aft of midships.
+# Offsets: bridge-wing tops of the container_ship mesh, measured on the fitted hull.
 
-# Wing top is 49.8 m; 2 m of bracket keeps the deck plate out of every lower frame edge.
+# 2 m of bracket above the wing top keeps the deck plate out of every lower frame
+# edge. `test_a_pod_stands_on_the_ship_rather_than_beside_it` holds the bracket.
 height_m = 51.8
 pitch_deg = 0.0
 
@@ -44,7 +44,7 @@ pitch_deg = -10.0
 [[pods.cameras]]
 preset = "ir"
 name = "IR_PORT"
-# Inboard, so the pair straddles the bow at +-10 deg.
+# Inboard, so the pair straddles the bow.
 yaw_deg = +50.0
 pitch_deg = -6.0
 

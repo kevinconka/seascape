@@ -5,6 +5,7 @@ it off a built scene is a separate check.
 """
 
 import json
+import math
 import tomllib
 from pathlib import Path
 from typing import get_args
@@ -12,6 +13,7 @@ from typing import get_args
 import pytest
 from pydantic import ValidationError
 
+from seascape import lwir
 from seascape.config import (
     CFG_DIR,
     Band,
@@ -21,6 +23,7 @@ from seascape.config import (
     Rig,
     Samples,
     Scenario,
+    Sea,
     load,
 )
 
@@ -138,7 +141,7 @@ def test_a_bad_override_is_refused(override: str, error: type[Exception]) -> Non
 
 
 def test_objects_merge_their_preset(baseline) -> None:
-    """The only list-of-tables preset: asset and temperature from cfg, pose here."""
+    """A list-of-tables preset: asset and temperature from cfg, pose here."""
     obj = baseline.objects[0]
     assert (obj.asset, obj.t_k) == ("container_ship", 295.0)
     assert (obj.range_m, obj.bearing_deg) == (2000.0, 8.0)
@@ -153,7 +156,7 @@ def test_a_block_overrides_its_own_preset(tmp_path) -> None:
         )
     )
     camera = scenario.rig.mounts[0].camera
-    assert camera.hfov_deg == 10.0  # preset says 49.0
+    assert camera.hfov_deg == 10.0
     assert camera.width_px == 3840  # untouched by the block
 
 
@@ -167,7 +170,7 @@ def test_a_preset_outranks_an_inherited_value(tmp_path) -> None:
         '[[pods.cameras]]\npreset = "ir"\n'
     )
     scenario = load(variant(tmp_path, '[rig]\npreset = "./single.toml"\n'))
-    assert scenario.rig.height_m == 2.0  # baseline says 12.0
+    assert scenario.rig.height_m == 2.0
     assert [mount.camera.kind for mount in scenario.rig.mounts] == ["ir"]
 
 
@@ -182,7 +185,7 @@ def test_tables_merge_and_lists_replace(tmp_path, baseline) -> None:
     assert scenario.sea.wind_speed_mps == 3.0
     # Read off the parent, not written out: this is about the merge, not the value.
     assert scenario.sea.t_sea_k == baseline.sea.t_sea_k
-    assert scenario.rig.height_m == 12.0  # sibling table survived it too
+    assert scenario.rig.height_m == baseline.rig.height_m  # sibling table survived
     assert len(scenario.rig.mounts) == 1  # the list did not
 
 
@@ -234,7 +237,7 @@ def test_a_mistyped_key_is_an_error_not_a_silent_default(tmp_path) -> None:
 
 @pytest.mark.parametrize("t_sea_k", [260.0, 400.0])
 def test_sea_temperature_is_bounded_at_the_config_boundary(tmp_path, t_sea_k) -> None:
-    """The bound is 271-311 K, the span of the shipped optical-constant table."""
+    """The bound is the span of the shipped optical-constant table."""
     with pytest.raises(ValidationError, match="t_sea_k"):
         load(variant(tmp_path, f"[sea]\nt_sea_k = {t_sea_k}\n"))
 
@@ -348,3 +351,35 @@ def test_the_same_camera_on_two_pods_is_fine() -> None:
     )
 
     assert [mount.name for mount in rig.mounts] == ["port_eo_0", "starboard_eo_0"]
+
+
+def test_sea_temperature_bounds_are_the_tables_span() -> None:
+    bounds = Sea.model_json_schema()["properties"]["t_sea_k"]
+    _, temperatures, _ = lwir._table()
+    assert (bounds["minimum"], bounds["maximum"]) == (temperatures[0], temperatures[-1])
+
+
+def test_eo_resolves_a_merchant_at_the_target_range() -> None:
+    """Johnson detection: 6 px across sqrt(w x h) of a 25 x 12 m merchant."""
+    scenario = load(SCENARIOS / "twin-pod.toml")
+    assert scenario.targets is not None
+    eo = next(m.camera for m in scenario.rig.mounts if m.camera.kind == "eo")
+    px_m = scenario.targets.range_m * math.radians(eo.hfov_deg) / eo.width_px
+    assert round(math.sqrt(25.0 * 12.0) / px_m, 2) >= 6.0
+
+
+@pytest.mark.parametrize("name", ["baseline.toml", "twin-pod.toml"])
+def test_the_sun_is_out_of_every_frame(name: str) -> None:
+    """Its disc and glitter would saturate whichever camera saw them."""
+    scenario = load(SCENARIOS / name)
+    for mount in scenario.rig.mounts:
+        off = (scenario.sky.sun_bearing_deg - mount.nominal_bearing_deg + 180) % 360
+        assert abs(off - 180) > mount.camera.hfov_deg / 2, mount.name
+
+
+def test_the_baseline_ship_is_in_every_frame(baseline) -> None:
+    """Both bands' tests measure the one ship."""
+    (ship,) = baseline.objects
+    for mount in baseline.rig.mounts:
+        off = abs(ship.bearing_deg - mount.nominal_bearing_deg)
+        assert off < mount.camera.hfov_deg / 2, mount.name

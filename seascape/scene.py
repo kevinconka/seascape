@@ -145,8 +145,8 @@ PAINT_EMISSIVITY = 0.94
 # Mean radius, IUGG.
 EARTH_RADIUS_M = 6_371_000.0
 
-# Cells per side. A cell's sagitta is 7 mm on twin-pod's grid, 1e-3 of a pixel at the
-# horizon: grid enough for the tangent point to land on a face, not an accuracy knob.
+# Cells per side: enough for the tangent point to land on a face, not an accuracy
+# knob. A cell's sagitta, width^2 / 8R, is far under a pixel at the horizon.
 SEA_CELLS = 128
 
 # Margin on the horizon, or the grid's own edge becomes the horizon.
@@ -172,8 +172,8 @@ def sea_z_m(east_m: float, north_m: float, radius_m: float) -> float:
 def horizon_m(height_m: float, refraction_k: float) -> float:
     """Distance to the horizon from `height_m`, tangent to the effective sphere.
 
-    51.8 m gives 27.5 km at k = 0.13, 25.7 km geometric; the 3.86 sqrt(h_m) km rule
-    of thumb agrees to 1%.
+    The 3.86 sqrt(h_m) km rule of thumb at k = 0.13 agrees to 1%;
+    `test_published_values_have_not_drifted` holds it.
     """
     return math.sqrt(2.0 * earth_radius_m(refraction_k) * height_m)
 
@@ -303,8 +303,8 @@ def _thermal_skin(name: str, t_k: float, sky: Sky) -> bpy.types.Material:
 
     The sea's shape, for the sea's reason. A pure emitter leaves the same radiance in
     every direction, so a vessel renders as one flat value however it is lit or turned.
-    Reflecting the other 6% gives it back the angular structure a real hull has: a deck
-    faces the cold zenith, a vertical side sees half sky and half sea.
+    Reflecting the other 1 - eps gives it back the angular structure a real hull has:
+    a deck faces the cold zenith, a vertical side sees half sky and half sea.
 
     Diffuse rather than glossy, which is where this parts from the sea: flat marine
     paint is near-Lambertian in this band, so a hull scatters the sky rather than
@@ -335,8 +335,8 @@ def _sunlit_emission(
     """Emission graded from shaded to sunlit by Lambert's cosine on the real sun.
 
     Two emissions mixed by `max(0, n . sun)`, so both ends are the exact band radiance
-    and only the middle interpolates -- 0.2% out against evaluating the Planck integral
-    at the blended temperature, which no shader node can do.
+    and only the middle interpolates -- a fraction of a percent out against evaluating
+    the Planck integral at the blended temperature, which no shader node can do.
 
     A single temperature leaves the pattern a hull shows in this band on the floor: a
     lit side against a shaded one, and decks hotter than either.
@@ -383,7 +383,8 @@ def _wave_normals(
     """
     length_m = wave_length_m(sea.wind_speed_mps)
     # z multiplier 0: the seed owns that axis, so the sea curving under it cannot slide
-    # the wave field. Scaling z drifts the sample three noise periods and ties it to k.
+    # the wave field. Scaled, z would drift the sample z / wavelength periods, and the
+    # refraction k would move the waves.
     # 3-D rather than 4-D with the seed in W: same field, 20% cheaper at 4K.
     scale = tree.nodes.new("ShaderNodeVectorMath")
     scale.operation = "MULTIPLY_ADD"
@@ -499,7 +500,7 @@ def _water_material(sea: Sea, seed: int) -> bpy.types.Material:
 def _sea(sea: Sea, seed: int, reach_m: float, band: Band) -> bpy.types.Object:
     """A grid curved to the earth. The waves are in its material.
 
-    z = -(x^2 + y^2) / 2R osculates the sphere, within 4 mm at twin-pod's corners.
+    z = -(x^2 + y^2) / 2R osculates the sphere, off by d^4 / 8R^3 at distance d.
     Geometry here and not for waves: the bulge is kilometres across, never sub-pixel.
     """
     bpy.ops.mesh.primitive_grid_add(
@@ -684,8 +685,8 @@ def _import(name: str, band: Band) -> list[bpy.types.Object]:
     before = set(bpy.data.objects)
     bpy.ops.import_scene.fbx(filepath=str(fetch(name)))
     imported = set(bpy.data.objects) - before
-    # Measure everything, move the roots. The shipped ship keeps 40 of its 88 meshes
-    # under empties, and measuring only the roots would leave them out of the fit.
+    # Measure everything, move the roots. An FBX keeps meshes under empties, and
+    # measuring only the roots would leave them out of the fit.
     parts = [o for o in imported if o.parent is None]
 
     fit = _fit(_corners(imported), manifest()[name])
@@ -711,8 +712,8 @@ def _vessel(
     """A hull fitted and anchored at the origin under an empty.
 
     `hulls` holds each asset's first import for the rest of the build. The FBX
-    importer slows with every material already in the file: twin-pod's four imports
-    of one ship took 24 s where one takes 1.3 s. Copies share mesh data, so they cost
+    importer slows with every material already in the file: four imports of one ship
+    take 24 s where one takes 1.3 s. Copies share mesh data, so they cost
     no memory either.
     """
     if name in hulls:
@@ -771,10 +772,10 @@ def _pose(
 ) -> None:
     """Put a hull on the sea at a bearing and range, steering the given course.
 
-    A hull left at z = 0 flies: 11.5 m at 7 NM, 109 m at 40 km.
+    A hull left at z = 0 flies above the curved sea.
 
-    Not tilted to the local vertical: range / R is 0.18 m across a 200 m hull at
-    7 NM, under a 5 m draught.
+    Not tilted to the local vertical: at any range the sea reaches, range / R moves a
+    hull's ends far less than its draught.
     """
     east = range_m * math.sin(math.radians(bearing_deg))
     north = range_m * math.cos(math.radians(bearing_deg))
@@ -910,8 +911,8 @@ def build(scenario: Scenario, band: Band = "eo") -> Built:
         _object(spec, band, radius_m, scenario.sky, hulls)
     if scenario.targets is not None:
         _targets(scenario.targets, band, radius_m, scenario.sky, hulls)
-    # Scenario order, so the first camera is EO in the baseline: an IR build would
-    # otherwise open on a camera whose optics belong to the other band.
+    # The band's first camera, not the rig's: an IR build would otherwise open on a
+    # camera whose optics belong to the other band.
     first = next(mount for mount in scenario.rig.mounts if mount.camera.kind == band)
     sc = bpy.context.scene
     sc.camera = rig.cameras[first.name]

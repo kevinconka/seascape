@@ -285,7 +285,7 @@
     },
     "Sea": {
       "additionalProperties": false,
-      "description": "Sea state. Wind reaches the waves through wavelength and slope; see `scene`.\n\n271-311 K is the span of the shipped optical-constant table. `lwir` clamps to it;\nhere it is an error.",
+      "description": "Sea state. Wind reaches the waves through wavelength and slope; see `scene`.\n\nThe temperature bound is the span of the shipped optical-constant table. `lwir`\nclamps to it; here it is an error.",
       "properties": {
         "t_sea_k": {
           "default": 288.0,

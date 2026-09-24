@@ -154,7 +154,7 @@ class TestSettings:
 
     @pytest.mark.parametrize(("band", "denoised"), [("eo", True), ("ir", False)])
     def test_only_eo_is_denoised(self, band: Band, denoised: bool) -> None:
-        """OIDN invents 10 K of structure on a field that is flat by construction."""
+        """OIDN invents structure on a field that is flat by construction."""
         sc = built(band)
 
         assert sc.cycles.use_denoising is denoised
@@ -167,8 +167,9 @@ class TestSettings:
         assert sc.render.engine == "CYCLES"
 
     def test_the_active_camera_sets_the_resolution(self) -> None:
-        """IR: the baseline EO camera is the factory 1920x1080, so proves nothing."""
+        """Factory 1920x1080 otherwise; a camera of that size would pass regardless."""
         ir = next(m.camera for m in load(BASELINE).rig.mounts if m.camera.kind == "ir")
+        assert (ir.width_px, ir.height_px) != (1920, 1080)
 
         sc = built("ir")
 

@@ -56,11 +56,11 @@ Building fresh each time is also what keeps a long-lived session from accumulati
 These produce wrong output with no error. They are the reason this file exists.
 
 - **Blender's +Z rotation turns a forward-facing object to port.** Every nautical bearing goes through the single conversion helper and is negated there and nowhere else. Two negations cancel and look plausible.
-- **A camera's bearing is not `pod yaw + camera yaw`.** The chain is `Rx(hull pitch) Ry(hull roll) Rz(-pod yaw) Rx(rig pitch) Rz(-camera yaw)`, so the rig's pitch sits between the two yaws and shifts an off-axis camera's azimuth. A centre camera on a level hull is exact, which is why the sum looks right. `scene.boresight_deg` reads the achieved bearing off `matrix_world`; `Mount.nominal_bearing_deg` is only what the scenario asked for.
+- **A camera's bearing is not `pod yaw + camera yaw`.** In the chain `scene._rig` builds, the rig's pitch sits between the two yaws and shifts an off-axis camera's azimuth. A centre camera on a level hull is exact, which is why the sum looks right. `scene.boresight_deg` reads the achieved bearing off `matrix_world`; `Mount.nominal_bearing_deg` is only what the scenario asked for.
 - **`rotation_mode` is often `QUATERNION`.** Assigning `rotation_euler` is then ignored entirely — no exception, no warning, object doesn't move. Set the mode first.
 - **Address shader sockets by name, never by index.** `inputs["Distance"]` raises if Blender renames it; `inputs[1]` happily writes to whatever now sits in that slot.
 - **Objects can share a mesh datablock.** Material slots link to mesh data by default, so assigning a material to one object silently changes the other. Use `slot.link = "OBJECT"` when they must differ.
-- **Shader node trees leak.** If you build a chain, cleanup must remove the whole chain, not just the node you tagged. Re-running a build should leave the node count unchanged.
+- **Shader node trees leak.** Cleanup must remove a whole chain, not the one node you tagged. `build` starts from factory settings instead; `test_building_twice_leaves_the_same_scene` holds it.
 - **LWIR waves do not need `t_sea_k - t_air_k`.** A tilted facet reflects a different elevation of a sky that runs cold overhead to ambient at the horizon, so relief shows with the sea exactly at air temperature. Wave signal as MAD within a row, baseline against a flat-sea control at equal samples:
 
   | rows below the horizon | dT = 0 K | dT = 3 K |
@@ -124,6 +124,7 @@ The render-drift check runs only with `--render` and needs a GPU to finish in re
 - **Branches:** matching prefixes (`feat/...`, `fix/...`).
 - **Be concise.** Commit messages, PR descriptions, comments and docs state the fact, not the journey. No debugging narration, no restating the diff, no closing paragraph that repeats what was just said.
 - **Comments are for what the code cannot say.** A better name beats a comment explaining a worse one. Write one for a non-obvious constraint, a unit, a workaround, a spec reference — never to restate the line. `# negate the bearing` is noise; `# Blender's +Z turns to port` is the reason.
+- **A comment that can go stale needs a test, or goes.** A number derived from values elsewhere, a list of things defined elsewhere, or a value copied from another file drifts in silence when that place changes. Pin it with an assertion and name the test beside it (`test_twin_pod holds it`), or leave it out.
 - **Avoid the machine cadence.** `X, not just Y` for emphasis, lists of exactly three, uniformly long sentences, hedges like "it's worth noting". Prefer the specific: a number, a file name or a flag beats an adjective.
 - **Make PRs scannable.** A table, a before/after, or a rendered frame beats a paragraph.
 - Renders are cheap and settle arguments. If a change affects what the camera sees, show it.

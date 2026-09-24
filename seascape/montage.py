@@ -14,7 +14,7 @@ from PIL.ImageFont import FreeTypeFont
 
 from seascape.config import Scenario
 
-# Tall enough to read at a glance, small enough that eight frames fit across a screen.
+# Tall enough to read at a glance, small enough that a row fits across a screen.
 TILE_H = 260
 CAPTION_H = 26
 GUTTER = 4
@@ -53,7 +53,7 @@ def _tile(
 def compose(scenario: Scenario, into: Path) -> Path:
     """Write `montage.png` beside the frames in `into`, one row per band.
 
-    Tiles follow rig order, so a row reads port to starboard. eo and ir never share
+    Tiles follow rig order. eo and ir never share
     a row: their pixels mean different things.
     """
     font = _font()

@@ -2,8 +2,7 @@
 
 A render is the only check on whether the sea and sky read correctly; the physics
 assertions in test_lwir.py pass just as happily on a scene that renders black. These
-are the properties a refactor must not shift, measured against the working reference
-renders these modules were ported from.
+are the properties a refactor must not shift.
 
 Skipped unless `--render` is given. Each one renders in Cycles, which takes seconds and
 which CI has no GPU for. Run them before touching the sea or sky shader chain.
@@ -66,7 +65,7 @@ def frame() -> np.ndarray:
 
 
 def test_the_sky_runs_from_cold_overhead_to_ambient_at_the_horizon(frame) -> None:
-    """The reference reads 0.90 of ambient at the top of an 18 degree frame.
+    """Ambient just above the horizon, colder at the top of the frame.
 
     Sea and sky have to meet at the same radiance or the horizon reads as an edge
     rather than a boundary, and contrast stops collapsing where a target is hardest
@@ -88,12 +87,12 @@ def test_sea_texture_fades_with_range(frame) -> None:
     Wave relief falls below a pixel with range, so it should average away. Displaced
     geometry does the opposite -- sub-pixel geometry aliases rather than averaging --
     and inverts the profile, which is the whole difference between a frame that reads
-    as sea and one that reads as noise. Against the reference renders the grid left the
+    as sea and one that reads as noise. Measured, the grid left the
     far field thirteen times rougher than shader normals do.
 
-    Not strict monotonicity across all four bands: that holds at the reference's 40 m
-    eye height but not at this scenario's 12 m, where a foreground row spans less than
-    one wavelength and so varies little. Rig height is not the property under test.
+    Not strict monotonicity across all four bands: that holds for a high eye but not
+    a low one, where a foreground row spans less than one wavelength and so varies
+    little. Rig height is not the property under test.
     """
     sea = frame[frame.shape[0] // 2 + 4 :]
     band = len(sea) // 4
@@ -129,7 +128,7 @@ def test_waves_survive_a_sea_at_air_temperature() -> None:
     """Wave relief survives a sea exactly at air temperature.
 
     A tilted facet reflects a different sky elevation, cold overhead to ambient at
-    the horizon, so relief shows without `t_sea_k - t_air_k`; 3 K buys 7-18% of it.
+    the horizon, so relief shows without `t_sea_k - t_air_k`.
     """
     isothermal = SCENARIO.model_copy(
         update={
