@@ -145,7 +145,7 @@ PAINT_EMISSIVITY = 0.94
 # Mean radius, IUGG.
 EARTH_RADIUS_M = 6_371_000.0
 
-# Cells per side. A cell's sagitta is under a millimetre, 1e-7 of a pixel at the
+# Cells per side. A cell's sagitta is 7 mm on twin-pod's grid, 1e-3 of a pixel at the
 # horizon: grid enough for the tangent point to land on a face, not an accuracy knob.
 SEA_CELLS = 128
 
@@ -499,7 +499,7 @@ def _water_material(sea: Sea, seed: int) -> bpy.types.Material:
 def _sea(sea: Sea, seed: int, reach_m: float, band: Band) -> bpy.types.Object:
     """A grid curved to the earth. The waves are in its material.
 
-    z = -(x^2 + y^2) / 2R osculates the sphere, within a millimetre over the grid.
+    z = -(x^2 + y^2) / 2R osculates the sphere, within 4 mm at twin-pod's corners.
     Geometry here and not for waves: the bulge is kilometres across, never sub-pixel.
     """
     bpy.ops.mesh.primitive_grid_add(

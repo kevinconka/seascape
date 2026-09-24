@@ -167,14 +167,14 @@ class TestSettings:
         assert sc.render.engine == "CYCLES"
 
     def test_the_active_camera_sets_the_resolution(self) -> None:
-        """Factory 1920x1080 otherwise, whatever the camera says it is."""
-        eo = next(m.camera for m in load(BASELINE).rig.mounts if m.camera.kind == "eo")
+        """IR: the baseline EO camera is the factory 1920x1080, so proves nothing."""
+        ir = next(m.camera for m in load(BASELINE).rig.mounts if m.camera.kind == "ir")
 
-        sc = built("eo")
+        sc = built("ir")
 
         assert (sc.render.resolution_x, sc.render.resolution_y) == (
-            eo.width_px,
-            eo.height_px,
+            ir.width_px,
+            ir.height_px,
         )
 
     @pytest.mark.parametrize(

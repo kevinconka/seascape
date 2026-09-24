@@ -209,3 +209,10 @@ def test_sky_rejects_impossible_air_temperatures() -> None:
     """The temperature guard reaches the sky curve too, through band_radiance."""
     with pytest.raises(ValueError, match="positive"):
         lwir.sky_radiance(0.0, -1.0)
+
+
+def test_brightness_temperature_inverts_band_radiance() -> None:
+    """Off the 0.2 K lookup grid, where interpolation error would show."""
+    t_k = np.array([250.05, 288.13, 311.37])
+    radiance = [lwir.band_radiance(t) for t in t_k]
+    assert lwir.brightness_temperature(radiance) == pytest.approx(t_k, abs=0.01)

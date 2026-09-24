@@ -147,7 +147,7 @@ class Sky(Model):
     be a knob that changes nothing.
 
     `t_air_k` scales the IR sky and nothing in EO. Its bound is where the fixed sky
-    profile stays credible; a colder or hotter sea needs a new profile, not a wider
+    profile stays credible; colder or hotter air needs a new profile, not a wider
     bound.
     """
 

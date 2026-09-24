@@ -26,12 +26,12 @@ pitch_deg = 0.5
 asset = "container_ship"
 # 7 NM, the EO detection range the pod is specified against.
 range_m = 12964.0
-# One per camera: 35 deg apart across 249 deg of EO. `test_twin_pod` holds it.
+# One per camera: 34 deg apart across 249 deg of EO. `test_twin_pod` holds it.
 count = 8
 bearing_deg = [-120.0, 120.0]
 
-# Two closer ships, one for each thermal camera: the IR pair spans 44 deg either side
-# of the bow, so a bearing inside one pod's 24 deg sector is outside the other's.
+# Two closer ships, one for each thermal camera: the IR pair spans 44 deg across
+# the bow, so a bearing inside one pod's 24 deg sector is outside the other's.
 [[objects]]
 preset = "container_ship"
 range_m = 3704.0  # 2 NM, on the port IR's axis

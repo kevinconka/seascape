@@ -2,8 +2,8 @@
 
 Blender is an RGB renderer with no concept of the 8-14 um band, and its Fresnel node
 takes a scalar IOR where water needs a complex one (n + i*k). So these curves are
-evaluated here and the shader consumes them as 1D lookups. Path extinction is not here:
-that is Blender's volume nodes. Angles are radians.
+evaluated here and the shader consumes them as 1D lookups. Path extinction is not
+modelled. Angles are radians.
 
 A sea surface emits and reflects, and the two are complements: `1 - eps` of what it does
 not emit comes back as reflected sky. Leave the reflection out and the sea goes black at

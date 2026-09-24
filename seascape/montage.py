@@ -1,7 +1,7 @@
 """Compose a render's frames into one labelled image, for review.
 
 No Blender: this reads the images `render` already wrote, so it runs without the bpy
-wheel and a layout can be redone without re-rendering eight 4K frames.
+wheel and a layout can be redone without re-rendering.
 
 Captions sit in a band under each frame: text burnt into a frame is an artefact that
 travels with the dataset, and in an exr it would corrupt radiance.

@@ -2,7 +2,7 @@
 
 EO reaches 8 bits through the exposure and Blender's film curve. LWIR cannot: its
 pixels are radiance in W m^-2 sr^-1, which Blender would clip to white, so an ir png
-is rendered float and mapped here through the scenario's temperature window.
+is rendered float and stretched here from its coldest pixel to its hottest.
 """
 
 from pathlib import Path
@@ -20,8 +20,8 @@ def _thermal_png(exr: Path, png: Path) -> None:
 
     Black is the coldest pixel and white the hottest, so the frame uses the whole
     range whatever the scene. The cost is that the scale is the frame's own: two
-    images are not comparable and a pixel is not a temperature. The exr beside it is
-    where both of those live.
+    images are not comparable and a pixel is not a temperature. `format = "exr"` is
+    where both of those live: this deletes its exr once the png is written.
     """
     source = bpy.data.images.load(str(exr))
     width, height = source.size

@@ -424,7 +424,7 @@ def test_a_near_clip_past_the_far_plane_is_an_error(tmp_path) -> None:
 
 
 def test_a_band_the_rig_cannot_see_is_an_error(tmp_path) -> None:
-    """Otherwise `min()` raises on an empty sequence, naming nothing."""
+    """Otherwise `next()` raises StopIteration, naming nothing."""
     path = tmp_path / "eo_only.toml"
     path.write_text(
         f'extends = "{BASELINE}"\n\n'
@@ -446,7 +446,7 @@ class TestEoBand:
         assert bsdf.inputs["IOR"].default_value == pytest.approx(1.33)
 
     def test_the_sky_is_lit(self) -> None:
-        """The EO sky is the scattering model, not the empty world the IR band gets."""
+        """The EO sky is the scattering model, not the IR band's thermal lookup."""
         assert bpy.data.worlds["sky"].node_tree.nodes["Sky Texture"]
 
 

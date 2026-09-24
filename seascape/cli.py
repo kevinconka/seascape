@@ -1,7 +1,7 @@
 """Command line entry point.
 
 `build` writes a .blend, `render` writes the images, `montage` lays them out for
-review, `schema` prints the JSON schema.
+review, `panorama` stitches each pod's frames, `schema` prints the JSON schema.
 """
 
 import argparse
