@@ -6,12 +6,16 @@ stages skipped. No Blender.
 Frames are stitched as they are, with no exposure compensation.
 """
 
+import math
+from functools import cache
 from pathlib import Path
+from typing import NamedTuple
 
 import cv2
 import numpy as np
 
 from seascape.calibration import Calibration, CameraCalibration
+from seascape.montage import INK, MATTE
 
 # CLI name to cv2.PyRotationWarper type.
 PROJECTIONS = {
@@ -19,6 +23,10 @@ PROJECTIONS = {
     "cylindrical": "cylindrical",
     "equirectangular": "spherical",
 }
+
+# Ruler ticks, and the ticks that carry a label.
+TICK_DEG = 10
+LABEL_DEG = 30
 
 # The stitcher's frame is +X right, +Y down, +Z ahead.
 _TO_CV = np.array([[1.0, 0.0, 0.0], [0.0, 0.0, -1.0], [0.0, 1.0, 0.0]])
@@ -46,13 +54,76 @@ def pose(
     )
 
 
+class Layout(NamedTuple):
+    """Where a stitched panorama sits in its projection."""
+
+    kind: str
+    scale: float
+    axis: float  # the bearing the panorama is turned to, radians, in its frame
+    left: int  # projection x of column 0
+    top: int  # projection y of row 0
+    resize: float  # the final shrink to max_width, 1.0 when none
+
+
+def column(layout: Layout, bearing_deg: float) -> float | None:
+    """The column a ray at `bearing_deg` lands in, at any elevation, or None where
+    the projection cannot show it.
+
+    A camera with K = I looks along its rotation's third column, so a turn about the
+    stitcher's vertical aims it at the bearing, and the warper projects it exactly
+    as it projected the frames.
+    """
+    b = math.radians(bearing_deg) - layout.axis
+    if layout.kind == "plane" and math.cos(b) <= 0.0:
+        return None
+    c, s = math.cos(b), math.sin(b)
+    r = np.array([[c, 0.0, s], [0.0, 1.0, 0.0], [-s, 0.0, c]], np.float32)
+    u, _ = _warper(layout.kind, layout.scale).warpPoint(
+        (0.0, 0.0), np.eye(3, dtype=np.float32), r
+    )
+    # Pixel centres sit at integers, so the resize scales about -0.5.
+    return (u - layout.left + 0.5) * layout.resize - 0.5
+
+
+@cache
+def _warper(kind: str, scale: float) -> cv2.PyRotationWarper:
+    return cv2.PyRotationWarper(kind, scale)
+
+
+def ruled(image: np.ndarray, layout: Layout, true: bool = False) -> np.ndarray:
+    """`image` over a strip of bearing ticks, in degrees of its frame: 000-359 when
+    `true`, as a chart writes true bearings, else signed about the frame's axis."""
+    w = image.shape[1]
+    size = max(1.0, w / 2000)
+    strip = np.full((round(36 * size), w, 3), MATTE, np.uint8)
+    tick = round(8 * size)
+    font, scale = cv2.FONT_HERSHEY_SIMPLEX, 0.5 * size
+    line = max(1, round(size))
+    for bearing in range(-180, 180, TICK_DEG):
+        x = column(layout, bearing)
+        if x is None or not 0 <= x < w:
+            continue
+        x = round(x)
+        labelled = bearing % LABEL_DEG == 0
+        cv2.line(strip, (x, 0), (x, tick * (2 if labelled else 1)), INK, line)
+        if labelled:
+            if true:
+                text = f"{bearing % 360:03d}"
+            else:
+                text = f"{bearing:+d}" if bearing else "0"
+            (tw, th), _ = cv2.getTextSize(text, font, scale, line)
+            origin = (x - tw // 2, 2 * tick + th + round(4 * size))
+            cv2.putText(strip, text, origin, font, scale, INK, line, cv2.LINE_AA)
+    return np.vstack([image, strip])
+
+
 def stitch(
     folder: Path,
     cameras: list[CameraCalibration],
     projection: str,
     frame: str,
     max_width: int | None = None,
-) -> np.ndarray:
+) -> tuple[np.ndarray, Layout]:
     """At native resolution unless that is wider than `max_width`. Native is the
     largest fx: pixels per radian on axis, where every projection here runs at one
     unit per radian."""
@@ -100,24 +171,24 @@ def stitch(
         _, mask = warper.warp(mask, k, r, cv2.INTER_NEAREST, cv2.BORDER_CONSTANT)
         warped.append((corner, pixels, mask))
 
-    blender = cv2.detail.MultiBandBlender()
-    blender.prepare(
-        cv2.detail.resultRoi(
-            corners=[c for c, _, _ in warped],
-            sizes=[m.shape[1::-1] for _, _, m in warped],
-        )
+    roi = cv2.detail.resultRoi(
+        corners=[c for c, _, _ in warped], sizes=[m.shape[1::-1] for _, _, m in warped]
     )
+    blender = cv2.detail.MultiBandBlender()
+    blender.prepare(roi)
     for corner, pixels, mask in warped:
         blender.feed(pixels.astype(np.int16), mask, corner)
     image, _ = blender.blend(np.empty(0, np.int16), np.empty(0, np.uint8))
     # The pyramid overshoots at edges; clip, where convertScaleAbs would fold it back.
     image = np.clip(image, 0, 255).astype(np.uint8)
     h, w = image.shape[:2]
+    resize = 1.0
     if max_width is not None and w > max_width:
         # The warper rounds its extent outward, a pixel past the scale asked for.
-        size = (max_width, round(h * max_width / w))
+        resize = max_width / w
+        size = (max_width, round(h * resize))
         image = cv2.resize(image, size, interpolation=cv2.INTER_AREA)
-    return image
+    return image, Layout(kind, scale, bearing, roi[0], roi[1], resize)
 
 
 def _faces_ahead(k: np.ndarray, r: np.ndarray, size: tuple[int, int]) -> bool:
@@ -154,7 +225,11 @@ def _shrink(
 
 
 def panoramas(
-    folder: Path, projection: str, frame: str, max_width: int | None = None
+    folder: Path,
+    projection: str,
+    frame: str,
+    max_width: int | None = None,
+    ruler: bool = False,
 ) -> list[Path]:
     """One panorama per pod and band, written beside the frames."""
     groups: dict[tuple[str | None, str], list[CameraCalibration]] = {}
@@ -166,9 +241,12 @@ def panoramas(
         name = "_".join(part for part in (pod, band, projection, frame) if part)
         path = folder / f"panorama_{name}.png"
         try:
-            image = stitch(folder, cameras, projection, frame, max_width)
+            image, layout = stitch(folder, cameras, projection, frame, max_width)
         except cv2.error as error:
             raise RuntimeError(f"{path.name}: {error.err}") from error
+        if ruler:
+            # World bearings are true bearings; every other frame's are relative.
+            image = ruled(image, layout, true=frame == "world")
         cv2.imwrite(str(path), image)
         written.append(path)
     return written
