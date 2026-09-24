@@ -12,9 +12,6 @@
   <a href="https://github.com/astral-sh/ruff"><img src="https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json" alt="Ruff"></a>
 </p>
 
-> [!NOTE]
-> Early days. The scaffolding is landing first — see [Status](#status).
-
 Real footage can't put a vessel at exactly 7 NM, hold the visibility constant, or show you the same ship from eight aspects. `seascape` renders maritime scenes where you choose all of that, and tells you exactly where everything was.
 
 ## Highlights
@@ -110,20 +107,6 @@ lsof -nP -iTCP:9876 -sTCP:LISTEN
 | A guide tells you to run `uvx blender-mcp` | That's [`ahujasid/blender-mcp`](https://github.com/ahujasid/blender-mcp), a different community server. Both work; don't mix their instructions. |
 
 </details>
-
-## Status
-
-| Area | State |
-|---|---|
-| Scaffolding and CI | done |
-| LWIR radiometry | done |
-| Scenario config and schema | done |
-| Asset manifest and cache | done |
-| Scene build | done |
-| Rendering and ground truth | porting |
-| Multi-frame sequences | planned |
-| Vessel motion | planned |
-| COCO labels | planned |
 
 ## Contributing
 

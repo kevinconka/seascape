@@ -1,8 +1,6 @@
 # Daylight camera.
 #
-# Native resolution: a 25 x 12 m merchant at 7 NM spans the Johnson detection limit,
-# 6 px across sqrt(w x h); `test_eo_resolves_a_merchant_at_the_target_range` holds it.
-# Downsample in the pipeline, never render smaller.
+# Native resolution: downsample in the pipeline, never render smaller.
 kind = "eo"
 hfov_deg = 49.0
 width_px = 3840

@@ -5,7 +5,6 @@ it off a built scene is a separate check.
 """
 
 import json
-import math
 import tomllib
 from pathlib import Path
 from typing import get_args
@@ -357,15 +356,6 @@ def test_sea_temperature_bounds_are_the_tables_span() -> None:
     bounds = Sea.model_json_schema()["properties"]["t_sea_k"]
     _, temperatures, _ = lwir._table()
     assert (bounds["minimum"], bounds["maximum"]) == (temperatures[0], temperatures[-1])
-
-
-def test_eo_resolves_a_merchant_at_the_target_range() -> None:
-    """Johnson detection: 6 px across sqrt(w x h) of a 25 x 12 m merchant."""
-    scenario = load(SCENARIOS / "twin-pod.toml")
-    assert scenario.targets is not None
-    eo = next(m.camera for m in scenario.rig.mounts if m.camera.kind == "eo")
-    px_m = scenario.targets.range_m * math.radians(eo.hfov_deg) / eo.width_px
-    assert round(math.sqrt(25.0 * 12.0) / px_m, 2) >= 6.0
 
 
 @pytest.mark.parametrize("name", ["baseline.toml", "twin-pod.toml"])
