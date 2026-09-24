@@ -18,6 +18,9 @@ from seascape.config import Mount, load
 
 BASELINE = Path(__file__).parent.parent / "scenarios" / "baseline.toml"
 SCENARIO = load(BASELINE)
+# For tests that measure the rig: a hull is a second of FBX import per build, and
+# `TestGeometry` already measures it.
+RIG_ONLY = f'extends = "{BASELINE}"\nobjects = []\n'
 
 
 def camera_of(mount: Mount) -> bpy.types.Object:
@@ -284,7 +287,7 @@ def test_the_active_camera_belongs_to_the_band_built(band) -> None:
     Scenario order puts an EO camera first, so an IR build would otherwise render
     through EO optics against IR materials, with nothing to say so.
     """
-    scene.build(SCENARIO, band)
+    scene.build(SCENARIO.model_copy(update={"objects": []}), band)
     assert f"_{band}_" in bpy.context.scene.camera.name
 
 
@@ -296,7 +299,7 @@ def test_a_pitched_pod_rolls_the_horizon_of_its_off_axis_cameras(
     pitch_deg = -5.0
     path = tmp_path / "pitched.toml"
     path.write_text(
-        f'extends = "{BASELINE}"\n\n'
+        f"{RIG_ONLY}\n"
         f"[rig]\npitch_deg = {pitch_deg}\n\n"
         '[[rig.pods]]\nname = "bow"\nyaw_deg = 0.0\n\n'
         f'[[rig.pods.cameras]]\npreset = "eo"\nyaw_deg = {yaw_deg}\n'
@@ -322,7 +325,7 @@ def _lens_pitched(
 ):
     path = tmp_path / "lens.toml"
     path.write_text(
-        f'extends = "{BASELINE}"\n\n'
+        f"{RIG_ONLY}\n"
         f"[rig]\npitch_deg = {rig_pitch_deg}\n\n"
         '[[rig.pods]]\nname = "port"\nyaw_deg = -60.0\n\n'
         f'[[rig.pods.cameras]]\npreset = "eo"\n'
@@ -371,7 +374,7 @@ def _pod_pitched(tmp_path, yaw_deg: float, pitch_deg: float = -5.0):
     """A one-pod rig yawed off the bow, so pitch sits between two non-zero yaws."""
     path = tmp_path / "pitched.toml"
     path.write_text(
-        f'extends = "{BASELINE}"\n\n'
+        f"{RIG_ONLY}\n"
         f"[rig]\npitch_deg = {pitch_deg}\n\n"
         '[[rig.pods]]\nname = "port"\nyaw_deg = -60.0\n\n'
         f'[[rig.pods.cameras]]\npreset = "eo"\nyaw_deg = {yaw_deg}\n'
@@ -401,7 +404,7 @@ def test_pitch_leaves_a_centre_camera_on_its_nominal_bearing(tmp_path) -> None:
 
 def test_an_ownship_with_no_hull_still_carries_the_rig(tmp_path) -> None:
     path = tmp_path / "rolled.toml"
-    path.write_text(f'extends = "{BASELINE}"\n\n[ownship]\nroll_deg = 5.0\n')
+    path.write_text(f"{RIG_ONLY}\n[ownship]\nroll_deg = 5.0\n")
     scene.build(load(path), "eo")
 
     right = camera_of(SCENARIO.rig.mounts[0]).matrix_world.to_3x3() @ Vector(
@@ -563,7 +566,7 @@ class TestIrBand:
                 for part in bpy.data.objects[spec.asset].children_recursive
                 if part.type == "MESH"
             )
-            emission = hull.data.materials[0].node_tree.nodes["Emission"]
+            emission = hull.material_slots[0].material.node_tree.nodes["Emission"]
             assert emission.inputs["Strength"].default_value == pytest.approx(
                 lwir.band_radiance(spec.t_k), rel=1e-5
             )

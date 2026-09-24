@@ -667,8 +667,17 @@ def _fit(corners: Iterable[Vector], asset: Asset) -> Matrix:
     )
 
 
-def _vessel(name: str, t_k: float, band: Band, sky: Sky) -> bpy.types.Object:
-    """Import a hull, fit it, and anchor it at the origin under an empty.
+def _meshes(parts: Iterable[bpy.types.Object]) -> list[bpy.types.Object]:
+    return [
+        obj
+        for part in parts
+        for obj in [part, *part.children_recursive]
+        if obj.type == "MESH"
+    ]
+
+
+def _import(name: str, band: Band) -> list[bpy.types.Object]:
+    """Import an asset and fit it; returns the root parts.
 
     An asset arrives in its author's units, off-origin, in many parts.
     """
@@ -685,12 +694,39 @@ def _vessel(name: str, t_k: float, band: Band, sky: Sky) -> bpy.types.Object:
 
     if band == "ir":
         # The asset's own materials are albedo, which says nothing about 8-14 um.
+        # One empty slot, which each hull fills with its own skin.
+        for mesh in _meshes(parts):
+            mesh.data.materials.clear()
+            mesh.data.materials.append(None)
+    return parts
+
+
+def _vessel(
+    name: str,
+    t_k: float,
+    band: Band,
+    sky: Sky,
+    hulls: dict[str, list[bpy.types.Object]],
+) -> bpy.types.Object:
+    """A hull fitted and anchored at the origin under an empty.
+
+    `hulls` holds each asset's first import for the rest of the build. The FBX
+    importer slows with every material already in the file: twin-pod's four imports
+    of one ship took 24 s where one takes 1.3 s. Copies share mesh data, so they cost
+    no memory either.
+    """
+    if name in hulls:
+        parts = [_copy_tree(part, None) for part in hulls[name]]
+    else:
+        parts = hulls[name] = _import(name, band)
+
+    if band == "ir":
         skin = _thermal_skin(f"{name}_ir", t_k, sky)
-        for part in parts:
-            for mesh in [part, *part.children_recursive]:
-                if mesh.type == "MESH":
-                    mesh.data.materials.clear()
-                    mesh.data.materials.append(skin)
+        for mesh in _meshes(parts):
+            # Copies share mesh data, and hulls differ in temperature.
+            slot = mesh.material_slots[0]
+            slot.link = "OBJECT"
+            slot.material = skin
 
     anchor = bpy.data.objects.new(name, None)
     bpy.context.collection.objects.link(anchor)
@@ -701,7 +737,11 @@ def _vessel(name: str, t_k: float, band: Band, sky: Sky) -> bpy.types.Object:
 
 
 def _ownship(
-    ownship: Ownship, band: Band, sky: Sky, rig: bpy.types.Object
+    ownship: Ownship,
+    band: Band,
+    sky: Sky,
+    rig: bpy.types.Object,
+    hulls: dict[str, list[bpy.types.Object]],
 ) -> bpy.types.Object:
     """At the origin, bow to +Y, carrying the rig: its offsets are in this frame."""
     if ownship.asset is None:
@@ -709,7 +749,7 @@ def _ownship(
         bpy.context.collection.objects.link(anchor)
         _place(anchor, 0.0, 0.0, 0.0)
     else:
-        anchor = _vessel(ownship.asset, ownship.t_k, band, sky)
+        anchor = _vessel(ownship.asset, ownship.t_k, band, sky, hulls)
     anchor.name = "ownship"
     rig.parent = anchor
     # YXZ euler is Rz @ Rx @ Ry: roll about the keel, innermost.
@@ -758,9 +798,13 @@ def _copy_tree(
 
 
 def _targets(
-    spec: Targets, band: Band, radius_m: float, sky: Sky
+    spec: Targets,
+    band: Band,
+    radius_m: float,
+    sky: Sky,
+    hulls: dict[str, list[bpy.types.Object]],
 ) -> list[bpy.types.Object]:
-    first = _vessel(spec.asset, spec.t_k, band, sky)
+    first = _vessel(spec.asset, spec.t_k, band, sky, hulls)
     poses = spec.poses()
     anchors = [first, *(_copy_tree(first, None) for _ in poses[1:])]
     for i, (anchor, (bearing_deg, heading_deg)) in enumerate(
@@ -771,8 +815,14 @@ def _targets(
     return anchors
 
 
-def _object(spec: Object, band: Band, radius_m: float, sky: Sky) -> bpy.types.Object:
-    anchor = _vessel(spec.asset, spec.t_k, band, sky)
+def _object(
+    spec: Object,
+    band: Band,
+    radius_m: float,
+    sky: Sky,
+    hulls: dict[str, list[bpy.types.Object]],
+) -> bpy.types.Object:
+    anchor = _vessel(spec.asset, spec.t_k, band, sky, hulls)
     _pose(anchor, spec.range_m, spec.bearing_deg, spec.heading_deg, radius_m)
     return anchor
 
@@ -853,12 +903,13 @@ def build(scenario: Scenario, band: Band = "eo") -> Built:
     far_m = 1.5 * reach_m  # the sea's corner is reach * sqrt(2) away
     _sea(scenario.sea, scenario.seed, reach_m, band)
     rig = _rig(scenario.rig, far_m)
-    vessel = _ownship(scenario.ownship, band, scenario.sky, rig.root)
+    hulls: dict[str, list[bpy.types.Object]] = {}
+    vessel = _ownship(scenario.ownship, band, scenario.sky, rig.root, hulls)
     radius_m = earth_radius_m(scenario.sea.refraction_k)
     for spec in scenario.objects:
-        _object(spec, band, radius_m, scenario.sky)
+        _object(spec, band, radius_m, scenario.sky, hulls)
     if scenario.targets is not None:
-        _targets(scenario.targets, band, radius_m, scenario.sky)
+        _targets(scenario.targets, band, radius_m, scenario.sky, hulls)
     # Scenario order, so the first camera is EO in the baseline: an IR build would
     # otherwise open on a camera whose optics belong to the other band.
     first = next(mount for mount in scenario.rig.mounts if mount.camera.kind == band)
