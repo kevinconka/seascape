@@ -6,7 +6,7 @@
 # IR: 50 deg inboard of the pod axis = +-10 deg off the bow, 44 deg pair, 4 deg overlap.
 #
 # Headroom above the horizon is half the vertical field minus the pitch: 4.4 deg EO
-# (28.8 deg field), 3.7 deg IR (19.3 deg).
+# (28.8 deg field), 3.1 deg IR (18.1 deg).
 #
 # Offsets: bridge-wing tops of the container_ship mesh, +-21.5 m (half the 43 m beam)
 # and 68.2 m aft of midships.
@@ -24,25 +24,25 @@ offset_x_m = -21.5
 offset_y_m = -68.2
 
 [[pods.cameras]]
-preset = "eo"
+preset = "eo_4k_49deg"
 name = "EO_PORT_P"
 yaw_deg = -40.0
 pitch_deg = -10.0
 
 [[pods.cameras]]
-preset = "eo"
+preset = "eo_4k_49deg"
 name = "EO_PORT_C"
 yaw_deg = 0.0
 pitch_deg = -10.0
 
 [[pods.cameras]]
-preset = "eo"
+preset = "eo_4k_49deg"
 name = "EO_PORT_S"
 yaw_deg = 40.0
 pitch_deg = -10.0
 
 [[pods.cameras]]
-preset = "ir"
+preset = "ir_vga_24deg"
 name = "IR_PORT"
 # Inboard, so the pair straddles the bow at +-10 deg.
 yaw_deg = +50.0
@@ -55,25 +55,25 @@ offset_x_m = +21.5
 offset_y_m = -68.2
 
 [[pods.cameras]]
-preset = "eo"
+preset = "eo_4k_49deg"
 name = "EO_STBD_P"
 yaw_deg = -40.0
 pitch_deg = -10.0
 
 [[pods.cameras]]
-preset = "eo"
+preset = "eo_4k_49deg"
 name = "EO_STBD_C"
 yaw_deg = 0.0
 pitch_deg = -10.0
 
 [[pods.cameras]]
-preset = "eo"
+preset = "eo_4k_49deg"
 name = "EO_STBD_S"
 yaw_deg = 40.0
 pitch_deg = -10.0
 
 [[pods.cameras]]
-preset = "ir"
+preset = "ir_vga_24deg"
 name = "IR_STBD"
 yaw_deg = -50.0
 pitch_deg = -6.0

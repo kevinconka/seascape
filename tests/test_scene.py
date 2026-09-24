@@ -302,7 +302,7 @@ def test_a_pitched_pod_rolls_the_horizon_of_its_off_axis_cameras(
         f"{RIG_ONLY}\n"
         f"[rig]\npitch_deg = {pitch_deg}\n\n"
         '[[rig.pods]]\nname = "bow"\nyaw_deg = 0.0\n\n'
-        f'[[rig.pods.cameras]]\npreset = "eo"\nyaw_deg = {yaw_deg}\n'
+        f'[[rig.pods.cameras]]\npreset = "eo_4k_49deg"\nyaw_deg = {yaw_deg}\n'
     )
     scenario = load(path)
     # Through `_yaw`: Blender's +Z turns to port, so the sign follows the scene's.
@@ -328,7 +328,7 @@ def _lens_pitched(
         f"{RIG_ONLY}\n"
         f"[rig]\npitch_deg = {rig_pitch_deg}\n\n"
         '[[rig.pods]]\nname = "port"\nyaw_deg = -60.0\n\n'
-        f'[[rig.pods.cameras]]\npreset = "eo"\n'
+        f'[[rig.pods.cameras]]\npreset = "eo_4k_49deg"\n'
         f"yaw_deg = {yaw_deg}\npitch_deg = {pitch_deg}\n"
     )
     scenario = load(path)
@@ -377,7 +377,7 @@ def _pod_pitched(tmp_path, yaw_deg: float, pitch_deg: float = -5.0):
         f"{RIG_ONLY}\n"
         f"[rig]\npitch_deg = {pitch_deg}\n\n"
         '[[rig.pods]]\nname = "port"\nyaw_deg = -60.0\n\n'
-        f'[[rig.pods.cameras]]\npreset = "eo"\nyaw_deg = {yaw_deg}\n'
+        f'[[rig.pods.cameras]]\npreset = "eo_4k_49deg"\nyaw_deg = {yaw_deg}\n'
     )
     scenario = load(path)
     scene.build(scenario, "eo")
@@ -429,7 +429,7 @@ def test_a_band_the_rig_cannot_see_is_an_error(tmp_path) -> None:
     path.write_text(
         f'extends = "{BASELINE}"\n\n'
         '[[rig.pods]]\nname = "bow"\nyaw_deg = 0.0\n\n'
-        '[[rig.pods.cameras]]\npreset = "eo"\n'
+        '[[rig.pods.cameras]]\npreset = "eo_4k_49deg"\n'
     )
     with pytest.raises(ValueError, match="no ir camera"):
         scene.build(load(path), "ir")
