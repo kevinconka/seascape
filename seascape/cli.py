@@ -52,11 +52,6 @@ def _montage(scenario_path: Path, output: Path | None, overrides: list[str]) -> 
     print(montage.compose(scenario, into))
 
 
-def _panorama(folder: Path, projection: str, frame: str, max_width: int | None) -> None:
-    for path in panorama.panoramas(folder, projection, frame, max_width):
-        print(path)
-
-
 def _add_set(command: argparse.ArgumentParser) -> None:
     command.add_argument(
         "--set",
@@ -111,6 +106,9 @@ def main(argv: list[str] | None = None) -> int:
     stitch.add_argument(
         "--max-width", type=int, help="pixels; native resolution when absent"
     )
+    stitch.add_argument(
+        "--ruler", action="store_true", help="a strip of bearing ticks under the image"
+    )
 
     commands.add_parser("schema", help="print the scenario JSON schema on stdout")
 
@@ -124,7 +122,10 @@ def main(argv: list[str] | None = None) -> int:
         elif args.command == "montage":
             _montage(args.scenario, args.output, args.overrides)
         elif args.command == "panorama":
-            _panorama(args.folder, args.projection, args.frame, args.max_width)
+            for path in panorama.panoramas(
+                args.folder, args.projection, args.frame, args.max_width, args.ruler
+            ):
+                print(path)
         else:
             _build(args.scenario, args.output, args.band, args.overrides)
     except (
