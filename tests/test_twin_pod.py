@@ -1,7 +1,4 @@
-"""The installed rig: pods on an ownship's bridge wings, traffic at 7 NM.
-
-One global Blender session, so the scene is built once per module.
-"""
+"""The twin-pod scenario. One global Blender session, so it is built once."""
 
 import json
 import math
@@ -53,7 +50,6 @@ def test_a_pods_cameras_all_sit_at_its_mount_point(
 
 
 def test_the_ownship_is_at_the_origin(built: scene.Built) -> None:
-    """The rig's offsets are in the ownship's frame."""
     anchor = built.vessel
 
     assert tuple(anchor.location) == pytest.approx((0.0, 0.0, 0.0))
@@ -73,7 +69,6 @@ def test_the_hull_takes_the_attitude_it_was_given(built: scene.Built) -> None:
 
 
 def test_pod_span_and_overlap_measured_from_the_scene(built: scene.Built) -> None:
-    """The rig preset's spans, read off the built cameras rather than the config."""
     arcs: dict[tuple[str, str], list[tuple[float, float]]] = {}
     for mount in SCENARIO.rig.mounts:
         camera = built.cameras[mount.name]
@@ -97,8 +92,7 @@ def test_pod_span_and_overlap_measured_from_the_scene(built: scene.Built) -> Non
         assert gaps == pytest.approx([overlap] * len(gaps), abs=1e-4), key
 
 
-# A bracket stands on something. Further than this below a pod and it floats beside
-# the ship.
+# Further than this below a pod and it floats beside the ship.
 MAX_BRACKET_M = 5.0
 
 
@@ -272,7 +266,6 @@ def test_a_panorama_puts_each_principal_point_on_its_boresight(
 def test_a_panorama_lays_its_cameras_out_in_yaw_order(
     tmp_path: Path, built: scene.Built
 ) -> None:
-    """Each frame one colour, so the stitch shows which camera landed where."""
     first = SCENARIO.rig.mounts[0]
     mounts = [
         m

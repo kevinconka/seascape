@@ -1,10 +1,7 @@
 """Compose a render's frames into one labelled image, for review.
 
-No Blender: this reads the images `render` already wrote, so it runs without the bpy
-wheel and a layout can be redone without re-rendering.
-
-Captions sit in a band under each frame: text burnt into a frame is an artefact that
-travels with the dataset, and in an exr it would corrupt radiance.
+No Blender: this reads the images `render` already wrote. Captions sit under each
+frame, never on it: in an exr they would corrupt radiance.
 """
 
 from pathlib import Path
@@ -14,19 +11,15 @@ from PIL.ImageFont import FreeTypeFont
 
 from seascape.config import Scenario
 
-# Tall enough to read at a glance, small enough that a row fits across a screen.
 TILE_H = 260
 CAPTION_H = 26
 GUTTER = 4
 
-# Dark enough that a frame's edge shows against it, and pale ink stays legible over
-# both a bright EO frame and a dark thermal one.
 MATTE = (24, 24, 24)
 INK = (232, 232, 232)
 
 
 def _font() -> FreeTypeFont | ImageFont.ImageFont:
-    """Pillow's built-in face: no font file to ship, or to find missing."""
     return ImageFont.load_default(size=16)
 
 
@@ -51,11 +44,7 @@ def _tile(
 
 
 def compose(scenario: Scenario, into: Path) -> Path:
-    """Write `montage.png` beside the frames in `into`, one row per band.
-
-    Tiles follow rig order. eo and ir never share
-    a row: their pixels mean different things.
-    """
+    """Write `montage.png` beside the frames in `into`, one row per band."""
     font = _font()
     rows: list[list[Image.Image]] = []
     for band in scenario.outputs.bands:
@@ -81,7 +70,7 @@ def compose(scenario: Scenario, into: Path) -> Path:
     )
     y = 0
     for row, row_w, row_h in zip(rows, widths, heights, strict=True):
-        x = (sheet.width - row_w) // 2  # a short ir row sits under the eo
+        x = (sheet.width - row_w) // 2
         for tile in row:
             sheet.paste(tile, (x, y))
             x += tile.width + GUTTER

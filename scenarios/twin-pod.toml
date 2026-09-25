@@ -1,15 +1,11 @@
 #:schema ../schema/scenario.json
 
-# The rig as installed: two pods on a container ship's bridge wings, a ring of
-# traffic at 7 NM. The preset carries the pods and their height.
-
 seed = 20260920
 
 [rig]
 preset = "twin_pod"
 
 [sea]
-# Warmer than the air, the norm at sea.
 t_sea_k = 291.0
 
 [sky]
@@ -18,27 +14,24 @@ sun_bearing_deg = 135.0
 
 [ownship]
 asset = "container_ship"
-# Illustrative, not measured.
 roll_deg = 2.0
 pitch_deg = 0.5
 
 [targets]
 asset = "container_ship"
-# 7 NM, the EO detection range the pod is specified against.
 range_m = 12964.0
 # Enough that every camera sees one.
 count = 8
 bearing_deg = [-120.0, 120.0]
 
-# Two closer ships, one for each thermal camera.
 [[objects]]
 preset = "container_ship"
-range_m = 3704.0  # 2 NM
+range_m = 3704.0
 bearing_deg = -10.0
 heading_deg = 80.0  # beam-on, so it presents its length
 
 [[objects]]
 preset = "container_ship"
-range_m = 7408.0  # 4 NM
+range_m = 7408.0
 bearing_deg = 10.0
 heading_deg = 280.0

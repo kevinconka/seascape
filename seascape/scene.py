@@ -1,8 +1,5 @@
 """Build a Blender scene from a scenario. Nothing here renders.
 
-The scene is written to a `.blend` and opened separately, so this module runs in its
-own process and never inside Blender.
-
 Sources
 -------
 Dominant wavelength: Pierson & Moskowitz, "A proposed spectral form for fully developed
@@ -67,8 +64,7 @@ SLOPE_VARIANCE_PER_MPS = 0.00512
 PM_PEAK = 0.877
 MIN_WAVELENGTH_M = 1.0
 
-# Blender's Detail input, which is octaves *beyond* the first: Detail = 0 already
-# carries one, measured at 0.51 RMS slope against 0.61 at 4.
+# Blender's Detail input, which is octaves *beyond* the first.
 NOISE_DETAIL = 4.0
 
 # Amplitude ratio between octaves. Slope goes as amplitude x wavenumber and wavenumber
@@ -77,13 +73,12 @@ NOISE_DETAIL = 4.0
 NOISE_ROUGHNESS = 0.5
 
 # 2 pi sqrt(gamma / rho g) = 1.73 cm at gamma = 0.074 N/m: the wavelength of minimum
-# phase speed, where surface tension takes over from gravity. The bottom of the slope
-# spectrum, not a chosen resolution.
+# phase speed, where surface tension takes over from gravity: the bottom of the slope
+# spectrum.
 CAPILLARY_WAVELENGTH_M = 0.0173
 
-# RMS gradient of the noise's Fac per noise unit, so a Distance of slope x wavelength
-# delivers 0.55 of the slope asked for. Quoted at 2 cm sampling: finer sampling finds
-# more.
+# RMS gradient of the noise's Fac per noise unit, at 2 cm sampling: finer sampling
+# finds more.
 NOISE_SLOPE_PER_UNIT = 0.55
 
 
@@ -129,16 +124,13 @@ def specular_roughness(wind_speed_mps: float) -> float:
     """Blender roughness for a reflection lobe matching the unresolved slope.
 
     Cycles' GGX takes alpha = roughness^2, and a Gaussian slope of sigma maps to
-    alpha = sqrt(2) sigma. This is the consistent partner to an emissivity curve
-    averaged over the same slopes: the surface cannot be rough enough to change how
-    much it reflects and still be smooth enough to reflect sharply.
+    alpha = sqrt(2) sigma.
     """
     return math.sqrt(min(math.sqrt(2.0) * unresolved_slope(wind_speed_mps), 1.0))
 
 
 # Flat paint over steel, 8-14 um. Paints sit at 0.94-0.96 across this band and the
-# colour does not matter, only how flat the finish is; metallic paints are far lower
-# and are not what a hull is coated with.
+# colour does not matter, only how flat the finish is.
 PAINT_EMISSIVITY = 0.94
 
 # Mean radius, IUGG.
@@ -208,8 +200,8 @@ def _sky(sky: Sky, band: Band) -> bpy.types.World:
     if band == "ir":
         return _thermal_sky(world, sky.t_air_k)
     node = tree.nodes.new("ShaderNodeTexSky")
-    # Multiple scattering is Blender 5's name for Nishita. `turbidity` belongs to the
-    # Preetham and Hosek-Wilkie models and is silently ignored here.
+    # Blender 5's name for Nishita. `turbidity` belongs to Preetham and Hosek-Wilkie
+    # and is silently ignored here.
     node.sky_type = "MULTIPLE_SCATTERING"
     node.sun_elevation = math.radians(sky.sun_elevation_deg)
     node.sun_rotation = _yaw(sky.sun_bearing_deg)
@@ -296,14 +288,7 @@ def _sun_vector(sky: Sky) -> tuple[float, float, float]:
 def _thermal_skin(name: str, t_k: float, sky: Sky) -> bpy.types.Material:
     """eps of a painted hull emitted, the remaining 1 - eps reflected from the sky.
 
-    The sea's shape, for the sea's reason. A pure emitter leaves the same radiance in
-    every direction, so a vessel renders as one flat value however it is lit or turned.
-    Reflecting the other 1 - eps gives it back the angular structure a real hull has:
-    a deck faces the cold zenith, a vertical side sees half sky and half sea.
-
-    Diffuse rather than glossy, which is where this parts from the sea: flat marine
-    paint is near-Lambertian in this band, so a hull scatters the sky rather than
-    mirroring it.
+    Diffuse: flat marine paint is near-Lambertian in this band.
     """
     material = bpy.data.materials.new(name)
     tree = material.node_tree
@@ -330,11 +315,8 @@ def _sunlit_emission(
     """Emission graded from shaded to sunlit by Lambert's cosine on the real sun.
 
     Two emissions mixed by `max(0, n . sun)`, so both ends are the exact band radiance
-    and only the middle interpolates -- a fraction of a percent out against evaluating
-    the Planck integral at the blended temperature, which no shader node can do.
-
-    A single temperature leaves the pattern a hull shows in this band on the floor: a
-    lit side against a shaded one, and decks hotter than either.
+    and only the middle interpolates: no shader node can evaluate the Planck integral
+    at the blended temperature.
     """
     shaded = tree.nodes.new("ShaderNodeEmission")
     shaded.inputs["Strength"].default_value = lwir.band_radiance(t_k)
@@ -368,18 +350,10 @@ def _wave_normals(
     Shading, not geometry. A bump normal is evaluated per pixel and varies
     continuously, so distant water averages smooth; displaced geometry at any
     affordable spacing goes sub-pixel before the horizon and aliases instead.
-
-    Relief does not fade with range. A fade reads as an obvious fix for the stipple
-    past the point waves go sub-pixel, and measurably is not one: at 30 km it changed
-    the far field by 3% and the aliasing not at all, because it scales amplitude
-    uniformly rather than filtering anything. Shortening it to where waves actually go
-    sub-pixel made the far field more aliased relative to its own texture, not less.
     """
     length_m = wave_length_m(sea.wind_speed_mps)
     # z multiplier 0: the seed owns that axis, so the sea curving under it cannot slide
-    # the wave field. Scaled, z would drift the sample z / wavelength periods, and the
-    # refraction k would move the waves.
-    # 3-D rather than 4-D with the seed in W: same field, 20% cheaper at 4K.
+    # the wave field.
     scale = tree.nodes.new("ShaderNodeVectorMath")
     scale.operation = "MULTIPLY_ADD"
     scale.inputs[1].default_value = (1.0 / length_m, 1.0 / length_m, 0.0)
@@ -441,9 +415,7 @@ def _thermal_sea(sea: Sea, seed: int) -> bpy.types.Material:
     """eps(theta) of the sea emitted, the remaining 1 - eps reflected from the sky.
 
     Complements, so the two very nearly cancel and the sea holds close to ambient at
-    every angle. Blender does the reflection: a Glossy BSDF against the wave normals
-    reflects the real sky in the real mirror direction, and a warm hull with it, which
-    a baked sky curve cannot.
+    every angle.
     """
     material = bpy.data.materials.new("sea")
     tree = material.node_tree
@@ -452,8 +424,8 @@ def _thermal_sea(sea: Sea, seed: int) -> bpy.types.Material:
     # The same unresolved slope the emissivity curve is averaged over.
     mirror.inputs["Roughness"].default_value = specular_roughness(sea.wind_speed_mps)
     # Glossy BSDF ships at 0.8 grey. The Mix Shader already applies the 1 - eps
-    # weighting, so anything but white here absorbs a fifth of the reflected sky and
-    # cuts a dark notch along the horizon.
+    # weighting, so anything but white here absorbs reflected sky and cuts a dark
+    # notch along the horizon.
     mirror.inputs["Color"].default_value = (1.0, 1.0, 1.0, 1.0)
     emission = tree.nodes.new("ShaderNodeEmission")
     emission.inputs["Strength"].default_value = lwir.band_radiance(sea.t_sea_k)
@@ -550,8 +522,8 @@ def _rig(rig: Rig, far_m: float) -> _RigObjects:
         data.sensor_fit = "HORIZONTAL"
         data.angle_x = math.radians(mount.camera.hfov_deg)
         data.clip_start = rig.near_clip_m
-        # The default 1000 m puts a 2 km target behind the far plane, where it
-        # renders as sky and the clip boundary reads as the horizon. Nothing warns.
+        # The default 1000 m renders a target past it as sky, and the clip boundary
+        # reads as the horizon. Nothing warns.
         data.clip_end = far_m
         camera = bpy.data.objects.new(data.name, data)
         bpy.context.collection.objects.link(camera)
@@ -732,10 +704,8 @@ def _vessel(
 ) -> bpy.types.Object:
     """A hull fitted and anchored at the origin under an empty.
 
-    `hulls` holds each asset's first import for the rest of the build. The FBX
-    importer slows with every material already in the file: four imports of one ship
-    take 24 s where one takes 1.3 s. Copies share mesh data, so they cost
-    no memory either.
+    `hulls` holds each asset's first import for the rest of the build: the FBX
+    importer slows with every material already in the file.
     """
     if name in hulls:
         parts = [_copy_tree(part, None) for part in hulls[name]]
@@ -849,7 +819,7 @@ def _object(
     return anchor
 
 
-# Blender's identifier and bit depth. EXR is 32-bit float; ir pixels are radiance.
+# Blender's identifier and bit depth.
 _FORMATS: dict[ImageFormat, tuple[str, str]] = {
     "exr": ("OPEN_EXR", "32"),
     "png": ("PNG", "8"),
@@ -880,10 +850,9 @@ def _output(outputs: Outputs, band: Band) -> None:
     sc.render.engine = "CYCLES"
     sc.cycles.device = "GPU" if _enable_gpu() else "CPU"
     sc.cycles.samples = getattr(outputs.samples, band)
-    # OIDN is on by default and is a picture filter: a world flat at 290.00 K comes
-    # back 282.43-293.00 K, and R=G=B, which `render._thermal_png` reads, breaks.
+    # OIDN is on by default and is a picture filter: it breaks the R=G=B that the ir
+    # png reads.
     sc.cycles.use_denoising = band == "eo"
-    # HIGH: 16 s vs 5 s per 4K frame, 0.8% pixel change.
     sc.cycles.denoising_quality = "FAST"
     view = sc.view_settings
     if band == "eo":
@@ -911,11 +880,7 @@ def _viewport(near_m: float, far_m: float) -> None:
 
 
 def build(scenario: Scenario, band: Band = "eo") -> Built:
-    """Replace the current Blender session's contents with `scenario` in one band.
-
-    A scene is EO or LWIR, never both: the two describe different physics and share no
-    units. Rendering both bands means building twice, which costs seconds.
-    """
+    """Replace the current Blender session's contents with `scenario` in one band."""
     if not any(mount.camera.kind == band for mount in scenario.rig.mounts):
         raise ValueError(f"the rig has no {band} camera to build a {band} scene for")
     bpy.ops.wm.read_factory_settings(use_empty=True)

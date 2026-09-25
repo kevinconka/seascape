@@ -14,8 +14,7 @@ Sources
 Optical constants: Nalli et al., "Temperature-dependent optical constants of water in
 the thermal infrared derived from data archaeology", Optics Continuum 1(4) 738, 2022
 (doi:10.1364/OPTCON.450833); data doi:10.6084/m9.figshare.19341533, CC BY 4.0. That is
-Downing & Williams 1975 extended across 271-311 K using Pinkley et al. 1977. The table
-ships as data/water_nk.csv, which carries the same citation.
+Downing & Williams 1975 extended across 271-311 K using Pinkley et al. 1977.
 
 Facet averaging: Masuda, Takashima & Takayama, "Emissivity of pure and sea waters
 for the model sea surface in the infrared window regions", Remote Sensing of Environment
@@ -25,11 +24,8 @@ verification", Applied Optics 36(12) 2609, 1997 (doi:10.1364/AO.36.002609).
 
 Sky emissivity: one LOWTRAN7 run, midlatitude summer profile with the navy maritime
 aerosol, observer at 12 m, integrated over the band. LOWTRAN7 is public-domain
-(AFGL-TR-88-0177); the run is reproducible with `lowtran` on PyPI, which needs gfortran.
-It is a band model, not line-by-line, and the profile is fixed: good to a few percent,
-not a radiometric reference.
-
-h, c and k_B are the SI defining constants, exact since the 2019 redefinition.
+(AFGL-TR-88-0177); the run is reproducible with `lowtran` on PyPI. A band model with a
+fixed profile, not a radiometric reference.
 
 Planck's law and Fresnel for an absorbing medium are textbook, but carry two assumptions
 that fail silently:
@@ -52,7 +48,7 @@ _TABLE_CSV = Path(__file__).parent / "data" / "water_nk.csv"
 
 BAND_M = (8.0e-6, 14.0e-6)
 
-# SI defining constants, exact.
+# SI defining constants, exact since the 2019 redefinition.
 PLANCK_H = 6.62607015e-34  # J s
 LIGHT_C = 2.99792458e8  # m s^-1
 BOLTZMANN_K = 1.380649e-23  # J K^-1
@@ -60,11 +56,10 @@ BOLTZMANN_K = 1.380649e-23  # J K^-1
 T_SEA_K = 288.0
 T_AIR_K = 288.0
 
-# Downwelling sky emissivity against elevation above the horizon, in degrees for
-# legibility and converted once below. Normalised by the horizon value, which is ambient
-# by construction: a horizontal path is optically thick, so the sky at the horizon is a
-# blackbody at air temperature. That normalisation is what lets one curve serve any air
-# temperature -- the shape belongs to the atmosphere, the scale to Planck.
+# Downwelling sky emissivity against elevation above the horizon, in degrees.
+# Normalised by the horizon value, which is ambient: a horizontal path is optically
+# thick, so the sky at the horizon is a blackbody at air temperature. One curve then
+# serves any air temperature, scaled by Planck.
 _SKY_EPS = (
     (0.0, 1.0000),
     (1.0, 0.9898),
@@ -99,9 +94,8 @@ def _checked_kelvin(t_k: float) -> float:
 def _table() -> tuple[FloatArray, FloatArray, FloatArray]:
     """The shipped table as (wavenumber, temperature, n and k on that grid).
 
-    n and k come back shaped (temperature, wavenumber). Rows are placed by index
-    rather than reshaped, so the file's row order does not matter. Arrays are frozen
-    because the cache hands the same objects to every caller.
+    n and k come back shaped (temperature, wavenumber). Arrays are frozen because the
+    cache hands the same objects to every caller.
     """
     raw = np.loadtxt(_TABLE_CSV, delimiter=",", comments="#")
     grid, column = np.unique(raw[:, 0], return_inverse=True)
@@ -123,8 +117,7 @@ def optical_constants(
 ) -> tuple[FloatArray, FloatArray, FloatArray]:
     """Wavelength (m), n, k across the band at `t_k`, ascending in wavelength.
 
-    Linearly interpolated between the table's steps and clamped outside its span,
-    which already covers any sea surface.
+    Linearly interpolated between the table's steps and clamped outside its span.
     """
     grid, temperatures, nk = _table()
     t = float(np.clip(_checked_kelvin(t_k), temperatures[0], temperatures[-1]))
@@ -155,9 +148,8 @@ def fresnel_emissivity(
 ) -> FloatArray:
     """Unpolarised emissivity 1-R at incidence `theta_rad` from vacuum.
 
-    Textbook Fresnel for an absorbing medium; numpy's complex sqrt takes the
-    correct branch, so no special-casing of grazing angles is needed. Inputs
-    broadcast, so angle and wavelength can be evaluated as a grid.
+    numpy's complex sqrt takes the correct branch, so grazing needs no special case.
+    Inputs broadcast, so angle and wavelength can be evaluated as a grid.
     """
     n_c = np.asarray(n, dtype=np.float64) + 1j * np.asarray(k, dtype=np.float64)
     theta = np.asarray(theta_rad, dtype=np.float64)
@@ -197,8 +189,6 @@ def emissivity_curve(
     if slope_sigma <= 0.0:
         return theta, flat / band
 
-    # One table over incidence, interpolated per facet: the band integral is the
-    # expensive part and it does not depend on which facet asked for it.
     table = flat / band
     rng = np.random.default_rng(0)
     slope = rng.normal(0.0, slope_sigma, size=(FACET_SAMPLES, 2))
@@ -207,7 +197,6 @@ def emissivity_curve(
 
     view = np.stack([np.sin(theta), np.zeros(CURVE_ANGLES), np.cos(theta)], axis=-1)
     cos_i = view @ normal.T  # (angle, facet)
-    # A facet turned away from the viewer contributes no area and is not visible.
     area = np.clip(cos_i, 0.0, None)
     eps = np.interp(np.arccos(np.clip(cos_i, -1.0, 1.0)), theta, table)
     return theta, (eps * area).sum(axis=1) / area.sum(axis=1)
@@ -219,24 +208,22 @@ _BAND_LAM = np.linspace(*BAND_M, 512)
 def band_radiance(t_k: float) -> float:
     """Blackbody radiance integrated over the band, W m^-2 sr^-1.
 
-    On its own grid, not the seawater table's, whose 20 cm^-1 spacing lands inside
-    the band at both ends and so integrates low.
+    On its own grid: the seawater table's ends land inside the band and integrate low.
     """
     return float(np.trapezoid(planck(_BAND_LAM, t_k), _BAND_LAM))
 
 
-# np.interp clamps past the ends, so a hull the sun heats past 400 K reads as 400.
+# np.interp clamps past the ends: a hull hotter than the grid reads as its top.
 _TB_GRID = np.linspace(200.0, 400.0, 1024)
-# Through band_radiance, not a second copy of its integral: the two must stay
-# inverses.
+# Through band_radiance, so the two stay inverses.
 _TB_RADIANCE = np.array([band_radiance(t) for t in _TB_GRID])
 
 
 def brightness_temperature(radiance: npt.ArrayLike) -> FloatArray:
     """Invert `band_radiance`: the blackbody temperature that emits this in-band.
 
-    What a thermal camera displays. A real surface is not a blackbody, so this reads
-    below its true temperature wherever emissivity does.
+    A real surface is not a blackbody, so this reads below its true temperature
+    wherever emissivity does.
     """
     return np.interp(np.asarray(radiance, dtype=np.float64), _TB_RADIANCE, _TB_GRID)
 
@@ -244,10 +231,8 @@ def brightness_temperature(radiance: npt.ArrayLike) -> FloatArray:
 def sky_radiance(elev_rad: npt.ArrayLike, t_air_k: float = T_AIR_K) -> FloatArray:
     """Downwelling in-band sky radiance at an elevation above the horizon.
 
-    Ambient at the horizon, where the slant path is optically thick, falling to the
-    table's zenith value. Sea and sky meeting at the same radiance is what makes a
-    thermal horizon read correctly. Below the horizon the curve holds at ambient, which
-    is what a ray that misses the sea should see.
+    Below the horizon the curve holds at ambient, which is what a ray that misses the
+    sea should see.
     """
     elev, eps = np.array(_SKY_EPS, dtype=np.float64).T
     fraction = np.interp(np.asarray(elev_rad, dtype=np.float64), np.radians(elev), eps)

@@ -33,21 +33,14 @@ def _pixels(path: Path) -> np.ndarray:
 
 
 def _thermal_png(exr: Path, png: Path) -> None:
-    """Rewrite a float LWIR render as 8-bit grey, auto-contrasted over the frame.
-
-    Black is the coldest pixel and white the hottest, so the frame uses the whole
-    range whatever the scene. The cost is that the scale is the frame's own: two
-    images are not comparable and a pixel is not a temperature. `format = "exr"` is
-    where both of those live: this deletes its exr once the png is written.
-    """
+    """Rewrite a float LWIR render as 8-bit grey, and delete the exr."""
     radiance = _pixels(exr)
     height, width, _ = radiance.shape
     out = bpy.data.images.new(png.stem, width, height)
     try:
         t_k = lwir.brightness_temperature(radiance[..., 0].ravel())
-        # Full span, not a percentile: a target is a small fraction of the frame and
-        # trimming the tails is what flattens it to white. A render has no dead
-        # pixels to trim.
+        # Full span: a target is a small fraction of the frame, and trimming the tails
+        # flattens it to white.
         low, high = float(t_k.min()), float(t_k.max())
         # A frame of one temperature has no contrast to stretch; mid-grey, not NaN.
         if high - low < 1e-6:
@@ -65,8 +58,8 @@ def _thermal_png(exr: Path, png: Path) -> None:
         out.filepath_raw = str(png)
         out.save()
     finally:
-        # The datablock goes whatever happened; the float render survives a failure,
-        # so a conversion that raised can be retried without paying for the render.
+        # The exr survives a failure, so the conversion can be retried without
+        # re-rendering.
         bpy.data.images.remove(out)
     exr.unlink()
 
@@ -154,7 +147,7 @@ def render(scenario: Scenario, into: Path) -> list[Path]:
     with tempfile.TemporaryDirectory() as tmp:
         passes = Path(tmp)
         for band in outputs.bands:
-            # The default bands ask for both, so an EO-only rig must skip ir, not fail.
+            # The default bands can name one the rig has no camera for.
             mounts = [m for m in scenario.rig.mounts if m.camera.kind == band]
             if not mounts:
                 continue
@@ -178,12 +171,9 @@ def render(scenario: Scenario, into: Path) -> list[Path]:
                 written.append(image)
                 camera = scene.calibrate(built, mount, image.name)
                 cameras.append(camera)
-                # Blender's rows run bottom up.
                 index = _pixels(passes / f"{mount.name}.index.exr")[::-1, :, 0]
                 truth.add(camera, np.rint(index).astype(int), targets, radius_m)
     if not written:
-        # Skipping a band the default asked for is right; writing nothing at all
-        # means the scenario names only bands its rig has no camera for.
         raise ValueError(
             f"the rig has no camera in any of {outputs.bands}: nothing to render"
         )
