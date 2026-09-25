@@ -123,7 +123,13 @@ def test_waves_survive_a_sea_at_air_temperature() -> None:
 
 
 @pytest.mark.render
-def test_the_noise_delivers_the_slope_it_is_asked_for() -> None:
+@pytest.mark.parametrize(
+    ("dimensions", "slope_per_unit"),
+    [("3D", scene.NOISE_SLOPE_PER_UNIT), ("4D", scene.NOISE_SLOPE_PER_UNIT_4D)],
+)
+def test_the_noise_delivers_the_slope_it_is_asked_for(
+    dimensions: str, slope_per_unit: float
+) -> None:
     """A Blender change to the noise shows up as a number, not as a sea that looks
     slightly wrong."""
     span, px = 20.0, 1024  # 2 cm sampling
@@ -135,6 +141,7 @@ def test_the_noise_delivers_the_slope_it_is_asked_for() -> None:
     tree = material.node_tree
     tree.nodes.clear()
     noise = tree.nodes.new("ShaderNodeTexNoise")
+    noise.noise_dimensions = dimensions
     noise.inputs["Scale"].default_value = 1.0  # one noise unit is one metre
     noise.inputs["Detail"].default_value = scene.NOISE_DETAIL
     noise.inputs["Roughness"].default_value = scene.NOISE_ROUGHNESS
@@ -161,7 +168,7 @@ def test_the_noise_delivers_the_slope_it_is_asked_for() -> None:
     fac = shoot((px, px), "noise_probe")
     gradient_y, gradient_x = np.gradient(fac.astype(np.float64), span / px)
     measured = float(np.sqrt(np.mean(gradient_x**2 + gradient_y**2)))
-    assert measured == pytest.approx(scene.NOISE_SLOPE_PER_UNIT, abs=0.03)
+    assert measured == pytest.approx(slope_per_unit, abs=0.03)
 
 
 def test_the_sky_draws_its_sun_where_the_sun_vector_points() -> None:

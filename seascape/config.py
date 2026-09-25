@@ -230,6 +230,16 @@ _T_HULL = "Shaded hull temperature. IR only."
 _HEADING = "Where its bow points, clockwise from the ownship's bow."
 _RANGE = "Horizontal, from the ownship's origin."
 _SPEED = "Along its heading."
+_DRIFT = "A figure-eight about its pose."
+
+
+class Drift(Model):
+    """A hull at single anchor fishtails: across its heading once a period, along it
+    twice. Starts at its pose; the heading holds."""
+
+    sway_m: float = Field(ge=0.0, description="Peak, across the heading.")
+    surge_m: float = Field(ge=0.0, description="Peak, along the heading.")
+    period_s: float = Field(gt=0.0, description="One full figure-eight.")
 
 
 class Object(Model):
@@ -240,6 +250,7 @@ class Object(Model):
     bearing_deg: float = Field(description="Clockwise from the ownship's bow.")
     heading_deg: float = Field(default=0.0, description=_HEADING)
     speed_mps: float = Field(default=0.0, ge=0.0, description=_SPEED)
+    drift: Drift | None = Field(default=None, description=_DRIFT)
     t_k: float = Field(default=293.0, ge=250.0, le=400.0, description=_T_HULL)
 
 
@@ -295,6 +306,7 @@ class Targets(Model):
         description="First and last, spread evenly, clockwise from the ownship's bow.",
     )
     speed_mps: float = Field(default=0.0, ge=0.0, description=_SPEED)
+    drift: Drift | None = Field(default=None, description=_DRIFT)
     t_k: float = Field(default=293.0, ge=250.0, le=400.0, description=_T_HULL)
 
     def _spread(self, span: tuple[float, float], i: int) -> float:
@@ -350,10 +362,26 @@ class Outputs(Model):
     )
     duration_s: float = Field(default=0.0, ge=0.0, description="0 is a still.")
     fps: int = Field(default=10, gt=0, description="Frames per second of a sequence.")
+    loop: bool = Field(
+        default=False,
+        description="Makes the clip repeat seamlessly. Each period is rounded to a "
+        "whole fraction of duration_s.",
+    )
 
     @property
     def times_s(self) -> list[float]:
         return [f / self.fps for f in range(max(1, round(self.duration_s * self.fps)))]
+
+    @property
+    def span_s(self) -> float:
+        """From frame 0 to the frame after the last, which a loop makes frame 0."""
+        return len(self.times_s) / self.fps
+
+    def period_s(self, period_s: float) -> float:
+        """In a loop, the nearest whole fraction of the span, so every cycle closes."""
+        if not self.loop:
+            return period_s
+        return self.span_s / max(1, round(self.span_s / period_s))
 
     @model_validator(mode="after")
     def _bands_are_distinct(self) -> "Outputs":
@@ -378,6 +406,20 @@ class Scenario(Model):
         default_factory=list, description="Vessels placed one by one."
     )
     outputs: Outputs = Field(default_factory=Outputs)
+
+    @model_validator(mode="after")
+    def _a_loop_can_close(self) -> "Scenario":
+        if not self.outputs.loop:
+            return self
+        if self.outputs.duration_s == 0.0:
+            raise ValueError("a loop needs outputs.duration_s > 0")
+        for spec in (*self.objects, self.targets):
+            if spec is not None and spec.speed_mps > 0.0:
+                raise ValueError(
+                    f"{spec.asset} has speed_mps > 0, and a straight run never comes "
+                    "back to close a loop: give it a drift instead"
+                )
+        return self
 
 
 def _merge(base: dict[str, Any], over: dict[str, Any]) -> dict[str, Any]:
