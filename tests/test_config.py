@@ -105,6 +105,12 @@ def test_an_override_is_the_toml_line_it_would_be_written_as(baseline) -> None:
     assert scenario.rig.height_m == baseline.rig.height_m
 
 
+def test_an_override_resolves_presets_like_a_line_in_the_file() -> None:
+    scenario = load(SCENARIOS / "twin-pod.toml", ['rig.pods = [{ preset = "port" }]'])
+    assert [pod.name for pod in scenario.rig.pods] == ["port"]
+    assert len(scenario.rig.mounts) == 4
+
+
 def test_an_override_merges_a_table_rather_than_replacing_it() -> None:
     scenario = load(BASELINE, ["outputs.samples.eo = 8"])
 
