@@ -30,7 +30,7 @@ height_px = 512
 t_sea_k = 291.0
 
 [sky]
-# Keeps the sun disc and its glitter out of frame.
+# Keeps the sun disc out of frame.
 sun_bearing_deg = 135.0
 
 [[objects]]

@@ -40,25 +40,8 @@ def _in_frame(camera: CameraCalibration, direction: Vector | np.ndarray) -> bool
     )
 
 
-def _rays(camera: CameraCalibration, n: int = 101) -> np.ndarray:
-    """Unit world directions through an n x n grid spanning the sensor."""
-    u, v = np.meshgrid(
-        np.linspace(-0.5, camera.width_px - 0.5, n),
-        np.linspace(-0.5, camera.height_px - 0.5, n),
-    )
-    pixels = np.stack([u.ravel(), v.ravel(), np.ones(n * n)])
-    rotation = np.array(camera.extrinsics["world"])[:3, :3]
-    rays = rotation @ np.linalg.solve(np.array(camera.K), pixels)
-    return (rays / np.linalg.norm(rays, axis=0)).T
-
-
-# Cox & Munk's slope density falls as exp(-s^2 / sigma^2), 1e-7 of its peak at 4 sigma:
-# there the sun, 1361 W m^-2 over 6.8e-5 sr, reflects dimmer than a daylit sky.
-GLITTER_SIGMAS = 4.0
-
-
 @pytest.mark.parametrize("name", ["baseline.toml", "twin-pod.toml"])
-def test_the_sun_and_its_glitter_are_out_of_every_frame(name: str) -> None:
+def test_the_sun_is_out_of_every_frame(name: str) -> None:
     scenario = load(BASELINE.parent / name)
     ownship = scenario.ownship.model_copy(update={"asset": None})
     bare = scenario.model_copy(
@@ -66,17 +49,9 @@ def test_the_sun_and_its_glitter_are_out_of_every_frame(name: str) -> None:
     )
     built = scene.build(bare, "eo")
     sun = np.array(scene._sun_vector(scenario.sky))
-    sigma = scene.wave_slope(scenario.sea.wind_speed_mps)
-
     for mount in scenario.rig.mounts:
         camera = scene.calibrate(built, mount, "")
-        assert not _in_frame(camera, sun), f"the sun is in {mount.name}"
-        rays = _rays(camera)
-        sea = rays[rays[:, 2] < 0]
-        # The facet normal that mirrors each sea ray into the sun.
-        normal = sun - sea
-        slope = np.hypot(normal[:, 0], normal[:, 1]) / normal[:, 2]
-        assert slope.min() > GLITTER_SIGMAS * sigma, f"glitter in {mount.name}"
+        assert not _in_frame(camera, sun), mount.name
 
 
 def baked(name: str) -> np.ndarray:

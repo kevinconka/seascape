@@ -13,8 +13,8 @@ preset = "twin_pod"
 t_sea_k = 291.0
 
 [sky]
-# Astern: keeps the sun disc and its glitter out of frame.
-sun_bearing_deg = 180.0
+# Keeps the sun disc out of frame.
+sun_bearing_deg = 135.0
 
 [ownship]
 asset = "container_ship"
