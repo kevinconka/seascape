@@ -9,17 +9,21 @@
     },
     "Camera": {
       "additionalProperties": false,
+      "description": "One camera in a pod: its band, its aim relative to the pod, its image.",
       "properties": {
         "kind": {
-          "$ref": "#/$defs/Band"
+          "$ref": "#/$defs/Band",
+          "description": "The band it sees in: eo visible, ir LWIR."
         },
         "yaw_deg": {
           "default": 0.0,
+          "description": "Relative to the pod axis, positive to starboard.",
           "title": "Yaw Deg",
           "type": "number"
         },
         "pitch_deg": {
           "default": 0.0,
+          "description": "Relative to the pod, negative is down.",
           "exclusiveMaximum": 90.0,
           "exclusiveMinimum": -90.0,
           "title": "Pitch Deg",
@@ -36,20 +40,24 @@
             }
           ],
           "default": null,
+          "description": "Its image's filename. Derived from its place in the pod when absent.",
           "title": "Name"
         },
         "hfov_deg": {
+          "description": "Measured across the image width, even in portrait.",
           "exclusiveMaximum": 180.0,
           "exclusiveMinimum": 0.0,
           "title": "Hfov Deg",
           "type": "number"
         },
         "width_px": {
+          "description": "Image width.",
           "exclusiveMinimum": 0,
           "title": "Width Px",
           "type": "integer"
         },
         "height_px": {
+          "description": "Image height.",
           "exclusiveMinimum": 0,
           "title": "Height Px",
           "type": "integer"
@@ -76,25 +84,30 @@
       "description": "Something to detect.",
       "properties": {
         "asset": {
+          "description": "An asset name from the manifest.",
           "title": "Asset",
           "type": "string"
         },
         "range_m": {
+          "description": "Horizontal, from the ownship's origin.",
           "exclusiveMinimum": 0.0,
           "title": "Range M",
           "type": "number"
         },
         "bearing_deg": {
+          "description": "Clockwise from the ownship's bow.",
           "title": "Bearing Deg",
           "type": "number"
         },
         "heading_deg": {
           "default": 0.0,
+          "description": "Where its bow points, clockwise from the ownship's bow.",
           "title": "Heading Deg",
           "type": "number"
         },
         "t_k": {
           "default": 293.0,
+          "description": "Shaded hull temperature. IR only.",
           "maximum": 400.0,
           "minimum": 250.0,
           "title": "T K",
@@ -118,6 +131,7 @@
             "eo",
             "ir"
           ],
+          "description": "Bands to render; one with no camera is skipped.",
           "items": {
             "$ref": "#/$defs/Band"
           },
@@ -131,10 +145,12 @@
         },
         "format": {
           "$ref": "#/$defs/ImageFormat",
-          "default": "png"
+          "default": "png",
+          "description": "png to look at, exr to keep the radiance."
         },
         "exposure_ev": {
           "default": -5.0,
+          "description": "Exposure in stops. Applies to EO pngs only.",
           "maximum": 32.0,
           "minimum": -32.0,
           "title": "Exposure Ev",
@@ -158,10 +174,12 @@
             }
           ],
           "default": null,
+          "description": "An asset name from the manifest.",
           "title": "Asset"
         },
         "t_k": {
           "default": 296.0,
+          "description": "Shaded hull temperature. IR only.",
           "maximum": 400.0,
           "minimum": 250.0,
           "title": "T K",
@@ -169,6 +187,7 @@
         },
         "roll_deg": {
           "default": 0.0,
+          "description": "Positive is starboard down.",
           "exclusiveMaximum": 90.0,
           "exclusiveMinimum": -90.0,
           "title": "Roll Deg",
@@ -176,6 +195,7 @@
         },
         "pitch_deg": {
           "default": 0.0,
+          "description": "Positive is bow up.",
           "exclusiveMaximum": 90.0,
           "exclusiveMinimum": -90.0,
           "title": "Pitch Deg",
@@ -190,25 +210,30 @@
       "description": "One enclosure: several cameras behind one yaw and one mount point.\n\nPods a beam apart overlap in angle before they overlap in space, which leaves a\nblind wedge over the bow; coincident cameras would hide it.",
       "properties": {
         "name": {
+          "description": "Prefixes the filenames of its unnamed cameras.",
           "pattern": "^[A-Za-z0-9_-]+$",
           "title": "Name",
           "type": "string"
         },
         "yaw_deg": {
+          "description": "Pod axis relative to the bow, positive to starboard.",
           "title": "Yaw Deg",
           "type": "number"
         },
         "offset_x_m": {
           "default": 0.0,
+          "description": "From the centreline, positive to starboard.",
           "title": "Offset X M",
           "type": "number"
         },
         "offset_y_m": {
           "default": 0.0,
+          "description": "From midships, positive forward.",
           "title": "Offset Y M",
           "type": "number"
         },
         "cameras": {
+          "description": "The cameras in this pod.",
           "items": {
             "$ref": "#/$defs/Camera"
           },
@@ -230,12 +255,14 @@
       "description": "The pods on the ownship.",
       "properties": {
         "height_m": {
+          "description": "Pod height above the waterline.",
           "exclusiveMinimum": 0.0,
           "title": "Height M",
           "type": "number"
         },
         "pitch_deg": {
           "default": 0.0,
+          "description": "Every pod, about its own transverse axis. Negative is down.",
           "exclusiveMaximum": 90.0,
           "exclusiveMinimum": -90.0,
           "title": "Pitch Deg",
@@ -243,11 +270,13 @@
         },
         "near_clip_m": {
           "default": 5.0,
+          "description": "Anything nearer a camera is not rendered.",
           "exclusiveMinimum": 0.0,
           "title": "Near Clip M",
           "type": "number"
         },
         "pods": {
+          "description": "The camera enclosures on the ownship.",
           "items": {
             "$ref": "#/$defs/Pod"
           },
@@ -269,12 +298,14 @@
       "properties": {
         "eo": {
           "default": 16,
+          "description": "Per pixel, for EO frames.",
           "exclusiveMinimum": 0,
           "title": "Eo",
           "type": "integer"
         },
         "ir": {
           "default": 64,
+          "description": "Per pixel, for IR frames.",
           "exclusiveMinimum": 0,
           "title": "Ir",
           "type": "integer"
@@ -289,6 +320,7 @@
       "properties": {
         "t_sea_k": {
           "default": 288.0,
+          "description": "Sea surface temperature. IR only.",
           "maximum": 311.0,
           "minimum": 271.0,
           "title": "T Sea K",
@@ -296,12 +328,14 @@
         },
         "wind_speed_mps": {
           "default": 7.0,
+          "description": "Sets the waves' length and slope.",
           "minimum": 0.0,
           "title": "Wind Speed Mps",
           "type": "number"
         },
         "refraction_k": {
           "default": 0.13,
+          "description": "Coefficient of terrestrial refraction; 0 is none.",
           "exclusiveMaximum": 1.0,
           "minimum": 0.0,
           "title": "Refraction K",
@@ -317,6 +351,7 @@
       "properties": {
         "sun_elevation_deg": {
           "default": 30.0,
+          "description": "Above the horizon; negative is below it.",
           "maximum": 90.0,
           "minimum": -90.0,
           "title": "Sun Elevation Deg",
@@ -324,17 +359,20 @@
         },
         "sun_bearing_deg": {
           "default": 0.0,
+          "description": "Clockwise from the ownship's bow.",
           "title": "Sun Bearing Deg",
           "type": "number"
         },
         "solar_gain_k": {
           "default": 8.5,
+          "description": "How much warmer a sunlit surface is than a shaded one. IR only.",
           "minimum": 0.0,
           "title": "Solar Gain K",
           "type": "number"
         },
         "aerosol_density": {
           "default": 1.0,
+          "description": "Haze, as the Sky Texture's own parameter. EO only.",
           "maximum": 10.0,
           "minimum": 0.0,
           "title": "Aerosol Density",
@@ -342,6 +380,7 @@
         },
         "t_air_k": {
           "default": 288.0,
+          "description": "Scales the IR sky. EO ignores it.",
           "maximum": 320.0,
           "minimum": 250.0,
           "title": "T Air K",
@@ -356,20 +395,24 @@
       "description": "A ring of vessels at one range, spread over a span of bearings.\n\nPlaced in the world, so nothing guarantees a camera sees one.",
       "properties": {
         "asset": {
+          "description": "An asset name from the manifest.",
           "title": "Asset",
           "type": "string"
         },
         "count": {
+          "description": "How many.",
           "exclusiveMinimum": 0,
           "title": "Count",
           "type": "integer"
         },
         "range_m": {
+          "description": "Horizontal, from the ownship's origin.",
           "exclusiveMinimum": 0.0,
           "title": "Range M",
           "type": "number"
         },
         "bearing_deg": {
+          "description": "First and last, clockwise from the ownship's bow. Both ends get a target.",
           "maxItems": 2,
           "minItems": 2,
           "prefixItems": [
@@ -388,6 +431,7 @@
             0.0,
             315.0
           ],
+          "description": "First and last, spread evenly, clockwise from the ownship's bow.",
           "maxItems": 2,
           "minItems": 2,
           "prefixItems": [
@@ -403,6 +447,7 @@
         },
         "t_k": {
           "default": 293.0,
+          "description": "Shaded hull temperature. IR only.",
           "maximum": 400.0,
           "minimum": 250.0,
           "title": "T K",
@@ -420,9 +465,11 @@
     }
   },
   "additionalProperties": false,
+  "description": "One scene: the rig, the world around it, and what a render writes.",
   "properties": {
     "seed": {
       "default": 0,
+      "description": "Seeds every random draw.",
       "title": "Seed",
       "type": "integer"
     },
@@ -441,7 +488,8 @@
           "type": "null"
         }
       ],
-      "default": null
+      "default": null,
+      "description": "A ring of identical vessels."
     },
     "sea": {
       "$ref": "#/$defs/Sea"
@@ -450,6 +498,7 @@
       "$ref": "#/$defs/Sky"
     },
     "objects": {
+      "description": "Vessels placed one by one.",
       "items": {
         "$ref": "#/$defs/Object"
       },

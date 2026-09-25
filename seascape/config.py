@@ -42,14 +42,31 @@ class Model(BaseModel):
 
 
 class Camera(Model):
-    kind: Band
-    yaw_deg: float = 0.0  # relative to the pod axis, positive to starboard
-    pitch_deg: float = Field(default=0.0, gt=-90.0, lt=90.0)  # negative is down
-    # Becomes a filename. Derived from position in the pod when absent.
-    name: str | None = Field(default=None, pattern=r"^[A-Za-z0-9_-]+$")
-    hfov_deg: float = Field(gt=0.0, lt=180.0)
-    width_px: int = Field(gt=0)
-    height_px: int = Field(gt=0)
+    """One camera in a pod: its band, its aim relative to the pod, its image."""
+
+    kind: Band = Field(description="The band it sees in: eo visible, ir LWIR.")
+    yaw_deg: float = Field(
+        default=0.0, description="Relative to the pod axis, positive to starboard."
+    )
+    pitch_deg: float = Field(
+        default=0.0,
+        gt=-90.0,
+        lt=90.0,
+        description="Relative to the pod, negative is down.",
+    )
+    name: str | None = Field(
+        default=None,
+        pattern=r"^[A-Za-z0-9_-]+$",
+        description="Its image's filename. Derived from its place in the pod when "
+        "absent.",
+    )
+    hfov_deg: float = Field(
+        gt=0.0,
+        lt=180.0,
+        description="Measured across the image width, even in portrait.",
+    )
+    width_px: int = Field(gt=0, description="Image width.")
+    height_px: int = Field(gt=0, description="Image height.")
 
 
 class Pod(Model):
@@ -59,12 +76,21 @@ class Pod(Model):
     blind wedge over the bow; coincident cameras would hide it.
     """
 
-    # Becomes a filename; path text would write outside the output directory.
-    name: str = Field(pattern=r"^[A-Za-z0-9_-]+$")
-    yaw_deg: float  # pod axis relative to the bow, positive to starboard
-    offset_x_m: float = 0.0  # from the centreline, positive to starboard
-    offset_y_m: float = 0.0  # from midships, positive forward
-    cameras: list[Camera] = Field(min_length=1)
+    # Path text would write outside the output directory.
+    name: str = Field(
+        pattern=r"^[A-Za-z0-9_-]+$",
+        description="Prefixes the filenames of its unnamed cameras.",
+    )
+    yaw_deg: float = Field(
+        description="Pod axis relative to the bow, positive to starboard."
+    )
+    offset_x_m: float = Field(
+        default=0.0, description="From the centreline, positive to starboard."
+    )
+    offset_y_m: float = Field(
+        default=0.0, description="From midships, positive forward."
+    )
+    cameras: list[Camera] = Field(min_length=1, description="The cameras in this pod.")
 
 
 class Mount(NamedTuple):
@@ -88,12 +114,21 @@ class Mount(NamedTuple):
 class Rig(Model):
     """The pods on the ownship."""
 
-    height_m: float = Field(gt=0.0)
-    pitch_deg: float = Field(default=0.0, gt=-90.0, lt=90.0)
+    height_m: float = Field(gt=0.0, description="Pod height above the waterline.")
+    pitch_deg: float = Field(
+        default=0.0,
+        gt=-90.0,
+        lt=90.0,
+        description="Every pod, about its own transverse axis. Negative is down.",
+    )
     # Depth precision goes as far / near, so larger is better. The bound is a lens's
-    # clearance from its own structure: anything nearer is clipped out of frame.
-    near_clip_m: float = Field(default=5.0, gt=0.0)
-    pods: list[Pod] = Field(min_length=1)
+    # clearance from its own structure.
+    near_clip_m: float = Field(
+        default=5.0, gt=0.0, description="Anything nearer a camera is not rendered."
+    )
+    pods: list[Pod] = Field(
+        min_length=1, description="The camera enclosures on the ownship."
+    )
 
     @property
     def mounts(self) -> list[Mount]:
@@ -128,12 +163,24 @@ class Sea(Model):
     clamps to it; here it is an error.
     """
 
-    t_sea_k: float = Field(default=lwir.T_SEA_K, ge=271.0, le=311.0)
-    wind_speed_mps: float = Field(default=7.0, ge=0.0)
-    # Coefficient of terrestrial refraction: the atmosphere bends a ray down, so the
-    # sea curves at R / (1 - k). 0.13 is the standard survey value for average air
-    # (0.13-0.16 usual); 0.0 is geometric. At k = 1 the effective radius is infinite.
-    refraction_k: float = Field(default=0.13, ge=0.0, lt=1.0)
+    t_sea_k: float = Field(
+        default=lwir.T_SEA_K,
+        ge=271.0,
+        le=311.0,
+        description="Sea surface temperature. IR only.",
+    )
+    wind_speed_mps: float = Field(
+        default=7.0, ge=0.0, description="Sets the waves' length and slope."
+    )
+    # The atmosphere bends a ray down, so the sea curves at R / (1 - k). 0.13 is the
+    # standard survey value for average air (0.13-0.16 usual). At k = 1 the effective
+    # radius is infinite.
+    refraction_k: float = Field(
+        default=0.13,
+        ge=0.0,
+        lt=1.0,
+        description="Coefficient of terrestrial refraction; 0 is none.",
+    )
 
 
 class Sky(Model):
@@ -145,37 +192,67 @@ class Sky(Model):
     profile stays credible.
     """
 
-    sun_elevation_deg: float = Field(default=30.0, ge=-90.0, le=90.0)
-    sun_bearing_deg: float = 0.0
-    # How far a sunlit surface sits above a shaded one, in K. Steady state, where
-    # absorbed sun balances convection and re-radiation:
+    sun_elevation_deg: float = Field(
+        default=30.0,
+        ge=-90.0,
+        le=90.0,
+        description="Above the horizon; negative is below it.",
+    )
+    sun_bearing_deg: float = Field(
+        default=0.0, description="Clockwise from the ownship's bow."
+    )
+    # Steady state, where absorbed sun balances convection and re-radiation:
     #   dT = a E / (h + 4 eps sigma T^3)
     # a = 0.30 for light marine paint, E = 1000 W m^-2 for a clear sky, and
     # h = 10.45 - v + 10 sqrt(v) = 30 W m^-2 K^-1 at 7 m/s. Weakly held: a dark hull
     # absorbs three times what a light one does.
-    solar_gain_k: float = Field(default=8.5, ge=0.0)
-    aerosol_density: float = Field(default=1.0, ge=0.0, le=10.0)
-    t_air_k: float = Field(default=lwir.T_AIR_K, ge=250.0, le=320.0)
+    solar_gain_k: float = Field(
+        default=8.5,
+        ge=0.0,
+        description="How much warmer a sunlit surface is than a shaded one. IR only.",
+    )
+    aerosol_density: float = Field(
+        default=1.0,
+        ge=0.0,
+        le=10.0,
+        description="Haze, as the Sky Texture's own parameter. EO only.",
+    )
+    t_air_k: float = Field(
+        default=lwir.T_AIR_K,
+        ge=250.0,
+        le=320.0,
+        description="Scales the IR sky. EO ignores it.",
+    )
+
+
+_ASSET = "An asset name from the manifest."
+_T_HULL = "Shaded hull temperature. IR only."
+_HEADING = "Where its bow points, clockwise from the ownship's bow."
+_RANGE = "Horizontal, from the ownship's origin."
 
 
 class Object(Model):
     """Something to detect."""
 
-    asset: str
-    range_m: float = Field(gt=0.0)
-    bearing_deg: float
-    heading_deg: float = 0.0
-    t_k: float = Field(default=293.0, ge=250.0, le=400.0)
+    asset: str = Field(description=_ASSET)
+    range_m: float = Field(gt=0.0, description=_RANGE)
+    bearing_deg: float = Field(description="Clockwise from the ownship's bow.")
+    heading_deg: float = Field(default=0.0, description=_HEADING)
+    t_k: float = Field(default=293.0, ge=250.0, le=400.0, description=_T_HULL)
 
 
 class Ownship(Model):
     """The vessel the rig is bolted to, rolling and pitching about its origin at the
     waterline. Without an asset it is the attitude alone."""
 
-    asset: str | None = None
-    t_k: float = Field(default=296.0, ge=250.0, le=400.0)
-    roll_deg: float = Field(default=0.0, gt=-90.0, lt=90.0)  # positive: starboard down
-    pitch_deg: float = Field(default=0.0, gt=-90.0, lt=90.0)  # positive: bow up
+    asset: str | None = Field(default=None, description=_ASSET)
+    t_k: float = Field(default=296.0, ge=250.0, le=400.0, description=_T_HULL)
+    roll_deg: float = Field(
+        default=0.0, gt=-90.0, lt=90.0, description="Positive is starboard down."
+    )
+    pitch_deg: float = Field(
+        default=0.0, gt=-90.0, lt=90.0, description="Positive is bow up."
+    )
 
 
 class Targets(Model):
@@ -184,14 +261,19 @@ class Targets(Model):
     Placed in the world, so nothing guarantees a camera sees one.
     """
 
-    asset: str
-    count: int = Field(gt=0)
-    range_m: float = Field(gt=0.0)
-    # Inclusive span, both ends used.
-    bearing_deg: tuple[float, float]
-    # Spread evenly, so aspect varies between targets.
-    heading_deg: tuple[float, float] = (0.0, 315.0)
-    t_k: float = Field(default=293.0, ge=250.0, le=400.0)
+    asset: str = Field(description=_ASSET)
+    count: int = Field(gt=0, description="How many.")
+    range_m: float = Field(gt=0.0, description=_RANGE)
+    bearing_deg: tuple[float, float] = Field(
+        description="First and last, clockwise from the ownship's bow. Both ends get "
+        "a target."
+    )
+    # Spread so aspect varies between targets.
+    heading_deg: tuple[float, float] = Field(
+        default=(0.0, 315.0),
+        description="First and last, spread evenly, clockwise from the ownship's bow.",
+    )
+    t_k: float = Field(default=293.0, ge=250.0, le=400.0, description=_T_HULL)
 
     def _spread(self, span: tuple[float, float], i: int) -> float:
         low, high = span
@@ -213,8 +295,8 @@ class Samples(Model):
     """
 
     # ir is not denoised, so it needs more.
-    eo: int = Field(default=16, gt=0)
-    ir: int = Field(default=64, gt=0)
+    eo: int = Field(default=16, gt=0, description="Per pixel, for EO frames.")
+    ir: int = Field(default=64, gt=0, description="Per pixel, for IR frames.")
 
 
 class Outputs(Model):
@@ -228,13 +310,22 @@ class Outputs(Model):
     # uniqueItems for editors validating against the schema; `_bands_are_distinct`
     # enforces it.
     bands: tuple[Band, ...] = Field(
-        default=("eo", "ir"), min_length=1, json_schema_extra={"uniqueItems": True}
+        default=("eo", "ir"),
+        min_length=1,
+        json_schema_extra={"uniqueItems": True},
+        description="Bands to render; one with no camera is skipped.",
     )
     samples: Samples = Field(default_factory=lambda: Samples())
-    format: ImageFormat = "png"
-    # Stops: EO clips to white at 0. The exr and ir ignore it. Blender clamps to +/-32
-    # in silence.
-    exposure_ev: float = Field(default=-5.0, ge=-32.0, le=32.0)
+    format: ImageFormat = Field(
+        default="png", description="png to look at, exr to keep the radiance."
+    )
+    # Blender clamps to +/-32 in silence.
+    exposure_ev: float = Field(
+        default=-5.0,
+        ge=-32.0,
+        le=32.0,
+        description="Exposure in stops. Applies to EO pngs only.",
+    )
 
     @model_validator(mode="after")
     def _bands_are_distinct(self) -> "Outputs":
@@ -245,13 +336,19 @@ class Outputs(Model):
 
 
 class Scenario(Model):
-    seed: int = 0
+    """One scene: the rig, the world around it, and what a render writes."""
+
+    seed: int = Field(default=0, description="Seeds every random draw.")
     rig: Rig
     ownship: Ownship = Field(default_factory=Ownship)
-    targets: Targets | None = None
+    targets: Targets | None = Field(
+        default=None, description="A ring of identical vessels."
+    )
     sea: Sea = Field(default_factory=Sea)
     sky: Sky = Field(default_factory=Sky)
-    objects: list[Object] = Field(default_factory=list)
+    objects: list[Object] = Field(
+        default_factory=list, description="Vessels placed one by one."
+    )
     outputs: Outputs = Field(default_factory=Outputs)
 
 

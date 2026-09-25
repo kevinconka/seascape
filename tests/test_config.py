@@ -245,6 +245,24 @@ def test_committed_schema_matches_the_models() -> None:
     )
 
 
+def test_every_model_and_field_describes_itself() -> None:
+    """The description is the hover doc; a field without one is only a type."""
+    schema = Scenario.model_json_schema()
+    models = {"Scenario": schema} | {
+        name: model for name, model in schema["$defs"].items() if "properties" in model
+    }
+    missing = [name for name, model in models.items() if not model.get("description")]
+    # A bare reference to a model hovers as that model's own description.
+    missing += [
+        f"{name}.{field}"
+        for name, model in models.items()
+        for field, spec in model["properties"].items()
+        if not spec.get("description")
+        and spec.get("$ref", "").removeprefix("#/$defs/") not in models
+    ]
+    assert not missing
+
+
 def test_baseline_points_at_the_committed_schema() -> None:
     """The `#:schema` line is a comment, so nothing else would ever notice it rot."""
     line = BASELINE.read_text().splitlines()[0]
