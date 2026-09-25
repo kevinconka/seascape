@@ -17,6 +17,9 @@ Microfacet lobe: Walter, Marschner, Li & Torrance, "Microfacet models for refrac
 through rough surfaces", EGSR 2007 (doi:10.2312/EGWR/EGSR07/195-206) for GGX; Burley,
 "Physically-based shading at Disney", SIGGRAPH 2012 course notes, for the alpha =
 roughness^2 convention Cycles follows.
+
+Dispersion: Lamb, "Hydrodynamics", 6th ed., Cambridge University Press 1932, chapter
+IX; deep water, omega^2 = g k.
 """
 
 import math
@@ -53,6 +56,7 @@ GRAVITY_MS2 = 9.81
 # Waves, end to end. Each step is a published relation or follows from one:
 #
 #   wavelength      2 pi U^2 / (0.877^2 g)          Pierson-Moskowitz 1964
+#   period          sqrt(2 pi lam / g)              deep-water dispersion, Lamb
 #   total slope     sqrt(0.003 + 0.00512 U)         Cox & Munk 1954, eq. 13
 #   resolved share  sqrt(octaves / log2(lam/1.7cm)) Phillips 1958 equilibrium range
 #   bump relief     resolved share x slope x lam    over the noise transfer below
@@ -86,6 +90,11 @@ def wave_length_m(wind_speed_mps: float) -> float:
     """Dominant wavelength of a fully developed sea, Pierson-Moskowitz."""
     length = 2 * math.pi * wind_speed_mps**2 / (PM_PEAK**2 * GRAVITY_MS2)
     return max(length, MIN_WAVELENGTH_M)
+
+
+def wave_period_s(wind_speed_mps: float) -> float:
+    """Period of the dominant wave, from deep-water dispersion."""
+    return math.sqrt(2 * math.pi * wave_length_m(wind_speed_mps) / GRAVITY_MS2)
 
 
 def wave_slope(wind_speed_mps: float) -> float:
@@ -366,7 +375,7 @@ def _sunlit_emission(
 
 
 def _wave_normals(
-    tree: bpy.types.NodeTree, sea: Sea, seed: int
+    tree: bpy.types.NodeTree, sea: Sea, seed: int, times_s: Sequence[float]
 ) -> bpy.types.NodeSocket:
     """Wave normals from world position.
 
@@ -375,15 +384,21 @@ def _wave_normals(
     affordable spacing goes sub-pixel before the horizon and aliases instead.
     """
     length_m = wave_length_m(sea.wind_speed_mps)
-    # z multiplier 0: the seed owns that axis, so the sea curving under it cannot slide
-    # the wave field.
+    # z multiplier 0: seed and time own that axis, so the sea curving under it cannot
+    # slide the wave field. The noise is isotropic, so a unit of z decorrelates it as
+    # much as a wavelength of x: time advances z a unit per dominant period.
+    # Vector Math names all three inputs "Vector"; identifiers tell them apart.
     scale = tree.nodes.new("ShaderNodeVectorMath")
     scale.operation = "MULTIPLY_ADD"
-    scale.inputs[1].default_value = (1.0 / length_m, 1.0 / length_m, 0.0)
-    scale.inputs[2].default_value = (
-        0.0,
-        0.0,
-        _substream(seed, "sea/surface").random() * 1e3,
+    scale.inputs["Vector_001"].default_value = (1.0 / length_m, 1.0 / length_m, 0.0)
+    phase = _substream(seed, "sea/surface").random() * 1e3
+    period_s = wave_period_s(sea.wind_speed_mps)
+    _animate(
+        scale.inputs["Vector_002"],
+        "default_value",
+        times_s,
+        lambda t: phase + t / period_s,
+        index=2,
     )
     geometry = tree.nodes.new("ShaderNodeNewGeometry")
     noise = tree.nodes.new("ShaderNodeTexNoise")
@@ -398,7 +413,7 @@ def _wave_normals(
     )
 
     link = tree.links.new
-    link(geometry.outputs["Position"], scale.inputs[0])
+    link(geometry.outputs["Position"], scale.inputs["Vector"])
     link(scale.outputs["Vector"], noise.inputs["Vector"])
     link(noise.outputs["Fac"], bump.inputs["Height"])
     return bump.outputs["Normal"]
@@ -434,7 +449,7 @@ def _incidence_lookup(
     return texture.outputs["Color"]
 
 
-def _thermal_sea(sea: Sea, seed: int) -> bpy.types.Material:
+def _thermal_sea(sea: Sea, seed: int, times_s: Sequence[float]) -> bpy.types.Material:
     """eps(theta) of the sea emitted, the remaining 1 - eps reflected from the sky.
 
     Complements, so the two very nearly cancel and the sea holds close to ambient at
@@ -456,7 +471,7 @@ def _thermal_sea(sea: Sea, seed: int) -> bpy.types.Material:
     output = tree.nodes.new("ShaderNodeOutputMaterial")
 
     link = tree.links.new
-    normal = _wave_normals(tree, sea, seed)
+    normal = _wave_normals(tree, sea, seed, times_s)
     link(normal, mirror.inputs["Normal"])
     # Mix Shader names both shader inputs "Shader", so they can only be indexed. Factor
     # is emissivity: 0 at grazing incidence takes the mirror, 1 head-on takes emission.
@@ -474,7 +489,9 @@ def _thermal_sea(sea: Sea, seed: int) -> bpy.types.Material:
     return material
 
 
-def _water_material(sea: Sea, seed: int) -> bpy.types.Material:
+def _water_material(
+    sea: Sea, seed: int, times_s: Sequence[float]
+) -> bpy.types.Material:
     """Daylight water: rough enough to catch the sun, refracting at seawater's IOR."""
     material = bpy.data.materials.new("sea")
     tree = material.node_tree
@@ -482,11 +499,14 @@ def _water_material(sea: Sea, seed: int) -> bpy.types.Material:
     principled.inputs["Base Color"].default_value = (0.004, 0.02, 0.035, 1.0)
     principled.inputs["Roughness"].default_value = 0.05
     principled.inputs["IOR"].default_value = 1.33
-    tree.links.new(_wave_normals(tree, sea, seed), principled.inputs["Normal"])
+    normal = _wave_normals(tree, sea, seed, times_s)
+    tree.links.new(normal, principled.inputs["Normal"])
     return material
 
 
-def _sea(sea: Sea, seed: int, reach_m: float, band: Band) -> bpy.types.Object:
+def _sea(
+    sea: Sea, seed: int, reach_m: float, band: Band, times_s: Sequence[float]
+) -> bpy.types.Object:
     """A grid curved to the earth. The waves are in its material.
 
     z = -(x^2 + y^2) / 2R osculates the sphere, off by d^4 / 8R^3 at distance d.
@@ -504,9 +524,8 @@ def _sea(sea: Sea, seed: int, reach_m: float, band: Band) -> bpy.types.Object:
     # Flat faces would show their edges in the specular.
     for face in water.data.polygons:
         face.use_smooth = True
-    water.data.materials.append(
-        _water_material(sea, seed) if band == "eo" else _thermal_sea(sea, seed)
-    )
+    material = _water_material if band == "eo" else _thermal_sea
+    water.data.materials.append(material(sea, seed, times_s))
     return water
 
 
@@ -956,10 +975,10 @@ def build(scenario: Scenario, band: Band = "eo") -> Built:
     bpy.context.scene.world = _sky(scenario.sky, band)
     reach_m = sea_reach_m(scenario.rig, scenario.sea)
     far_m = 1.5 * reach_m  # the sea's corner is reach * sqrt(2) away
-    _sea(scenario.sea, scenario.seed, reach_m, band)
+    times_s = scenario.outputs.times_s
+    _sea(scenario.sea, scenario.seed, reach_m, band, times_s)
     rig = _rig(scenario.rig, far_m)
     hulls: dict[str, list[bpy.types.Object]] = {}
-    times_s = scenario.outputs.times_s
     vessel = _ownship(scenario.ownship, band, scenario.sky, rig.root, hulls, times_s)
     radius_m = earth_radius_m(scenario.sea.refraction_k)
     targets: dict[str, list[bpy.types.Object]] = {}
