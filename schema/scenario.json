@@ -72,6 +72,30 @@
       "title": "Camera",
       "type": "object"
     },
+    "Heave": {
+      "additionalProperties": false,
+      "description": "A sinusoid about the waterline, starting at it.",
+      "properties": {
+        "amplitude_m": {
+          "description": "Peak, positive is up.",
+          "minimum": 0.0,
+          "title": "Amplitude M",
+          "type": "number"
+        },
+        "period_s": {
+          "description": "One full cycle.",
+          "exclusiveMinimum": 0.0,
+          "title": "Period S",
+          "type": "number"
+        }
+      },
+      "required": [
+        "amplitude_m",
+        "period_s"
+      ],
+      "title": "Heave",
+      "type": "object"
+    },
     "ImageFormat": {
       "enum": [
         "exr",
@@ -103,6 +127,13 @@
           "default": 0.0,
           "description": "Where its bow points, clockwise from the ownship's bow.",
           "title": "Heading Deg",
+          "type": "number"
+        },
+        "speed_mps": {
+          "default": 0.0,
+          "description": "Along its heading.",
+          "minimum": 0.0,
+          "title": "Speed Mps",
           "type": "number"
         },
         "t_k": {
@@ -155,6 +186,20 @@
           "minimum": -32.0,
           "title": "Exposure Ev",
           "type": "number"
+        },
+        "duration_s": {
+          "default": 0.0,
+          "description": "0 renders one instant, a still.",
+          "minimum": 0.0,
+          "title": "Duration S",
+          "type": "number"
+        },
+        "fps": {
+          "default": 10,
+          "description": "Frames per second of a sequence.",
+          "exclusiveMinimum": 0,
+          "title": "Fps",
+          "type": "integer"
         }
       },
       "title": "Outputs",
@@ -200,6 +245,42 @@
           "exclusiveMinimum": -90.0,
           "title": "Pitch Deg",
           "type": "number"
+        },
+        "roll": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Swing"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "About roll_deg."
+        },
+        "pitch": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Swing"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "About pitch_deg."
+        },
+        "heave": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Heave"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "About the waterline."
         }
       },
       "title": "Ownship",
@@ -390,6 +471,31 @@
       "title": "Sky",
       "type": "object"
     },
+    "Swing": {
+      "additionalProperties": false,
+      "description": "A sinusoid about the mean attitude, starting at the mean.",
+      "properties": {
+        "amplitude_deg": {
+          "description": "Peak, either way.",
+          "exclusiveMaximum": 90.0,
+          "minimum": 0.0,
+          "title": "Amplitude Deg",
+          "type": "number"
+        },
+        "period_s": {
+          "description": "One full cycle.",
+          "exclusiveMinimum": 0.0,
+          "title": "Period S",
+          "type": "number"
+        }
+      },
+      "required": [
+        "amplitude_deg",
+        "period_s"
+      ],
+      "title": "Swing",
+      "type": "object"
+    },
     "Targets": {
       "additionalProperties": false,
       "description": "A ring of vessels at one range, spread over a span of bearings.\n\nPlaced in the world, so nothing guarantees a camera sees one.",
@@ -444,6 +550,13 @@
           ],
           "title": "Heading Deg",
           "type": "array"
+        },
+        "speed_mps": {
+          "default": 0.0,
+          "description": "Along its heading.",
+          "minimum": 0.0,
+          "title": "Speed Mps",
+          "type": "number"
         },
         "t_k": {
           "default": 293.0,

@@ -229,6 +229,7 @@ _ASSET = "An asset name from the manifest."
 _T_HULL = "Shaded hull temperature. IR only."
 _HEADING = "Where its bow points, clockwise from the ownship's bow."
 _RANGE = "Horizontal, from the ownship's origin."
+_SPEED = "Along its heading."
 
 
 class Object(Model):
@@ -238,7 +239,22 @@ class Object(Model):
     range_m: float = Field(gt=0.0, description=_RANGE)
     bearing_deg: float = Field(description="Clockwise from the ownship's bow.")
     heading_deg: float = Field(default=0.0, description=_HEADING)
+    speed_mps: float = Field(default=0.0, ge=0.0, description=_SPEED)
     t_k: float = Field(default=293.0, ge=250.0, le=400.0, description=_T_HULL)
+
+
+class Swing(Model):
+    """A sinusoid about the mean attitude, starting at the mean."""
+
+    amplitude_deg: float = Field(ge=0.0, lt=90.0, description="Peak, either way.")
+    period_s: float = Field(gt=0.0, description="One full cycle.")
+
+
+class Heave(Model):
+    """A sinusoid about the waterline, starting at it."""
+
+    amplitude_m: float = Field(ge=0.0, description="Peak, positive is up.")
+    period_s: float = Field(gt=0.0, description="One full cycle.")
 
 
 class Ownship(Model):
@@ -253,6 +269,11 @@ class Ownship(Model):
     pitch_deg: float = Field(
         default=0.0, gt=-90.0, lt=90.0, description="Positive is bow up."
     )
+    # ponytail: one sine per axis, a sum over a wave spectrum when irregular motion
+    # matters.
+    roll: Swing | None = Field(default=None, description="About roll_deg.")
+    pitch: Swing | None = Field(default=None, description="About pitch_deg.")
+    heave: Heave | None = Field(default=None, description="About the waterline.")
 
 
 class Targets(Model):
@@ -273,6 +294,7 @@ class Targets(Model):
         default=(0.0, 315.0),
         description="First and last, spread evenly, clockwise from the ownship's bow.",
     )
+    speed_mps: float = Field(default=0.0, ge=0.0, description=_SPEED)
     t_k: float = Field(default=293.0, ge=250.0, le=400.0, description=_T_HULL)
 
     def _spread(self, span: tuple[float, float], i: int) -> float:
@@ -326,6 +348,15 @@ class Outputs(Model):
         le=32.0,
         description="Exposure in stops. Applies to EO pngs only.",
     )
+    duration_s: float = Field(
+        default=0.0, ge=0.0, description="0 renders one instant, a still."
+    )
+    fps: int = Field(default=10, gt=0, description="Frames per second of a sequence.")
+
+    @property
+    def times_s(self) -> list[float]:
+        """When each frame is, from 0."""
+        return [f / self.fps for f in range(max(1, round(self.duration_s * self.fps)))]
 
     @model_validator(mode="after")
     def _bands_are_distinct(self) -> "Outputs":
