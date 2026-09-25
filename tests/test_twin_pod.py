@@ -1,7 +1,4 @@
-"""The installed rig: pods on an ownship's bridge wings, traffic at 7 NM.
-
-One global Blender session, so the scene is built once per module.
-"""
+"""The twin-pod scenario. One global Blender session, so it is built once."""
 
 import json
 import math
@@ -16,6 +13,7 @@ from bpy_extras.object_utils import world_to_camera_view
 from mathutils import Matrix, Vector
 
 from seascape import panorama, scene
+from seascape.assets import manifest
 from seascape.calibration import Calibration
 from seascape.config import Mount, Pod, Scenario, load
 from seascape.montage import INK
@@ -52,7 +50,6 @@ def test_a_pods_cameras_all_sit_at_its_mount_point(
 
 
 def test_the_ownship_is_at_the_origin(built: scene.Built) -> None:
-    """The rig's offsets are in the ownship's frame."""
     anchor = built.vessel
 
     assert tuple(anchor.location) == pytest.approx((0.0, 0.0, 0.0))
@@ -72,7 +69,6 @@ def test_the_hull_takes_the_attitude_it_was_given(built: scene.Built) -> None:
 
 
 def test_pod_span_and_overlap_measured_from_the_scene(built: scene.Built) -> None:
-    """The rig preset's spans, read off the built cameras rather than the config."""
     arcs: dict[tuple[str, str], list[tuple[float, float]]] = {}
     for mount in SCENARIO.rig.mounts:
         camera = built.cameras[mount.name]
@@ -96,8 +92,7 @@ def test_pod_span_and_overlap_measured_from_the_scene(built: scene.Built) -> Non
         assert gaps == pytest.approx([overlap] * len(gaps), abs=1e-4), key
 
 
-# A bracket stands on something. Further than this below a pod and it floats beside
-# the ship.
+# Further than this below a pod and it floats beside the ship.
 MAX_BRACKET_M = 5.0
 
 
@@ -214,6 +209,16 @@ def test_the_calibration_projects_every_target_where_blender_draws_it(
     assert projected, "no target in any frame: the assertions above ran on nothing"
 
 
+def test_a_waterline_rings_its_hull_within_its_length(built: scene.Built) -> None:
+    """World metres: in the mesh's own frame it would sit at the origin, far off."""
+    for asset, anchors in built.targets.items():
+        for anchor in anchors:
+            centre = np.array(anchor.matrix_world.translation.xy)
+            reach = np.linalg.norm(scene.waterline_m(anchor) - centre, axis=1)
+
+            assert 0.0 < reach.max() <= manifest()[asset].length_m / 2, anchor.name
+
+
 def test_a_calibration_with_fields_it_does_not_know_still_reads(
     tmp_path: Path, built: scene.Built
 ) -> None:
@@ -261,7 +266,6 @@ def test_a_panorama_puts_each_principal_point_on_its_boresight(
 def test_a_panorama_lays_its_cameras_out_in_yaw_order(
     tmp_path: Path, built: scene.Built
 ) -> None:
-    """Each frame one colour, so the stitch shows which camera landed where."""
     first = SCENARIO.rig.mounts[0]
     mounts = [
         m

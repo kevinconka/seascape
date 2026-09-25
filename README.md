@@ -74,8 +74,14 @@ uv run seascape montage scenarios/twin-pod.toml -o out/   # out/montage.png
 uv run seascape panorama out/ --projection rectilinear --frame pod --ruler
 ```
 
+`labels.json` is the ground truth, in [COCO's detection format](https://cocodataset.org/#format-data): per frame, a box around each target with its range and bearing from the camera, the horizon, and what rendered it. FiftyOne reads the boxes and their fields as they are; the per-frame keys (`horizon_px`, `camera`, `band`, `time_s`) stay in the JSON:
+
+```python
+fo.Dataset.from_dir("out/", fo.types.COCODetectionDataset, data_path=".")
+```
+
 > [!NOTE]
-> `seascape build` writes the `.blend` to open in Blender; `seascape render` writes the images and `calibration.json`.
+> `seascape build` writes the `.blend` to open in Blender; `seascape render` writes the images, `calibration.json` and `labels.json`.
 
 ## Blender MCP (optional)
 

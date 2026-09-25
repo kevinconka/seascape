@@ -34,7 +34,6 @@ def test_a_montage_carries_every_camera(twin_pod, tmp_path) -> None:
 
 
 def test_a_band_gets_its_own_row(twin_pod, tmp_path) -> None:
-    """An ir png is stretched per frame, so its greys never read as comparable to eo."""
     into = frames(twin_pod, tmp_path)
 
     height = Image.open(montage.compose(twin_pod, into)).height

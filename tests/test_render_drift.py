@@ -1,11 +1,6 @@
-"""What a rendered LWIR frame has to look like, as numbers rather than an opinion.
+"""Properties of a rendered LWIR frame that a refactor must not shift.
 
-A render is the only check on whether the sea and sky read correctly; the physics
-assertions in test_lwir.py pass just as happily on a scene that renders black. These
-are the properties a refactor must not shift.
-
-Skipped unless `--render` is given. Each one renders in Cycles, which takes seconds and
-which CI has no GPU for. Run them before touching the sea or sky shader chain.
+Skipped unless `--render` is given.
 """
 
 from pathlib import Path
@@ -46,7 +41,7 @@ def radiance(band: Band, kind: str, size: tuple[int, int]) -> np.ndarray:
         o for o in bpy.data.objects if o.type == "CAMERA" and f"_{kind}_" in o.name
     )
     # Build already set the band's engine and denoiser; only the sample count is the
-    # test's own. ir keeps its build default of no OIDN, which is not radiometric.
+    # test's own.
     sc.cycles.samples = SAMPLES
     return shoot(size, f"drift_{band}")
 
@@ -66,13 +61,7 @@ def frame() -> np.ndarray:
 
 
 def test_the_sky_runs_from_cold_overhead_to_ambient_at_the_horizon(frame) -> None:
-    """Ambient just above the horizon, colder at the top of the frame.
-
-    Sea and sky have to meet at the same radiance or the horizon reads as an edge
-    rather than a boundary, and contrast stops collapsing where a target is hardest
-    to see.
-
-    Medians, not means: a target's superstructure stands above the horizon and lands
+    """Medians, not means: a target's superstructure stands above the horizon and lands
     in the band this samples, and a hot hull is far enough off ambient to drag it.
     """
     horizon = frame.shape[0] // 2
@@ -83,17 +72,10 @@ def test_the_sky_runs_from_cold_overhead_to_ambient_at_the_horizon(frame) -> Non
 
 
 def test_sea_texture_fades_with_range(frame) -> None:
-    """Distant water has to be the smoothest thing in frame.
-
-    Wave relief falls below a pixel with range, so it should average away. Displaced
-    geometry does the opposite -- sub-pixel geometry aliases rather than averaging --
-    and inverts the profile, which is the whole difference between a frame that reads
-    as sea and one that reads as noise. Measured, the grid left the
-    far field thirteen times rougher than shader normals do.
+    """Displaced geometry inverts this: sub-pixel geometry aliases, not averages.
 
     Not strict monotonicity across all four bands: that holds for a high eye but not
-    a low one, where a foreground row spans less than one wavelength and so varies
-    little. Rig height is not the property under test.
+    a low one, where a foreground row spans less than one wavelength.
     """
     sea = frame[frame.shape[0] // 2 + 4 :]
     band = len(sea) // 4
@@ -117,7 +99,7 @@ def sea_of(scenario: Scenario, waves: bool) -> np.ndarray:
     sc.camera = next(
         o for o in bpy.data.objects if o.type == "CAMERA" and "_ir_" in o.name
     )
-    # Flat sea is the control, so grain must sit well under the relief; 48 does not.
+    # Flat sea is the control, so grain must sit well under the relief.
     sc.cycles.samples = 256
     frame = shoot((320, 256), "isothermal")
     horizon = frame.shape[0] // 2
@@ -126,9 +108,7 @@ def sea_of(scenario: Scenario, waves: bool) -> np.ndarray:
 
 @pytest.mark.render
 def test_waves_survive_a_sea_at_air_temperature() -> None:
-    """Wave relief survives a sea exactly at air temperature.
-
-    A tilted facet reflects a different sky elevation, cold overhead to ambient at
+    """A tilted facet reflects a different sky elevation, cold overhead to ambient at
     the horizon, so relief shows without `t_sea_k - t_air_k`.
     """
     isothermal = SCENARIO.model_copy(
@@ -139,19 +119,14 @@ def test_waves_survive_a_sea_at_air_temperature() -> None:
 
     rippled, flat = sea_of(isothermal, True), sea_of(isothermal, False)
 
-    # 3.2 measured; grain-limited flat control reads 1.0.
     assert texture(rippled) > 2.5 * texture(flat)
 
 
 @pytest.mark.render
 def test_the_noise_delivers_the_slope_it_is_asked_for() -> None:
-    """`NOISE_SLOPE_PER_UNIT` against the node itself.
-
-    Bump Distance is metres of relief per wavelength, which is only the slope the chain
-    asked for if the noise's own gradient is known. Baked flat and differenced, so a
-    Blender change shows up as a number rather than as a sea that looks slightly wrong.
-    """
-    span, px = 20.0, 1024  # 2 cm sampling; see the constant's comment
+    """A Blender change to the noise shows up as a number, not as a sea that looks
+    slightly wrong."""
+    span, px = 20.0, 1024  # 2 cm sampling
     bpy.ops.wm.read_factory_settings(use_empty=True)
     frame = bpy.context.scene
     bpy.ops.mesh.primitive_plane_add(size=span)

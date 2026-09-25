@@ -24,7 +24,6 @@ PROJECTIONS = {
     "equirectangular": "spherical",
 }
 
-# Ruler ticks, and the ticks that carry a label.
 TICK_DEG = 10
 LABEL_DEG = 30
 
