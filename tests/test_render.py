@@ -6,6 +6,7 @@ is also where the silent failures live.
 """
 
 from pathlib import Path
+from types import SimpleNamespace
 from typing import get_args
 
 import bpy
@@ -187,3 +188,31 @@ class TestSettings:
         sc = built(band)
 
         assert sc.view_settings.exposure == exposure_ev
+
+
+def test_a_relative_output_reaches_blender_absolute(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Relative, Blender fails to save: 'cannot save: EO_PORT_P.png'."""
+    handed: list[str] = []
+
+    def capture(**_: object) -> None:
+        handed.append(bpy.context.scene.render.filepath)
+        raise RuntimeError("captured")
+
+    # bpy.ops.render is rebuilt on every access, so patch the attribute that holds it.
+    monkeypatch.setattr(bpy.ops, "render", SimpleNamespace(render=capture))
+    monkeypatch.chdir(tmp_path)
+    scenario = load(BASELINE)
+    scenario = scenario.model_copy(
+        update={
+            "objects": [],
+            "outputs": scenario.outputs.model_copy(update={"bands": ("eo",)}),
+        }
+    )
+
+    with pytest.raises(RuntimeError, match="captured"):
+        render.render(scenario, Path("out"))
+
+    assert Path(handed[0]).is_absolute()
+    assert Path(handed[0]).parent == tmp_path / "out"

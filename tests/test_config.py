@@ -76,7 +76,7 @@ def test_a_preset_supplies_optics_and_the_block_supplies_the_mount(twin_pod) -> 
     assert (ir.camera.hfov_deg, ir.camera.width_px, ir.camera.height_px) == (
         24.0,
         640,
-        512,
+        480,
     )
     assert (eo.pod.name, eo.nominal_bearing_deg) == ("port", -100.0)
 
@@ -151,7 +151,7 @@ def test_a_block_overrides_its_own_preset(tmp_path) -> None:
     scenario = load(
         variant(
             tmp_path,
-            ONE_POD + 'preset = "eo"\nhfov_deg = 10.0\n',
+            ONE_POD + 'preset = "eo_4k_49deg"\nhfov_deg = 10.0\n',
         )
     )
     camera = scenario.rig.mounts[0].camera
@@ -166,7 +166,7 @@ def test_a_preset_outranks_an_inherited_value(tmp_path) -> None:
     """
     (tmp_path / "single.toml").write_text(
         'height_m = 2.0\n\n[[pods]]\nname = "bow"\nyaw_deg = 0.0\n\n'
-        '[[pods.cameras]]\npreset = "ir"\n'
+        '[[pods.cameras]]\npreset = "ir_vga_24deg"\n'
     )
     scenario = load(variant(tmp_path, '[rig]\npreset = "./single.toml"\n'))
     assert scenario.rig.height_m == 2.0
@@ -178,7 +178,7 @@ def test_tables_merge_and_lists_replace(tmp_path, baseline) -> None:
     scenario = load(
         variant(
             tmp_path,
-            "[sea]\nwind_speed_mps = 3.0\n\n" + ONE_POD + 'preset = "ir"\n',
+            "[sea]\nwind_speed_mps = 3.0\n\n" + ONE_POD + 'preset = "ir_vga_24deg"\n',
         )
     )
     assert scenario.sea.wind_speed_mps == 3.0
@@ -252,7 +252,7 @@ def test_non_finite_numbers_are_rejected(tmp_path, value) -> None:
             variant(
                 tmp_path,
                 f'[[rig.pods]]\nname = "bow"\nyaw_deg = {value}\n\n'
-                '[[rig.pods.cameras]]\npreset = "ir"\n',
+                '[[rig.pods.cameras]]\npreset = "ir_vga_24deg"\n',
             )
         )
 
