@@ -1,4 +1,3 @@
-# Uncooled microbolometer.
 kind = "ir"
 hfov_deg = 24.0
 width_px = 640

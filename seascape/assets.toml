@@ -10,7 +10,7 @@ length_m = 200.0
 # Nominal for a loaded feeder of this length. Like length_m it sets how the mesh
 # sits, here the freeboard above the waterline, and is not a real displacement.
 draught_m = 10.0
-# Bow at -Y. Measured from the fitted hull: bridge wings at +-21.5 m, 68.2 m from midships.
+# Bow at -Y.
 bow_deg = 180.0
 licence = "CC-BY-3.0"
 attribution = "Container Ship by Alex “SAFFY” Safayan, https://poly.pizza/m/3AmDGcCu6Ll"

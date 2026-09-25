@@ -2,8 +2,8 @@
 
 Blender is an RGB renderer with no concept of the 8-14 um band, and its Fresnel node
 takes a scalar IOR where water needs a complex one (n + i*k). So these curves are
-evaluated here and the shader consumes them as 1D lookups. Path extinction is not here:
-that is Blender's volume nodes. Angles are radians.
+evaluated here and the shader consumes them as 1D lookups. Path extinction is not
+modelled. Angles are radians.
 
 A sea surface emits and reflects, and the two are complements: `1 - eps` of what it does
 not emit comes back as reflected sky. Leave the reflection out and the sea goes black at
@@ -37,7 +37,7 @@ that fail silently:
 - Kirchhoff's law, eps = 1 - R. Holds because water is opaque across this band well
   inside any depth the sensor resolves, so there is no transmitted term.
 - Band emissivity is the Planck-weighted mean of the spectral emissivity. Exact only for
-  a flat sensor response; a specific microbolometer wants its own curve here.
+  a flat sensor response.
 """
 
 import functools
@@ -123,8 +123,8 @@ def optical_constants(
 ) -> tuple[FloatArray, FloatArray, FloatArray]:
     """Wavelength (m), n, k across the band at `t_k`, ascending in wavelength.
 
-    Linearly interpolated between the table's 4 K steps and clamped outside 271-311 K,
-    which already spans any sea surface. Emissivity moves under 0.02 across the span.
+    Linearly interpolated between the table's steps and clamped outside its span,
+    which already covers any sea surface.
     """
     grid, temperatures, nk = _table()
     t = float(np.clip(_checked_kelvin(t_k), temperatures[0], temperatures[-1]))
@@ -168,7 +168,6 @@ def fresnel_emissivity(
     return 1.0 - 0.5 * (np.abs(r_s) ** 2 + np.abs(r_p) ** 2)
 
 
-# Angles the curve is sampled at, and facets drawn per angle to average over.
 CURVE_ANGLES = 91
 FACET_SAMPLES = 4096
 
@@ -220,16 +219,16 @@ _BAND_LAM = np.linspace(*BAND_M, 512)
 def band_radiance(t_k: float) -> float:
     """Blackbody radiance integrated over the band, W m^-2 sr^-1.
 
-    On its own grid, not the seawater table's, which the 20 cm^-1 spacing lands inside
-    the band at both ends -- 2.6% low as an integral.
+    On its own grid, not the seawater table's, whose 20 cm^-1 spacing lands inside
+    the band at both ends and so integrates low.
     """
     return float(np.trapezoid(planck(_BAND_LAM, t_k), _BAND_LAM))
 
 
-# 200-400 K spans every temperature the scenario schema admits.
+# np.interp clamps past the ends, so a hull the sun heats past 400 K reads as 400.
 _TB_GRID = np.linspace(200.0, 400.0, 1024)
 # Through band_radiance, not a second copy of its integral: the two must stay
-# inverses, and a microbolometer's spectral response would be swapped in there.
+# inverses.
 _TB_RADIANCE = np.array([band_radiance(t) for t in _TB_GRID])
 
 
@@ -245,8 +244,8 @@ def brightness_temperature(radiance: npt.ArrayLike) -> FloatArray:
 def sky_radiance(elev_rad: npt.ArrayLike, t_air_k: float = T_AIR_K) -> FloatArray:
     """Downwelling in-band sky radiance at an elevation above the horizon.
 
-    Ambient at the horizon, where the slant path is optically thick, falling to roughly
-    0.44 of it at the zenith. Sea and sky meeting at the same radiance is what makes a
+    Ambient at the horizon, where the slant path is optically thick, falling to the
+    table's zenith value. Sea and sky meeting at the same radiance is what makes a
     thermal horizon read correctly. Below the horizon the curve holds at ambient, which
     is what a ray that misses the sea should see.
     """

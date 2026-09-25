@@ -30,12 +30,12 @@ height_px = 512
 t_sea_k = 291.0
 
 [sky]
-# Keeps the sun disc and its glitter out of frame.
+# Keeps the sun disc out of frame.
 sun_bearing_deg = 135.0
 
 [[objects]]
 preset = "container_ship"
 range_m = 2000.0
-# Inside the narrower IR frame, so both cameras see it.
+# Inside both frames.
 bearing_deg = 8.0
 heading_deg = 250.0

@@ -1,7 +1,7 @@
 """Compose a render's frames into one labelled image, for review.
 
 No Blender: this reads the images `render` already wrote, so it runs without the bpy
-wheel and a layout can be redone without re-rendering eight 4K frames.
+wheel and a layout can be redone without re-rendering.
 
 Captions sit in a band under each frame: text burnt into a frame is an artefact that
 travels with the dataset, and in an exr it would corrupt radiance.
@@ -14,7 +14,7 @@ from PIL.ImageFont import FreeTypeFont
 
 from seascape.config import Scenario
 
-# Tall enough to read at a glance, small enough that eight frames fit across a screen.
+# Tall enough to read at a glance, small enough that a row fits across a screen.
 TILE_H = 260
 CAPTION_H = 26
 GUTTER = 4
@@ -53,7 +53,7 @@ def _tile(
 def compose(scenario: Scenario, into: Path) -> Path:
     """Write `montage.png` beside the frames in `into`, one row per band.
 
-    Tiles follow rig order, so a row reads port to starboard. eo and ir never share
+    Tiles follow rig order. eo and ir never share
     a row: their pixels mean different things.
     """
     font = _font()
