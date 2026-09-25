@@ -55,7 +55,7 @@ Building fresh each time is also what keeps a long-lived session from accumulati
 
 These produce wrong output with no error. They are the reason this file exists.
 
-- **Blender's +Z rotation turns a forward-facing object to port.** Every nautical bearing goes through the single conversion helper and is negated there and nowhere else. Two negations cancel and look plausible.
+- **Blender's +Z rotation turns a forward-facing object to port.** Every nautical bearing goes through the single conversion helper and is negated there and nowhere else. Two negations cancel and look plausible. The Sky Texture's `sun_rotation` is the exception: it already turns clockwise, so it takes the bearing as it is.
 - **A camera's bearing is not `pod yaw + camera yaw`.** In the chain `scene._rig` builds, the rig's pitch sits between the two yaws and shifts an off-axis camera's azimuth. A centre camera on a level hull is exact, which is why the sum looks right. `scene.boresight_deg` reads the achieved bearing off `matrix_world`; `Mount.nominal_bearing_deg` is only what the scenario asked for.
 - **`rotation_mode` is often `QUATERNION`.** Assigning `rotation_euler` is then ignored entirely — no exception, no warning, object doesn't move. Set the mode first.
 - **Address shader sockets by name, never by index.** `inputs["Distance"]` raises if Blender renames it; `inputs[1]` happily writes to whatever now sits in that slot.

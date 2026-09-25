@@ -13,6 +13,7 @@ from pathlib import Path
 import bpy
 import numpy as np
 import pytest
+from mathutils import Vector
 
 from seascape import lwir, scene
 from seascape.config import Band, Scenario, load
@@ -186,3 +187,21 @@ def test_the_noise_delivers_the_slope_it_is_asked_for() -> None:
     gradient_y, gradient_x = np.gradient(fac.astype(np.float64), span / px)
     measured = float(np.sqrt(np.mean(gradient_x**2 + gradient_y**2)))
     assert measured == pytest.approx(scene.NOISE_SLOPE_PER_UNIT, abs=0.03)
+
+
+def test_the_sky_draws_its_sun_where_the_sun_vector_points() -> None:
+    """The hull's heating takes the sun from that vector and the sky draws it from the
+    bearing; a sign between them mirrors the disc and its glitter east to west."""
+    scene.build(SCENARIO, "eo")
+    sc = bpy.context.scene
+    camera = sc.camera
+    camera.parent = None
+    camera.rotation_mode = "QUATERNION"
+    camera.rotation_quaternion = Vector(scene._sun_vector(SCENARIO.sky)).to_track_quat(
+        "-Z", "Y"
+    )
+    sc.cycles.samples = 4
+    sc.cycles.use_denoising = False
+    frame = shoot((200, 150), "sun")
+    row, col = np.unravel_index(frame.argmax(), frame.shape)
+    assert abs(row - 75) <= 2 and abs(col - 100) <= 2

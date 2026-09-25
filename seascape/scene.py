@@ -211,7 +211,8 @@ def _sky(sky: Sky, band: Band) -> bpy.types.World:
     # Preetham and Hosek-Wilkie models and is silently ignored here.
     node.sky_type = "MULTIPLE_SCATTERING"
     node.sun_elevation = math.radians(sky.sun_elevation_deg)
-    node.sun_rotation = _yaw(sky.sun_bearing_deg)
+    # Not `_yaw`: the sky's rotation already turns clockwise from +Y, as a bearing does.
+    node.sun_rotation = math.radians(sky.sun_bearing_deg)
     node.aerosol_density = sky.aerosol_density
     tree.links.new(node.outputs["Color"], tree.nodes["Background"].inputs["Color"])
     return world
