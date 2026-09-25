@@ -105,6 +105,12 @@ def test_an_override_is_the_toml_line_it_would_be_written_as(baseline) -> None:
     assert scenario.rig.height_m == baseline.rig.height_m
 
 
+def test_an_override_resolves_presets_like_a_line_in_the_file() -> None:
+    scenario = load(SCENARIOS / "twin-pod.toml", ['rig.pods = [{ preset = "port" }]'])
+    assert [pod.name for pod in scenario.rig.pods] == ["port"]
+    assert len(scenario.rig.mounts) == 4
+
+
 def test_an_override_merges_a_table_rather_than_replacing_it() -> None:
     scenario = load(BASELINE, ["outputs.samples.eo = 8"])
 
@@ -273,7 +279,12 @@ def test_baseline_points_at_the_committed_schema() -> None:
 def test_every_shipped_preset_parses() -> None:
     """A preset directory is named after the block it serves, and holds valid TOML."""
     presets = sorted(CFG_DIR.rglob("*.toml"))
-    assert {path.parent.name for path in presets} == {"rig", "cameras", "objects"}
+    assert {path.parent.name for path in presets} == {
+        "rig",
+        "pods",
+        "cameras",
+        "objects",
+    }
     for preset in presets:
         tomllib.load(preset.open("rb"))
 

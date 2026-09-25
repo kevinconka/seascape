@@ -1,66 +1,9 @@
-# Offsets are the bridge-wing tops of the container_ship mesh.
-
 # Keeps the deck plate out of every lower frame edge.
 height_m = 51.8
 pitch_deg = 0.0
 
 [[pods]]
-name = "port"
-yaw_deg = -60.0
-offset_x_m = -21.5
-offset_y_m = -68.2
-
-[[pods.cameras]]
-preset = "eo_4k_49deg"
-name = "EO_PORT_P"
-yaw_deg = -40.0
-pitch_deg = -10.0
-
-[[pods.cameras]]
-preset = "eo_4k_49deg"
-name = "EO_PORT_C"
-yaw_deg = 0.0
-pitch_deg = -10.0
-
-[[pods.cameras]]
-preset = "eo_4k_49deg"
-name = "EO_PORT_S"
-yaw_deg = 40.0
-pitch_deg = -10.0
-
-[[pods.cameras]]
-preset = "ir_vga_24deg"
-name = "IR_PORT"
-# Inboard, so the pair straddles the bow.
-yaw_deg = +50.0
-pitch_deg = -6.0
+preset = "port"
 
 [[pods]]
-name = "starboard"
-yaw_deg = +60.0
-offset_x_m = +21.5
-offset_y_m = -68.2
-
-[[pods.cameras]]
-preset = "eo_4k_49deg"
-name = "EO_STBD_P"
-yaw_deg = -40.0
-pitch_deg = -10.0
-
-[[pods.cameras]]
-preset = "eo_4k_49deg"
-name = "EO_STBD_C"
-yaw_deg = 0.0
-pitch_deg = -10.0
-
-[[pods.cameras]]
-preset = "eo_4k_49deg"
-name = "EO_STBD_S"
-yaw_deg = 40.0
-pitch_deg = -10.0
-
-[[pods.cameras]]
-preset = "ir_vga_24deg"
-name = "IR_STBD"
-yaw_deg = -50.0
-pitch_deg = -6.0
+preset = "starboard"

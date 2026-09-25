@@ -57,11 +57,12 @@ uv run seascape build scenarios/baseline.toml -o /tmp/look.blend
 
 A scenario is a TOML file describing the world, the platform, the sensors and the targets. `scenarios/baseline.toml` is the smallest one.
 
-`--set` overrides any field for one run, as the TOML line it would be written as:
+`--set` overrides any field for one run, as the TOML line it would be written as, presets included:
 
 ```bash
 uv run seascape render scenarios/twin-pod.toml --set 'rig.pitch_deg = -5'
 uv run seascape render scenarios/baseline.toml --set 'outputs.samples.eo = 8' --set 'sky.sun_elevation_deg = 5'
+uv run seascape render scenarios/twin-pod.toml --set 'rig.pods = [{ preset = "port" }]'   # one pod
 ```
 
 A variant worth keeping is a file, and `extends` makes it a diff:

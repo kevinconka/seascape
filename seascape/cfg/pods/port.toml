@@ -1,0 +1,31 @@
+# Offsets are the bridge-wing tops of the container_ship mesh.
+
+name = "port"
+yaw_deg = -60.0
+offset_x_m = -21.5
+offset_y_m = -68.2
+
+[[cameras]]
+preset = "eo_4k_49deg"
+name = "EO_PORT_P"
+yaw_deg = -40.0
+pitch_deg = -10.0
+
+[[cameras]]
+preset = "eo_4k_49deg"
+name = "EO_PORT_C"
+yaw_deg = 0.0
+pitch_deg = -10.0
+
+[[cameras]]
+preset = "eo_4k_49deg"
+name = "EO_PORT_S"
+yaw_deg = 40.0
+pitch_deg = -10.0
+
+[[cameras]]
+preset = "ir_vga_24deg"
+name = "IR_PORT"
+# Inboard, so the pair straddles the bow.
+yaw_deg = +50.0
+pitch_deg = -6.0

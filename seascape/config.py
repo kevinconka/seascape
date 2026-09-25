@@ -409,9 +409,11 @@ def _read(path: Path, chain: tuple[Path, ...] = ()) -> dict[str, Any]:
 def load(path: str | Path, overrides: Iterable[str] = ()) -> Scenario:
     """Read a scenario TOML, resolving `extends` and `preset`, and validate it.
 
-    Each override is a TOML assignment merged over the file: `rig.pitch_deg = -5`.
+    Each override is a TOML assignment merged over the file, `rig.pitch_deg = -5`,
+    and resolved as if it were a line in it.
     """
-    data = _read(Path(path))
+    path = Path(path)
+    data = _read(path)
     for assignment in overrides:
-        data = _merge(data, tomllib.loads(assignment))
+        data = _merge(data, _expand(tomllib.loads(assignment), None, path.parent, ()))
     return Scenario.model_validate(data)
