@@ -180,8 +180,8 @@ def sea_reach_m(rig: Rig, sea: Sea) -> float:
 def _yaw(bearing_deg: float) -> float:
     """Bearing to Blender yaw, in radians.
 
-    Blender's +Z rotation turns a forward-facing object to port, so every bearing is
-    negated. This is the only place it happens: two negations cancel and look plausible.
+    Blender's +Z rotation turns a forward-facing object to port, so a bearing is negated
+    on its way into a rotation. Only here: two negations cancel and look plausible.
     """
     return -math.radians(bearing_deg)
 
@@ -211,7 +211,7 @@ def _sky(sky: Sky, band: Band) -> bpy.types.World:
     # Preetham and Hosek-Wilkie models and is silently ignored here.
     node.sky_type = "MULTIPLE_SCATTERING"
     node.sun_elevation = math.radians(sky.sun_elevation_deg)
-    # Not `_yaw`: the sky's rotation already turns clockwise from +Y, as a bearing does.
+    # An azimuth, clockwise from +Y, though Blender calls it a rotation.
     node.sun_rotation = math.radians(sky.sun_bearing_deg)
     node.aerosol_density = sky.aerosol_density
     tree.links.new(node.outputs["Color"], tree.nodes["Background"].inputs["Color"])
