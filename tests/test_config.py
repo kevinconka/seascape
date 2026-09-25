@@ -273,7 +273,12 @@ def test_baseline_points_at_the_committed_schema() -> None:
 def test_every_shipped_preset_parses() -> None:
     """A preset directory is named after the block it serves, and holds valid TOML."""
     presets = sorted(CFG_DIR.rglob("*.toml"))
-    assert {path.parent.name for path in presets} == {"rig", "cameras", "objects"}
+    assert {path.parent.name for path in presets} == {
+        "rig",
+        "pods",
+        "cameras",
+        "objects",
+    }
     for preset in presets:
         tomllib.load(preset.open("rb"))
 
