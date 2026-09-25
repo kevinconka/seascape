@@ -647,3 +647,34 @@ def test_a_target_underway_runs_along_its_heading_on_the_curved_sea() -> None:
     sc.frame_set(0)
     assert anchor.matrix_world.translation == start
     assert start.xy.length == pytest.approx(spec.range_m)
+
+
+class TestOwnshipMotion:
+    MOTION = (
+        "outputs.duration_s = 2.0",
+        "ownship = { roll_deg = 3.0, pitch_deg = -1.0,"
+        " roll = { amplitude_deg = 5.0, period_s = 4.0 },"
+        " pitch = { amplitude_deg = 2.0, period_s = 4.0 },"
+        " heave = { amplitude_m = 0.5, period_s = 4.0 } }",
+    )
+
+    def test_a_quarter_period_in_is_the_peak(self) -> None:
+        built = scene.build(load(BASELINE, self.MOTION))
+        anchor, camera = built.vessel, camera_of(SCENARIO.rig.mounts[0])
+        mounted = anchor.matrix_world.inverted() @ camera.matrix_world
+        still = camera.matrix_world.copy()
+        bpy.context.scene.frame_set(10)  # t = 1 s
+
+        pitch, roll, _ = anchor.rotation_euler
+        assert math.degrees(pitch) == pytest.approx(-1.0 + 2.0)
+        assert math.degrees(roll) == pytest.approx(3.0 + 5.0)
+        assert anchor.matrix_world.translation.z == pytest.approx(0.5)
+        assert camera.matrix_world != still
+        moved = anchor.matrix_world.inverted() @ camera.matrix_world
+        assert np.allclose(moved, mounted, atol=1e-5)
+
+    @pytest.mark.parametrize("duration_s", [0.0, 2.0])
+    def test_an_ownship_without_motion_keys_nothing(self, duration_s) -> None:
+        built = scene.build(load(BASELINE, [f"outputs.duration_s = {duration_s}"]))
+
+        assert built.vessel.animation_data is None
