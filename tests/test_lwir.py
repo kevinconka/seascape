@@ -3,9 +3,7 @@
 No GPU, no Blender. These are the check that the radiometry is right; a render only
 shows that it is plausible.
 
-Each assertion names what it is measured against. Every function in the module is
-exercised by one, planck and fresnel_emissivity through emissivity_curve.
-See "Sources" in seascape/lwir.py.
+Each assertion names what it is measured against. See "Sources" in seascape/lwir.py.
 """
 
 import numpy as np
@@ -33,8 +31,7 @@ def eps_at(curve: tuple[np.ndarray, np.ndarray], deg: float) -> float:
 def test_normal_incidence_emissivity_is_about_0_99(curve) -> None:
     """Water looks almost black in the LWIR when viewed straight down.
 
-    0.98-0.99 is the standard handbook emissivity for water in this band, and the one
-    every IR thermometer ships as its water preset.
+    0.98-0.99 is the standard handbook emissivity for water in this band.
     """
     assert 0.98 <= eps_at(curve, 0.0) <= 0.995
 
@@ -108,8 +105,8 @@ def test_emissivity_rises_with_sea_temperature_but_barely() -> None:
     """Both halves matter: the trend is real, and it is small.
 
     Warmer water is slightly less reflective in this band, so emissivity climbs with
-    temperature. Across 271-311 K -- colder and warmer than any sea -- it moves 0.016
-    at most: 0.003 looking straight down, peaking at 80 degrees where the curve is
+    temperature. Across the table's span -- colder and warmer than any sea -- it moves
+    under 0.02, least looking straight down and most near grazing, where the curve is
     steepest. Small, but it peaks exactly where the horizon and the distant targets
     are, which is why it is worth carrying rather than freezing at one temperature.
 
@@ -122,7 +119,7 @@ def test_emissivity_rises_with_sea_temperature_but_barely() -> None:
 
 
 def test_temperature_is_clamped_to_the_measured_range() -> None:
-    """Outside 271-311 K the table has nothing, so hold the endpoint.
+    """Outside its span the table has nothing, so hold the endpoint.
 
     Extrapolating optical constants past the measurements would invent data. Only the
     lookup clamps: Planck still uses the temperature it was given, which is why the
@@ -137,8 +134,8 @@ def test_temperature_is_clamped_to_the_measured_range() -> None:
 def test_planck_rejects_impossible_temperatures(bad: float) -> None:
     """Every public entry point taking a temperature has to reject a non-temperature.
 
-    A negative kelvin returned a negative radiance and propagated in silence; nan
-    survived the clamp in optical_constants and turned the whole lookup into NaN.
+    A negative kelvin gives a negative radiance that propagates in silence; nan
+    survives the clamp in optical_constants and turns the whole lookup into NaN.
     """
     with pytest.raises(ValueError, match="positive"):
         lwir.planck(1e-5, bad)
@@ -154,7 +151,7 @@ def test_band_holds_a_plausible_share_of_total_emission() -> None:
     """The band is a fraction of a 288 K body's total emission.
 
     Stefan-Boltzmann gives the total exactly; the 35-50% window is a chosen tolerance
-    around the ~36% this integration produces, wide enough to survive a change of
+    around what this integration produces, wide enough to survive a change of
     integration scheme and narrow enough to catch a unit error in Planck.
     """
     total = STEFAN_BOLTZMANN * 288.0**4 / np.pi
@@ -209,3 +206,10 @@ def test_sky_rejects_impossible_air_temperatures() -> None:
     """The temperature guard reaches the sky curve too, through band_radiance."""
     with pytest.raises(ValueError, match="positive"):
         lwir.sky_radiance(0.0, -1.0)
+
+
+def test_brightness_temperature_inverts_band_radiance() -> None:
+    """Off the lookup grid, where interpolation error would show."""
+    t_k = np.array([250.05, 288.13, 311.37])
+    radiance = [lwir.band_radiance(t) for t in t_k]
+    assert lwir.brightness_temperature(radiance) == pytest.approx(t_k, abs=0.01)

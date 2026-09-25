@@ -12,6 +12,7 @@ from typing import get_args
 import pytest
 from pydantic import ValidationError
 
+from seascape import lwir
 from seascape.config import (
     CFG_DIR,
     Band,
@@ -21,6 +22,7 @@ from seascape.config import (
     Rig,
     Samples,
     Scenario,
+    Sea,
     load,
 )
 
@@ -138,7 +140,7 @@ def test_a_bad_override_is_refused(override: str, error: type[Exception]) -> Non
 
 
 def test_objects_merge_their_preset(baseline) -> None:
-    """The only list-of-tables preset: asset and temperature from cfg, pose here."""
+    """A list-of-tables preset: asset and temperature from cfg, pose here."""
     obj = baseline.objects[0]
     assert (obj.asset, obj.t_k) == ("container_ship", 295.0)
     assert (obj.range_m, obj.bearing_deg) == (2000.0, 8.0)
@@ -153,7 +155,7 @@ def test_a_block_overrides_its_own_preset(tmp_path) -> None:
         )
     )
     camera = scenario.rig.mounts[0].camera
-    assert camera.hfov_deg == 10.0  # preset says 49.0
+    assert camera.hfov_deg == 10.0
     assert camera.width_px == 3840  # untouched by the block
 
 
@@ -167,7 +169,7 @@ def test_a_preset_outranks_an_inherited_value(tmp_path) -> None:
         '[[pods.cameras]]\npreset = "ir_vga_24deg"\n'
     )
     scenario = load(variant(tmp_path, '[rig]\npreset = "./single.toml"\n'))
-    assert scenario.rig.height_m == 2.0  # baseline says 12.0
+    assert scenario.rig.height_m == 2.0
     assert [mount.camera.kind for mount in scenario.rig.mounts] == ["ir"]
 
 
@@ -182,7 +184,7 @@ def test_tables_merge_and_lists_replace(tmp_path, baseline) -> None:
     assert scenario.sea.wind_speed_mps == 3.0
     # Read off the parent, not written out: this is about the merge, not the value.
     assert scenario.sea.t_sea_k == baseline.sea.t_sea_k
-    assert scenario.rig.height_m == 12.0  # sibling table survived it too
+    assert scenario.rig.height_m == baseline.rig.height_m  # sibling table survived
     assert len(scenario.rig.mounts) == 1  # the list did not
 
 
@@ -234,7 +236,7 @@ def test_a_mistyped_key_is_an_error_not_a_silent_default(tmp_path) -> None:
 
 @pytest.mark.parametrize("t_sea_k", [260.0, 400.0])
 def test_sea_temperature_is_bounded_at_the_config_boundary(tmp_path, t_sea_k) -> None:
-    """The bound is 271-311 K, the span of the shipped optical-constant table."""
+    """The bound is the span of the shipped optical-constant table."""
     with pytest.raises(ValidationError, match="t_sea_k"):
         load(variant(tmp_path, f"[sea]\nt_sea_k = {t_sea_k}\n"))
 
@@ -348,3 +350,9 @@ def test_the_same_camera_on_two_pods_is_fine() -> None:
     )
 
     assert [mount.name for mount in rig.mounts] == ["port_eo_0", "starboard_eo_0"]
+
+
+def test_sea_temperature_bounds_are_the_tables_span() -> None:
+    bounds = Sea.model_json_schema()["properties"]["t_sea_k"]
+    _, temperatures, _ = lwir._table()
+    assert (bounds["minimum"], bounds["maximum"]) == (temperatures[0], temperatures[-1])

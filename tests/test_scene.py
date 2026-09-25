@@ -14,6 +14,7 @@ from mathutils import Vector
 
 from seascape import lwir, scene
 from seascape.assets import Asset, manifest
+from seascape.calibration import CameraCalibration
 from seascape.config import Mount, load
 
 BASELINE = Path(__file__).parent.parent / "scenarios" / "baseline.toml"
@@ -25,6 +26,32 @@ RIG_ONLY = f'extends = "{BASELINE}"\nobjects = []\n'
 
 def camera_of(mount: Mount) -> bpy.types.Object:
     return bpy.data.objects[mount.name]
+
+
+def _in_frame(camera: CameraCalibration, direction: Vector | np.ndarray) -> bool:
+    """Whether a world direction from the camera lands on its sensor."""
+    rotation = np.array(camera.extrinsics["world"])[:3, :3]
+    x, y, z = np.array(camera.K) @ (rotation.T @ np.asarray(direction))
+    # Pixel centres sit at integers, so the sensor spans -0.5 to size - 0.5.
+    return bool(
+        z > 0
+        and -0.5 <= x / z <= camera.width_px - 0.5
+        and -0.5 <= y / z <= camera.height_px - 0.5
+    )
+
+
+@pytest.mark.parametrize("name", ["baseline.toml", "twin-pod.toml"])
+def test_the_sun_is_out_of_every_frame(name: str) -> None:
+    scenario = load(BASELINE.parent / name)
+    ownship = scenario.ownship.model_copy(update={"asset": None})
+    bare = scenario.model_copy(
+        update={"objects": [], "targets": None, "ownship": ownship}
+    )
+    built = scene.build(bare, "eo")
+    sun = np.array(scene._sun_vector(scenario.sky))
+    for mount in scenario.rig.mounts:
+        camera = scene.calibrate(built, mount, "")
+        assert not _in_frame(camera, sun), mount.name
 
 
 def baked(name: str) -> np.ndarray:
@@ -67,12 +94,15 @@ def test_published_values_have_not_drifted() -> None:
     """The figures the wave chain is built on. Moving one changes the physics."""
     # Cox & Munk 1954: RMS slope of a clean sea at 7 m/s, off sun glitter photographs.
     assert scene.wave_slope(7.0) == pytest.approx(0.197, abs=5e-4)
+    # Surveying's rule of thumb for the horizon, 3.86 sqrt(h_m) km at k = 0.13.
+    rule_m = 3.86e3 * math.sqrt(51.8)
+    assert scene.horizon_m(51.8, 0.13) == pytest.approx(rule_m, rel=0.01)
     # Pierson-Moskowitz: a fully developed sea at 7 m/s peaks near 41 m.
     assert scene.wave_length_m(7.0) == pytest.approx(40.8, abs=0.2)
     # Minimum phase speed of a surface wave, where surface tension takes over.
     assert abs(scene.CAPILLARY_WAVELENGTH_M - 0.0173) < 1e-4
     # Masuda 1988 at this wind speed: near nadir, and at 80 deg where roughness has
-    # taken hold. Flat Fresnel reads 0.66 at 80, which is the error being corrected.
+    # taken hold, lifting emissivity above flat Fresnel.
     theta, eps = lwir.emissivity_curve(
         t_sea_k=291.0, slope_sigma=scene.unresolved_slope(7.0)
     )
@@ -87,8 +117,8 @@ class TestGeometry:
 
     @pytest.fixture(scope="class", autouse=True)
     @classmethod
-    def built(cls) -> None:
-        scene.build(SCENARIO, "eo")
+    def built(cls) -> scene.Built:
+        return scene.build(SCENARIO, "eo")
 
     def test_a_flat_rig_points_where_the_scenario_asked(self) -> None:
         """The one negation. Two of them cancel and the whole rig mirrors unnoticed."""
@@ -140,8 +170,17 @@ class TestGeometry:
                 spec.bearing_deg
             )
 
+    def test_the_ship_is_in_every_frame(self, built: scene.Built) -> None:
+        """Both bands' tests measure the one ship."""
+        (spec,) = SCENARIO.objects
+        ship = bpy.data.objects[spec.asset].matrix_world.translation
+        for mount in SCENARIO.rig.mounts:
+            eye = camera_of(mount).matrix_world.translation
+            camera = scene.calibrate(built, mount, "")
+            assert _in_frame(camera, ship - eye), mount.name
+
     def test_a_target_is_fitted_to_its_manifest_length(self) -> None:
-        """The mesh arrives ~1 unit long; unfitted it is a speck at 2 km."""
+        """The mesh arrives in its author's units; unfitted it is a speck at range."""
         for spec in SCENARIO.objects:
             anchor = bpy.data.objects[spec.asset]
             into_hull = anchor.matrix_world.inverted()
@@ -201,8 +240,8 @@ class TestGeometry:
         assert reach > max(spec.range_m for spec in SCENARIO.objects)
 
     def test_a_hull_floats_on_the_sea_and_not_on_the_tangent_plane(self) -> None:
-        """Hulls left at z = 0 fly: 11.5 m at 7 NM, 109 m at 40 km, with range and
-        bearing still right, so nothing else catches it."""
+        """Hulls left at z = 0 fly with range and bearing still right, so nothing else
+        catches it."""
         radius = scene.earth_radius_m(SCENARIO.sea.refraction_k)
 
         for spec in SCENARIO.objects:
@@ -215,8 +254,10 @@ class TestGeometry:
         """A target past the horizon shows its waterline when it should be hull-down."""
         eye = Vector((0.0, 0.0, SCENARIO.rig.height_m))
         radius = scene.earth_radius_m(SCENARIO.sea.refraction_k)
-        beyond = 18_000.0  # past the 13.3 km horizon of a 12 m rig, inside the grid
+        beyond = 18_000.0
         surface = beyond * beyond / (2.0 * radius)
+        horizon = scene.horizon_m(SCENARIO.rig.height_m, SCENARIO.sea.refraction_k)
+        assert horizon < beyond < scene.sea_reach_m(SCENARIO.rig, SCENARIO.sea)
 
         waterline = _blocked(eye, Vector((0.0, beyond, -surface)))
         mast = _blocked(eye, Vector((0.0, beyond, 30.0 - surface)))
@@ -284,8 +325,8 @@ def test_a_hull_is_fitted_along_its_own_bow_axis(bow_deg, bow_corner) -> None:
 def test_the_active_camera_belongs_to_the_band_built(band) -> None:
     """The scene opens on whichever camera it saved as active, and F12 uses it.
 
-    Scenario order puts an EO camera first, so an IR build would otherwise render
-    through EO optics against IR materials, with nothing to say so.
+    Opened on the rig's first camera, an IR build could render through EO optics
+    against IR materials, with nothing to say so.
     """
     scene.build(SCENARIO.model_copy(update={"objects": []}), band)
     assert f"_{band}_" in bpy.context.scene.camera.name
@@ -388,8 +429,8 @@ def _pod_pitched(tmp_path, yaw_deg: float, pitch_deg: float = -5.0):
 
 @pytest.mark.parametrize("yaw_deg", [-40.0, 40.0])
 def test_pitch_moves_an_off_axis_camera_off_its_bearing(tmp_path, yaw_deg) -> None:
-    """The chain is Rz(-pod) Rx(pitch) Rz(-camera), so the rig's pitch sits between the
-    two yaws; at -5 deg this is 0.108 deg, nine pixels at 4K."""
+    """The rig's pitch sits between the pod and camera yaws, so it turns an off-axis
+    camera's bearing."""
     bearing, nominal = _pod_pitched(tmp_path, yaw_deg)
 
     assert abs(bearing - nominal) > 0.1
@@ -424,7 +465,7 @@ def test_a_near_clip_past_the_far_plane_is_an_error(tmp_path) -> None:
 
 
 def test_a_band_the_rig_cannot_see_is_an_error(tmp_path) -> None:
-    """Otherwise `min()` raises on an empty sequence, naming nothing."""
+    """Otherwise `next()` raises StopIteration, naming nothing."""
     path = tmp_path / "eo_only.toml"
     path.write_text(
         f'extends = "{BASELINE}"\n\n'
@@ -446,7 +487,7 @@ class TestEoBand:
         assert bsdf.inputs["IOR"].default_value == pytest.approx(1.33)
 
     def test_the_sky_is_lit(self) -> None:
-        """The EO sky is the scattering model, not the empty world the IR band gets."""
+        """The EO sky is the scattering model, not the IR band's thermal lookup."""
         assert bpy.data.worlds["sky"].node_tree.nodes["Sky Texture"]
 
 
@@ -522,7 +563,7 @@ class TestIrBand:
         assert grade.inputs["Factor"].links[0].from_node.operation == "MAXIMUM"
 
     def test_the_sea_reflects_what_it_does_not_emit(self) -> None:
-        """Emission alone falls to a fiftieth of ambient by 2 km.
+        """Emission alone goes dark toward grazing, where emissivity falls to zero.
 
         The factor is emissivity, so the mirror sits on the 0 input: the grazing end,
         where the sea stops emitting and starts reflecting.
@@ -549,12 +590,14 @@ class TestIrBand:
         )
 
     def test_emissivity_is_averaged_over_the_slopes_the_bump_misses(self) -> None:
-        """Flat Fresnel reads 0.11 at 89 deg where a 7 m/s sea is nearer 0.63, and 89
-        deg is where a target at 2 km sits."""
-        curve = baked("sea_emissivity")
+        """Flat Fresnel collapses toward grazing, which is where distant targets sit."""
+        curve = baked("sea_emissivity")  # sampled over cos(theta), grazing first
+        grazing = math.radians(89.0)
+        mu = np.linspace(0.0, 1.0, len(curve))
+        rough = float(np.interp(math.cos(grazing), mu, curve))
 
-        _, flat = lwir.emissivity_curve(t_sea_k=SCENARIO.sea.t_sea_k)
-        assert curve[0] > 4 * flat[-1], (
+        theta, flat = lwir.emissivity_curve(t_sea_k=SCENARIO.sea.t_sea_k)
+        assert rough > 4 * float(np.interp(grazing, theta, flat)), (
             "grazing emissivity is lifted well clear of flat"
         )
 

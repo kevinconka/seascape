@@ -72,7 +72,7 @@ def test_the_hull_takes_the_attitude_it_was_given(built: scene.Built) -> None:
 
 
 def test_pod_span_and_overlap_measured_from_the_scene(built: scene.Built) -> None:
-    """The acceptance numbers, read off the built cameras rather than the config."""
+    """The rig preset's spans, read off the built cameras rather than the config."""
     arcs: dict[tuple[str, str], list[tuple[float, float]]] = {}
     for mount in SCENARIO.rig.mounts:
         camera = built.cameras[mount.name]

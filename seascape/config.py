@@ -127,8 +127,8 @@ class Rig(Model):
 class Sea(Model):
     """Sea state. Wind reaches the waves through wavelength and slope; see `scene`.
 
-    271-311 K is the span of the shipped optical-constant table. `lwir` clamps to it;
-    here it is an error.
+    The temperature bound is the span of the shipped optical-constant table. `lwir`
+    clamps to it; here it is an error.
     """
 
     t_sea_k: float = Field(default=lwir.T_SEA_K, ge=271.0, le=311.0)
@@ -147,7 +147,7 @@ class Sky(Model):
     be a knob that changes nothing.
 
     `t_air_k` scales the IR sky and nothing in EO. Its bound is where the fixed sky
-    profile stays credible; a colder or hotter sea needs a new profile, not a wider
+    profile stays credible; colder or hotter air needs a new profile, not a wider
     bound.
     """
 
@@ -242,12 +242,8 @@ class Outputs(Model):
     )
     samples: Samples = Field(default_factory=lambda: Samples())
     format: ImageFormat = "png"
-    # Stops, and EO clips to white without them: a sunlit sea renders at 3 to 13 where
-    # a display wants 1. -5 puts the frame's median luminance on the 18% grey card
-    # every light meter is calibrated to -- the baseline reads 7.0, and
-    # log2(0.18 / 7.0) = -5.3, rounded to the nearest stop. Display transform only, so
-    # the exr keeps its radiance and ir ignores this. Blender clamps to +/-32 in
-    # silence, so -50 would read back as -32.
+    # Stops, a display default: EO clips to white at 0. The exr keeps its radiance and
+    # ir ignores this. Blender clamps to +/-32 in silence.
     exposure_ev: float = Field(default=-5.0, ge=-32.0, le=32.0)
 
     @model_validator(mode="after")

@@ -12,9 +12,6 @@
   <a href="https://github.com/astral-sh/ruff"><img src="https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json" alt="Ruff"></a>
 </p>
 
-> [!NOTE]
-> Early days. The scaffolding is landing first — see [Status](#status).
-
 Real footage can't put a vessel at exactly 7 NM, hold the visibility constant, or show you the same ship from eight aspects. `seascape` renders maritime scenes where you choose all of that, and tells you exactly where everything was.
 
 ## Highlights
@@ -33,7 +30,7 @@ cd seascape
 uv sync
 ```
 
-Only touching the radiometry or the scenario config? `uv sync --no-group blender` skips the Blender wheel — 245 MB on Apple silicon, 402 MB on Linux. Those parts are plain NumPy and run without it.
+Only touching the radiometry or the scenario config? `uv sync --no-group blender` skips the Blender wheel, hundreds of MB. Those parts are plain NumPy and run without it.
 
 ## Quickstart
 
@@ -42,7 +39,7 @@ uv run seascape build scenarios/baseline.toml            # scenarios/baseline.eo
 uv run seascape build scenarios/baseline.toml -o /tmp/look.blend
 ```
 
-A scenario is a TOML file describing the world, the platform, the sensors and the targets. `scenarios/baseline.toml` is the smallest one: one pod, one camera per band, one ship.
+A scenario is a TOML file describing the world, the platform, the sensors and the targets. `scenarios/baseline.toml` is the smallest one.
 
 `--set` overrides any field for one run, as the TOML line it would be written as:
 
@@ -60,7 +57,7 @@ extends = "twin-pod.toml"
 pitch_deg = -5.0
 ```
 
-Scenarios carry a `#:schema` line, so editors with a TOML language server give you key completion, inline validation and hover docs. `seascape schema` regenerates `schema/scenario.json` from the models.
+Scenarios carry a `#:schema` line, so editors with a TOML language server give you key completion, inline validation and hover docs. `seascape schema > schema/scenario.json` regenerates it from the models.
 
 Meshes are never committed. `seascape/assets.toml` records each one's source, sha256, licence and credit; they download on first use to `~/.cache/seascape`, or to `$XDG_CACHE_HOME/seascape` when that is set to an absolute path. Every run re-checks the digest.
 
@@ -111,20 +108,6 @@ lsof -nP -iTCP:9876 -sTCP:LISTEN
 
 </details>
 
-## Status
-
-| Area | State |
-|---|---|
-| Scaffolding and CI | done |
-| LWIR radiometry | done |
-| Scenario config and schema | done |
-| Asset manifest and cache | done |
-| Scene build | done |
-| Rendering and ground truth | porting |
-| Multi-frame sequences | planned |
-| Vessel motion | planned |
-| COCO labels | planned |
-
 ## Contributing
 
 `AGENTS.md` covers the conventions and the Blender traps to know before changing anything.
@@ -135,7 +118,7 @@ Install the hooks once, before your first commit:
 uvx pre-commit install
 ```
 
-That runs `ruff check --fix` and `ruff format` on what you staged. The rest of CI is four commands, all of which have to pass:
+That runs `ruff check --fix` and `ruff format` on what you staged. The rest of CI is these commands, all of which have to pass:
 
 ```bash
 uvx ruff check .
