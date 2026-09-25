@@ -242,12 +242,8 @@ class Outputs(Model):
     )
     samples: Samples = Field(default_factory=lambda: Samples())
     format: ImageFormat = "png"
-    # Stops, and EO clips to white without them: a sunlit sea renders at 3 to 13 where
-    # a display wants 1. -5 puts the frame's median luminance on the 18% grey card
-    # every light meter is calibrated to -- the baseline reads 7.0, and
-    # log2(0.18 / 7.0) = -5.3, rounded to the nearest stop. Display transform only, so
-    # the exr keeps its radiance and ir ignores this. Blender clamps to +/-32 in
-    # silence, so -50 would read back as -32.
+    # Stops, a display default: EO clips to white at 0. The exr keeps its radiance and
+    # ir ignores this. Blender clamps to +/-32 in silence.
     exposure_ev: float = Field(default=-5.0, ge=-32.0, le=32.0)
 
     @model_validator(mode="after")
