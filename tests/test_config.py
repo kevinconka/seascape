@@ -1,8 +1,4 @@
-"""Loader rules and the shipped presets.
-
-No Blender. Geometry is asserted from the bearings and FOVs as configured; measuring
-it off a built scene is a separate check.
-"""
+"""Loader rules and the shipped presets. No Blender."""
 
 import json
 import tomllib
@@ -53,7 +49,6 @@ def twin_pod() -> Scenario:
 
 
 def test_the_baseline_states_its_own_rig(baseline) -> None:
-    """One camera per band, no preset."""
     kinds = [mount.camera.kind for mount in baseline.rig.mounts]
 
     assert kinds == ["eo", "ir"]
@@ -65,7 +60,6 @@ def test_the_baseline_carries_no_scenario_a_variant_would_inherit(baseline) -> N
 
 
 def test_a_preset_supplies_optics_and_the_block_supplies_the_mount(twin_pod) -> None:
-    """Optics come from the camera preset, mount from the pod that holds it."""
     eo, ir = twin_pod.rig.mounts[0], twin_pod.rig.mounts[-1]
 
     assert (eo.camera.hfov_deg, eo.camera.width_px, eo.camera.height_px) == (
@@ -82,7 +76,6 @@ def test_a_preset_supplies_optics_and_the_block_supplies_the_mount(twin_pod) -> 
 
 
 def test_a_nominal_bearing_is_its_pod_plus_its_fan(twin_pod) -> None:
-    """What the scenario asked for. `scene.boresight_deg` measures what it got."""
     port = twin_pod.rig.pods[0]
 
     assert port.yaw_deg == -60.0
@@ -96,7 +89,6 @@ def test_a_nominal_bearing_is_its_pod_plus_its_fan(twin_pod) -> None:
 
 
 def test_the_installed_rig_takes_its_height_from_the_preset(twin_pod) -> None:
-    """The pods stand on the bridge wings; any lower and they hang under them."""
     assert twin_pod.rig.height_m == 51.8
 
 
@@ -147,7 +139,7 @@ def test_objects_merge_their_preset(baseline) -> None:
 
 
 def test_a_block_overrides_its_own_preset(tmp_path) -> None:
-    """Rule 1's whole point. Disjoint keys would pass whichever way the merge ran."""
+    """Disjoint keys would pass whichever way the merge ran."""
     scenario = load(
         variant(
             tmp_path,
@@ -160,10 +152,7 @@ def test_a_block_overrides_its_own_preset(tmp_path) -> None:
 
 
 def test_a_preset_outranks_an_inherited_value(tmp_path) -> None:
-    """A preset the variant names explicitly beats what `extends` brought in.
-
-    Expanding after the parent merge inverts this, and nothing else notices.
-    """
+    """Expanding after the parent merge inverts this, and nothing else notices."""
     (tmp_path / "single.toml").write_text(
         'height_m = 2.0\n\n[[pods]]\nname = "bow"\nyaw_deg = 0.0\n\n'
         '[[pods.cameras]]\npreset = "ir_vga_24deg"\n'
@@ -174,7 +163,6 @@ def test_a_preset_outranks_an_inherited_value(tmp_path) -> None:
 
 
 def test_tables_merge_and_lists_replace(tmp_path, baseline) -> None:
-    """A variant changes one key; siblings survive, a list does not."""
     scenario = load(
         variant(
             tmp_path,
@@ -182,15 +170,13 @@ def test_tables_merge_and_lists_replace(tmp_path, baseline) -> None:
         )
     )
     assert scenario.sea.wind_speed_mps == 3.0
-    # Read off the parent, not written out: this is about the merge, not the value.
     assert scenario.sea.t_sea_k == baseline.sea.t_sea_k
-    assert scenario.rig.height_m == baseline.rig.height_m  # sibling table survived
-    assert len(scenario.rig.mounts) == 1  # the list did not
+    assert scenario.rig.height_m == baseline.rig.height_m
+    assert len(scenario.rig.mounts) == 1
 
 
 @pytest.mark.parametrize("name", ["./mine.toml", "mine.toml"])
 def test_preset_can_be_a_path(tmp_path, name) -> None:
-    """A `/` or a `.toml` means a path, so a scenario can carry its own presets."""
     (tmp_path / "mine.toml").write_text('kind = "eo"\nhfov_deg = 12.0\n')
     scenario = load(
         variant(
@@ -209,13 +195,11 @@ def test_preset_can_be_a_path(tmp_path, name) -> None:
     ],
 )
 def test_bad_presets_fail_loudly(tmp_path, preset, error, match) -> None:
-    """The loader never guesses: it does not try one form and fall back to another."""
     with pytest.raises(error, match=match):
         load(variant(tmp_path, f"[rig]\npreset = {json.dumps(preset)}\n"))
 
 
 def test_extends_demands_a_path(tmp_path) -> None:
-    """`extends` has no preset directory to draw from, so a bare name is an error."""
     path = tmp_path / "bare.toml"
     path.write_text('extends = "baseline"\n')
     with pytest.raises(ValueError, match="must be a path"):
@@ -236,17 +220,13 @@ def test_a_mistyped_key_is_an_error_not_a_silent_default(tmp_path) -> None:
 
 @pytest.mark.parametrize("t_sea_k", [260.0, 400.0])
 def test_sea_temperature_is_bounded_at_the_config_boundary(tmp_path, t_sea_k) -> None:
-    """The bound is the span of the shipped optical-constant table."""
     with pytest.raises(ValidationError, match="t_sea_k"):
         load(variant(tmp_path, f"[sea]\nt_sea_k = {t_sea_k}\n"))
 
 
 @pytest.mark.parametrize("value", ["nan", "inf", "-inf"])
 def test_non_finite_numbers_are_rejected(tmp_path, value) -> None:
-    """tomllib parses these and pydantic accepts them by default.
-
-    `yaw_deg` carries no bound, so nothing else would catch one.
-    """
+    """`yaw_deg` carries no bound, so nothing else would catch one."""
     with pytest.raises(ValidationError, match="yaw_deg"):
         load(
             variant(
@@ -282,14 +262,12 @@ def test_every_shipped_preset_parses() -> None:
 
 @pytest.mark.parametrize("exposure_ev", [-50.0, 100.0])
 def test_an_exposure_blender_would_clamp_is_rejected(exposure_ev: float) -> None:
-    """Blender pins it to +/-32 and says nothing, so the render is not as configured."""
     with pytest.raises(ValidationError, match="exposure_ev"):
         Outputs(exposure_ev=exposure_ev)
 
 
 @pytest.mark.parametrize("name", ["../escaped", "/tmp/absolute", "sub/dir"])
 def test_a_pod_cannot_be_path_text(name: str) -> None:
-    """A mount's name is a filename, so path text writes outside the output dir."""
     with pytest.raises(ValidationError, match="name"):
         Pod(
             name=name,
@@ -312,8 +290,7 @@ def test_two_cameras_cannot_share_a_name() -> None:
 
 
 def test_two_pods_cannot_share_a_name() -> None:
-    """Mount names miss it -- different bands still differ -- and `scene._rig`
-    then parents every camera to whichever pod was built last."""
+    """Mount names miss it: cameras of different bands still differ."""
     eo = Camera(kind="eo", hfov_deg=45.0, width_px=8, height_px=8)
     ir = Camera(kind="ir", hfov_deg=24.0, width_px=8, height_px=8)
 

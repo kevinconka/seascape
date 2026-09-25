@@ -26,7 +26,7 @@ from seascape import lwir
 
 CFG_DIR = Path(__file__).parent / "cfg"
 
-# A camera's kind is the band it sees in, and a scene is built for one band at a time.
+# A camera's kind is the band it sees in.
 type Band = Literal["eo", "ir"]
 
 type ImageFormat = Literal["exr", "png"]
@@ -35,10 +35,9 @@ type ImageFormat = Literal["exr", "png"]
 class Model(BaseModel):
     """Strictness shared by everything this package parses from TOML."""
 
-    # extra: a typo in a scenario is a silent wrong render otherwise. `preset` is
-    # consumed by the loader before validation, so this also catches it leaking.
-    # inf_nan: tomllib parses `nan` and `inf`, and pydantic accepts both by default.
-    # A nan bearing renders a camera pointing nowhere and reports no error.
+    # extra: a typo in a scenario is otherwise a silent wrong render.
+    # inf_nan: tomllib parses `nan` and `inf`; a nan bearing renders a camera pointing
+    # nowhere and reports no error.
     model_config = ConfigDict(extra="forbid", allow_inf_nan=False)
 
 
@@ -46,8 +45,7 @@ class Camera(Model):
     kind: Band
     yaw_deg: float = 0.0  # relative to the pod axis, positive to starboard
     pitch_deg: float = Field(default=0.0, gt=-90.0, lt=90.0)  # negative is down
-    # Becomes a filename, so the same charset as a pod. Derived from position
-    # in the pod when absent.
+    # Becomes a filename. Derived from position in the pod when absent.
     name: str | None = Field(default=None, pattern=r"^[A-Za-z0-9_-]+$")
     hfov_deg: float = Field(gt=0.0, lt=180.0)
     width_px: int = Field(gt=0)
@@ -57,8 +55,8 @@ class Camera(Model):
 class Pod(Model):
     """One enclosure: several cameras behind one yaw and one mount point.
 
-    Offsets matter: pods a beam apart overlap in angle before they overlap in space,
-    which is the blind wedge over the bow. Coincident cameras would hide it.
+    Pods a beam apart overlap in angle before they overlap in space, which leaves a
+    blind wedge over the bow; coincident cameras would hide it.
     """
 
     # Becomes a filename; path text would write outside the output directory.
@@ -92,9 +90,8 @@ class Rig(Model):
 
     height_m: float = Field(gt=0.0)
     pitch_deg: float = Field(default=0.0, gt=-90.0, lt=90.0)
-    # Depth precision goes as far / near, and the far plane is tens of km, so larger
-    # is better. The bound is a lens's clearance from its own structure: anything
-    # nearer than this is clipped out of frame.
+    # Depth precision goes as far / near, so larger is better. The bound is a lens's
+    # clearance from its own structure: anything nearer is clipped out of frame.
     near_clip_m: float = Field(default=5.0, gt=0.0)
     pods: list[Pod] = Field(min_length=1)
 
@@ -113,8 +110,8 @@ class Rig(Model):
 
     @model_validator(mode="after")
     def _names_are_unique(self) -> "Rig":
-        """`scene._rig` parents each camera through its pod's name, so two pods of
-        one name send every camera to the last one built, with nothing raised."""
+        """Cameras are parented by pod name, so two pods of one name send every
+        camera to the last one built, with nothing raised."""
         pods = [pod.name for pod in self.pods]
         if len(set(pods)) != len(pods):
             raise ValueError(f"two pods share a name: {sorted(pods)}")
@@ -125,7 +122,7 @@ class Rig(Model):
 
 
 class Sea(Model):
-    """Sea state. Wind reaches the waves through wavelength and slope; see `scene`.
+    """Sea state. Wind reaches the waves through wavelength and slope.
 
     The temperature bound is the span of the shipped optical-constant table. `lwir`
     clamps to it; here it is an error.
@@ -142,13 +139,10 @@ class Sea(Model):
 class Sky(Model):
     """Blender's Sky Texture in EO, and the downwelling radiance the sea reflects in IR.
 
-    Haze is `aerosol_density`, the node's own parameter. Its `turbidity` belongs to the
-    Preetham and Hosek-Wilkie models and is ignored by this one, so naming it that would
-    be a knob that changes nothing.
+    Haze is `aerosol_density`, the node's own parameter.
 
     `t_air_k` scales the IR sky and nothing in EO. Its bound is where the fixed sky
-    profile stays credible; colder or hotter air needs a new profile, not a wider
-    bound.
+    profile stays credible.
     """
 
     sun_elevation_deg: float = Field(default=30.0, ge=-90.0, le=90.0)
@@ -157,8 +151,8 @@ class Sky(Model):
     # absorbed sun balances convection and re-radiation:
     #   dT = a E / (h + 4 eps sigma T^3)
     # a = 0.30 for light marine paint, E = 1000 W m^-2 for a clear sky, and
-    # h = 10.45 - v + 10 sqrt(v) = 30 W m^-2 K^-1 at 7 m/s. Weakly held: it runs 10 K
-    # at 3 m/s and 7.8 at 12, and a dark hull absorbs three times what a light one does.
+    # h = 10.45 - v + 10 sqrt(v) = 30 W m^-2 K^-1 at 7 m/s. Weakly held: a dark hull
+    # absorbs three times what a light one does.
     solar_gain_k: float = Field(default=8.5, ge=0.0)
     aerosol_density: float = Field(default=1.0, ge=0.0, le=10.0)
     t_air_k: float = Field(default=lwir.T_AIR_K, ge=250.0, le=320.0)
@@ -187,8 +181,7 @@ class Ownship(Model):
 class Targets(Model):
     """A ring of vessels at one range, spread over a span of bearings.
 
-    World objects: nothing here refers to the rig, so per-camera coverage is a test,
-    not a guarantee.
+    Placed in the world, so nothing guarantees a camera sees one.
     """
 
     asset: str
@@ -219,7 +212,7 @@ class Samples(Model):
     and drop the band left out.
     """
 
-    # eo is denoised: 16 is enough. ir is not, and needs 64 for the grain to go.
+    # ir is not denoised, so it needs more.
     eo: int = Field(default=16, gt=0)
     ir: int = Field(default=64, gt=0)
 
@@ -227,23 +220,20 @@ class Samples(Model):
 class Outputs(Model):
     """What a render writes.
 
-    Every camera of a listed band is rendered; a scene is built per band, in Cycles.
-
-    PNG by default, because most runs are looked at. It is 8-bit and carries a mapping
-    -- for EO the exposure below and Blender's AgX film curve, for LWIR an auto-contrast
-    over the frame, so two thermal frames are not comparable and a pixel is not a
-    temperature. Ask for EXR to keep the radiance in W m^-2 sr^-1 the render produced.
+    Every camera of a listed band is rendered. A png is 8-bit: EO through the exposure
+    and the film curve, LWIR auto-contrasted per frame, so a thermal pixel is not a
+    temperature. An exr keeps the radiance, in W m^-2 sr^-1.
     """
 
-    # uniqueItems so an editor validating against the schema catches a repeat too,
-    # not just `load`. `_bands_are_distinct` is what actually enforces it.
+    # uniqueItems for editors validating against the schema; `_bands_are_distinct`
+    # enforces it.
     bands: tuple[Band, ...] = Field(
         default=("eo", "ir"), min_length=1, json_schema_extra={"uniqueItems": True}
     )
     samples: Samples = Field(default_factory=lambda: Samples())
     format: ImageFormat = "png"
-    # Stops, a display default: EO clips to white at 0. The exr keeps its radiance and
-    # ir ignores this. Blender clamps to +/-32 in silence.
+    # Stops: EO clips to white at 0. The exr and ir ignore it. Blender clamps to +/-32
+    # in silence.
     exposure_ev: float = Field(default=-5.0, ge=-32.0, le=32.0)
 
     @model_validator(mode="after")

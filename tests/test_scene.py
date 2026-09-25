@@ -1,7 +1,6 @@
-"""What the built scene measures, not what the scenario says.
+"""The built scene, measured.
 
-Blender is one global session, so a scene built for one band replaces the other. Each
-class rebuilds in its own band on entry, which keeps the file order-independent.
+Blender is one global session, so each class rebuilds in its own band on entry.
 """
 
 import math
@@ -19,8 +18,6 @@ from seascape.config import Mount, load
 
 BASELINE = Path(__file__).parent.parent / "scenarios" / "baseline.toml"
 SCENARIO = load(BASELINE)
-# For tests that measure the rig: a hull is a second of FBX import per build, and
-# `TestGeometry` already measures it.
 RIG_ONLY = f'extends = "{BASELINE}"\nobjects = []\n'
 
 
@@ -80,8 +77,6 @@ def counts() -> tuple[int, ...]:
 
 
 def test_a_named_substream_is_reproducible_and_local_to_its_name() -> None:
-    """Adding a component must not perturb one that already draws from the seed."""
-
     def draw(seed: int, name: str) -> int:
         return int(scene._substream(seed, name).integers(2**31))
 
@@ -91,7 +86,6 @@ def test_a_named_substream_is_reproducible_and_local_to_its_name() -> None:
 
 
 def test_published_values_have_not_drifted() -> None:
-    """The figures the wave chain is built on. Moving one changes the physics."""
     # Cox & Munk 1954: RMS slope of a clean sea at 7 m/s, off sun glitter photographs.
     assert scene.wave_slope(7.0) == pytest.approx(0.197, abs=5e-4)
     # Surveying's rule of thumb for the horizon, 3.86 sqrt(h_m) km at k = 0.13.
@@ -140,7 +134,6 @@ class TestGeometry:
             assert data.clip_start < data.clip_end
 
     def test_every_3d_view_clips_past_the_sea(self) -> None:
-        """Blender's 1000 m default cuts a sea reaching tens of km."""
         corner_m = math.sqrt(2) * scene.sea_reach_m(SCENARIO.rig, SCENARIO.sea)
         views = [
             space
@@ -157,7 +150,6 @@ class TestGeometry:
             assert space.clip_end > corner_m
 
     def test_the_far_clip_clears_every_target(self) -> None:
-        """Blender's default 1000 m renders a 2 km target as sky, reporting nothing."""
         furthest = max(spec.range_m for spec in SCENARIO.objects)
         for mount in SCENARIO.rig.mounts:
             assert camera_of(mount).data.clip_end > furthest
@@ -212,7 +204,6 @@ class TestGeometry:
         tree = bpy.data.materials["sea"].node_tree
         wind = SCENARIO.sea.wind_speed_mps
         scaling = next(n for n in tree.nodes if n.bl_idname == "ShaderNodeVectorMath")
-        # Zero on z: the seed owns that axis, so `refraction_k` cannot reshuffle waves.
         assert tuple(scaling.inputs[1].default_value) == pytest.approx(
             (1.0 / scene.wave_length_m(wind), 1.0 / scene.wave_length_m(wind), 0.0)
         )
@@ -266,8 +257,7 @@ class TestGeometry:
         assert not mast, "and leave what stands above it"
 
     def test_waves_cost_no_geometry(self) -> None:
-        """Wind changes wavelength and slope. A displaced sea would rebuild; the
-        vertex count here is the curvature grid whatever the wind."""
+        """A displaced sea would change its vertex count with the wind."""
         blowing = SCENARIO.model_copy(
             update={"sea": SCENARIO.sea.model_copy(update={"wind_speed_mps": 18.0})}
         )
@@ -302,7 +292,6 @@ def test_a_hull_is_fitted_along_its_own_bow_axis(bow_deg, bow_corner) -> None:
         licence="x",
         attribution="x",
     )
-    # 10 x 2 x 1 box, long axis at the bow, bottom at z = 0
     long, beam = Vector(bow_corner), Vector((-bow_corner[1], bow_corner[0], 0)) / 5
     corners = [
         s * long + b * beam + Vector((0, 0, z))
@@ -323,9 +312,7 @@ def test_a_hull_is_fitted_along_its_own_bow_axis(bow_deg, bow_corner) -> None:
 
 @pytest.mark.parametrize("band", ["eo", "ir"])
 def test_the_active_camera_belongs_to_the_band_built(band) -> None:
-    """The scene opens on whichever camera it saved as active, and F12 uses it.
-
-    Opened on the rig's first camera, an IR build could render through EO optics
+    """Opened on the rig's first camera, an IR build could render through EO optics
     against IR materials, with nothing to say so.
     """
     scene.build(SCENARIO.model_copy(update={"objects": []}), band)
@@ -429,8 +416,6 @@ def _pod_pitched(tmp_path, yaw_deg: float, pitch_deg: float = -5.0):
 
 @pytest.mark.parametrize("yaw_deg", [-40.0, 40.0])
 def test_pitch_moves_an_off_axis_camera_off_its_bearing(tmp_path, yaw_deg) -> None:
-    """The rig's pitch sits between the pod and camera yaws, so it turns an off-axis
-    camera's bearing."""
     bearing, nominal = _pod_pitched(tmp_path, yaw_deg)
 
     assert abs(bearing - nominal) > 0.1
@@ -456,7 +441,6 @@ def test_an_ownship_with_no_hull_still_carries_the_rig(tmp_path) -> None:
 
 
 def test_a_near_clip_past_the_far_plane_is_an_error(tmp_path) -> None:
-    """Blender renders an inverted frustum as an empty frame, reporting nothing."""
     path = tmp_path / "deep.toml"
     path.write_text(f'extends = "{BASELINE}"\n\n[rig]\nnear_clip_m = 500000.0\n')
 
@@ -487,7 +471,6 @@ class TestEoBand:
         assert bsdf.inputs["IOR"].default_value == pytest.approx(1.33)
 
     def test_the_sky_is_lit(self) -> None:
-        """The EO sky is the scattering model, not the IR band's thermal lookup."""
         assert bpy.data.worlds["sky"].node_tree.nodes["Sky Texture"]
 
 
@@ -518,12 +501,7 @@ class TestIrBand:
         assert np.all(np.diff(curve) <= 1e-6), "radiance falls towards the zenith"
 
     def test_a_vessel_reflects_what_it_does_not_emit(self) -> None:
-        """A pure emitter leaves one radiance in every direction, so a hull renders as
-        a single flat value whichever way it is turned. Reflecting the rest gives back
-        the angular structure: a deck faces the cold zenith, a side half sky, half sea.
-
-        Diffuse, where the sea is glossy: flat paint scatters this band.
-        """
+        """A pure emitter renders a hull one flat value whichever way it is turned."""
         skin = next(m for m in bpy.data.materials if m.name.endswith("_ir"))
         # The outermost mix, not the one grading emission from shaded to sunlit.
         output = next(
@@ -538,12 +516,6 @@ class TestIrBand:
         assert mix.inputs[1].links[0].from_node.bl_idname == "ShaderNodeBsdfDiffuse"
 
     def test_a_vessel_is_hotter_on_the_side_the_sun_is_on(self) -> None:
-        """One temperature over a whole hull leaves out the pattern this band shows
-        most: a lit side against a shaded one, and decks hotter than either.
-
-        Two emissions mixed by the cosine, so both ends are the exact band radiance;
-        no shader node can evaluate the Planck integral at a blended temperature.
-        """
         skin = next(m for m in bpy.data.materials if m.name.endswith("_ir"))
         output = next(
             n for n in skin.node_tree.nodes if n.bl_idname == "ShaderNodeOutputMaterial"
@@ -559,15 +531,10 @@ class TestIrBand:
             lwir.band_radiance(SCENARIO.objects[0].t_k + SCENARIO.sky.solar_gain_k),
             rel=1e-5,
         )
-        # Clamped at zero: a surface turned away cannot cool below shaded.
         assert grade.inputs["Factor"].links[0].from_node.operation == "MAXIMUM"
 
     def test_the_sea_reflects_what_it_does_not_emit(self) -> None:
-        """Emission alone goes dark toward grazing, where emissivity falls to zero.
-
-        The factor is emissivity, so the mirror sits on the 0 input: the grazing end,
-        where the sea stops emitting and starts reflecting.
-        """
+        """Emission alone goes dark toward grazing, where emissivity falls to zero."""
         mix = bpy.data.materials["sea"].node_tree.nodes["Mix Shader"]
         assert mix.inputs["Factor"].is_linked
         # ShaderNodeBsdfGlossy still reports its pre-4.0 bl_idname.
@@ -575,11 +542,7 @@ class TestIrBand:
         assert mix.inputs[2].links[0].from_node.bl_idname == "ShaderNodeEmission"
 
     def test_the_reflection_lobe_matches_the_emissivity_curve(self) -> None:
-        """Both come from the slope the bump does not carry, and must move together.
-
-        Rough lobe with a flat eps puts the sea at the horizon at 0.65 of ambient,
-        against 0.985 measured.
-        """
+        """Both come from the slope the bump does not carry, and must move together."""
         mirror = next(
             n
             for n in bpy.data.materials["sea"].node_tree.nodes
@@ -627,7 +590,7 @@ class TestIrBand:
         assert np.all(np.diff(curve) >= -1e-6), "emissivity rises towards normal"
 
     def test_radiance_is_not_sent_through_a_film_curve(self) -> None:
-        """Pixels are W m^-2 sr^-1, so no film curve. Blender defaults to AgX."""
+        """Blender defaults to AgX."""
         view = bpy.context.scene.view_settings
         assert (view.view_transform, view.look) == ("Standard", "None")
         assert (view.exposure, view.gamma) == (0.0, 1.0)

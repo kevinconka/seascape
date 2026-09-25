@@ -1,16 +1,12 @@
-# Two pods on the bridge wings, both forward-facing. Offsets are the wing tops of the
-# container_ship mesh.
+# Offsets are the bridge-wing tops of the container_ship mesh.
 
-# 2 m of bracket above the wing top keeps the deck plate out of every lower frame
-# edge.
+# Keeps the deck plate out of every lower frame edge.
 height_m = 51.8
 pitch_deg = 0.0
 
 [[pods]]
 name = "port"
 yaw_deg = -60.0
-# Real lateral separation: the pods overlap in angle but only cross in space a few
-# hundred metres out, leaving a blind wedge ahead.
 offset_x_m = -21.5
 offset_y_m = -68.2
 

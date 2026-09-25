@@ -14,8 +14,7 @@ def _build(
     scenario_path: Path, output: Path | None, band: Band, overrides: list[str]
 ) -> None:
     scenario = load(scenario_path, overrides)
-    # Imported here, not at module scope: bpy is hundreds of MB and `schema` and a
-    # failed validation should not wait for it.
+    # Deferred: `schema` and a failed validation should not wait for bpy to load.
     import bpy
 
     from seascape import scene

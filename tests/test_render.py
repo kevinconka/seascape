@@ -1,9 +1,4 @@
-"""The parts of `render` that need no Cycles run.
-
-`bpy.ops.render.render` is the only piece that needs a GPU, and `test_render_drift`
-covers it behind `--render`. Everything here is settings and pixel arithmetic, which
-is also where the silent failures live.
-"""
+"""Render settings, the thermal png, and the object-index pass."""
 
 from pathlib import Path
 from types import SimpleNamespace
@@ -53,9 +48,7 @@ def grey_of(png: Path) -> np.ndarray:
 
 
 class TestThermalPng:
-    """Coldest pixel black, hottest white, linear in brightness temperature between.
-
-    An inverted, flipped or sRGB-encoded frame is still a plausible-looking picture,
+    """An inverted, flipped or sRGB-encoded frame is still a plausible-looking picture,
     so only the numbers catch it.
     """
 
@@ -110,7 +103,7 @@ class TestThermalPng:
     def test_a_failure_keeps_the_float_render_and_leaks_nothing(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        """A render costs minutes; a failed conversion must not throw it away."""
+        """A failed conversion must not throw the render away."""
         from seascape import lwir
 
         exr = exr_of(tmp_path, [lwir.band_radiance(285.0)])
@@ -124,7 +117,7 @@ class TestThermalPng:
 
 def built(band: Band, **outputs: object) -> bpy.types.Scene:
     scenario = load(BASELINE)
-    # No ship: these are render settings, and a hull is a second of FBX import.
+    # No ship: these are render settings.
     scenario = scenario.model_copy(
         update={
             "objects": [],
@@ -150,21 +143,18 @@ class TestSettings:
         assert sc.render.file_extension == f".{fmt}"
 
     def test_ir_renders_float_even_when_a_png_is_asked_for(self) -> None:
-        """Radiance through 8 bits is no longer radiance."""
         sc = built("ir", format="png")
 
         assert sc.render.image_settings.color_depth == "32"
 
     @pytest.mark.parametrize(("band", "denoised"), [("eo", True), ("ir", False)])
     def test_only_eo_is_denoised(self, band: Band, denoised: bool) -> None:
-        """OIDN invents structure on a field that is flat by construction."""
         sc = built(band)
 
         assert sc.cycles.use_denoising is denoised
 
     @pytest.mark.parametrize("band", get_args(Band.__value__))
     def test_both_bands_render_in_cycles(self, band: Band) -> None:
-        """EEVEE renders the sea at half its radiance."""
         sc = built(band)
 
         assert sc.render.engine == "CYCLES"
@@ -186,7 +176,6 @@ class TestSettings:
         [("eo", load(BASELINE).outputs.exposure_ev), ("ir", 0.0)],
     )
     def test_only_eo_is_exposed(self, band: Band, exposure_ev: float) -> None:
-        """Radiance through an exposure is no longer radiance."""
         sc = built(band)
 
         assert sc.view_settings.exposure == exposure_ev
@@ -195,7 +184,6 @@ class TestSettings:
 def test_a_relative_output_reaches_blender_absolute(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """Relative, Blender fails to save: 'cannot save: EO_PORT_P.png'."""
     handed: list[str] = []
 
     def capture(**_: object) -> None:
@@ -225,11 +213,8 @@ def test_a_relative_output_reaches_blender_absolute(
 def test_the_object_index_pass_samples_the_pixel_centre(
     tmp_path: Path, edge_m: float, columns: int
 ) -> None:
-    """A plane's edge 0.05 px either side of a column of centres, 1 m to the pixel.
-
-    The boxes come from this pass. A sample anywhere else in the 1.5 px filter would
-    put the edge in a different column from row to row.
-    """
+    """A plane's edge just either side of a column of centres: a sample anywhere
+    else in the pixel filter would put it in a different column from row to row."""
     bpy.ops.wm.read_factory_settings(use_empty=True)
     sc = bpy.context.scene
     sc.render.engine = "CYCLES"
@@ -242,7 +227,7 @@ def test_the_object_index_pass_samples_the_pixel_centre(
     lens = bpy.data.cameras.new("lens")
     lens.type, lens.sensor_fit, lens.ortho_scale = "ORTHO", "HORIZONTAL", 8.0
     camera = bpy.data.objects.new("camera", lens)
-    camera.location = (4.0, 32.0, 10.0)  # looking down, frame over x 0-8, y 0-64
+    camera.location = (4.0, 32.0, 10.0)
     for obj in (plane, camera):
         sc.collection.objects.link(obj)
     sc.camera = camera
@@ -260,10 +245,7 @@ def test_the_object_index_pass_samples_the_pixel_centre(
 def test_each_box_holds_its_hull_centre_through_the_calibration(
     tmp_path: Path,
 ) -> None:
-    """Boxes from the pass and calibration from the camera agree on where a hull is.
-
-    A box is sampled at pixel centres, so the hull can reach half a pixel past it.
-    """
+    """Boxes are sampled at pixel centres, so a hull reaches half a pixel past one."""
     scenario = load(TWIN_POD)
     scenario = scenario.model_copy(
         update={"outputs": scenario.outputs.model_copy(update={"bands": ("ir",)})}

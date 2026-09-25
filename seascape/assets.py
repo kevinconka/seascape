@@ -24,8 +24,7 @@ class Asset(Model):
     url: str
     sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
     length_m: float = Field(gt=0.0)  # bow to stern; the mesh arrives in arbitrary units
-    # A real figure for the vessel, not a proportion of the mesh: assets are stylised.
-    # Required, because defaulting it to zero floats the hull and looks almost right.
+    # Required: a default of zero floats the hull and looks almost right.
     draught_m: float = Field(ge=0.0)
     # Bearing of the mesh's bow as authored. The build turns it to +Y.
     bow_deg: float = 0.0
@@ -34,7 +33,7 @@ class Asset(Model):
 
 
 def manifest() -> dict[str, Asset]:
-    with MANIFEST.open("rb") as handle:  # TOML is UTF-8 by spec, so never read_text
+    with MANIFEST.open("rb") as handle:
         return {name: Asset(**body) for name, body in tomllib.load(handle).items()}
 
 
@@ -55,10 +54,10 @@ def fetch(name: str) -> Path:
 
     path.parent.mkdir(parents=True, exist_ok=True)
     # A killed or corrupt transfer must never take the cache name, and concurrent
-    # callers must not share a scratch file. A pid is not enough: threads share one.
+    # callers must not share a scratch file.
     part = path.with_name(f"{path.name}.{uuid.uuid4().hex}.part")
     # The default socket timeout is None, so a server that stops sending hangs the
-    # build forever. (urlretrieve, the obvious alternative, takes no timeout at all.)
+    # build forever.
     with (
         urllib.request.urlopen(asset.url, timeout=30) as response,
         part.open("wb") as out,

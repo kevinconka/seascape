@@ -1,16 +1,10 @@
-# The bytes come from Icosa Gallery, not the poly.pizza page they are credited to:
-# poly.pizza blocks scripted clients. Same Google Poly asset.
+# poly.pizza blocks scripted clients; Icosa Gallery serves the same Google Poly asset.
 
 [container_ship]
 url = "https://s3.us-east-005.backblazeb2.com/icosa-gallery/poly/3AmDGcCu6Ll/model.fbx"
 sha256 = "70f5d10641245613e8887ac3f0ab1e180c1cc2d27b1401621e56d0fe56dcf9ab"
-# A generic feeder container ship. The mesh is stylised, so this sets its scale
-# rather than describing a real vessel.
 length_m = 200.0
-# Nominal for a loaded feeder of this length. Like length_m it sets how the mesh
-# sits, here the freeboard above the waterline, and is not a real displacement.
 draught_m = 10.0
-# Bow at -Y.
 bow_deg = 180.0
 licence = "CC-BY-3.0"
 attribution = "Container Ship by Alex “SAFFY” Safayan, https://poly.pizza/m/3AmDGcCu6Ll"
