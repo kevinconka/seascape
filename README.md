@@ -30,7 +30,7 @@ cd seascape
 uv sync
 ```
 
-Only touching the radiometry or the scenario config? `uv sync --no-group blender` skips the Blender wheel — 245 MB on Apple silicon, 402 MB on Linux. Those parts are plain NumPy and run without it.
+Only touching the radiometry or the scenario config? `uv sync --no-group blender` skips the Blender wheel, hundreds of MB. Those parts are plain NumPy and run without it.
 
 ## Quickstart
 

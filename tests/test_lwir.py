@@ -31,8 +31,7 @@ def eps_at(curve: tuple[np.ndarray, np.ndarray], deg: float) -> float:
 def test_normal_incidence_emissivity_is_about_0_99(curve) -> None:
     """Water looks almost black in the LWIR when viewed straight down.
 
-    0.98-0.99 is the standard handbook emissivity for water in this band, and the one
-    every IR thermometer ships as its water preset.
+    0.98-0.99 is the standard handbook emissivity for water in this band.
     """
     assert 0.98 <= eps_at(curve, 0.0) <= 0.995
 

@@ -123,8 +123,8 @@ The render-drift check runs only with `--render` and needs a GPU to finish in re
 - **Commits:** Conventional Commits (`feat:`, `fix:`, `chore:`, `ci:`).
 - **Branches:** matching prefixes (`feat/...`, `fix/...`).
 - **Be concise.** Commit messages, PR descriptions, comments and docs state the fact, not the journey. No debugging narration, no restating the diff, no closing paragraph that repeats what was just said.
-- **Comments are for what the code cannot say.** A better name beats a comment explaining a worse one. Write one for a non-obvious constraint, a unit, a workaround, a spec reference — never to restate the line. `# negate the bearing` is noise; `# Blender's +Z turns to port` is the reason.
-- **A comment that can go stale needs a test, or goes.** A number derived from values elsewhere, a list of things defined elsewhere, or a value copied from another file drifts in silence when that place changes. Pin it with an assertion and name the test beside it (`test_twin_pod holds it`), or leave it out.
+- **Comments are for what the code cannot say.** A better name beats a comment explaining a worse one. Write one for a non-obvious constraint, a unit, a workaround, a source — never to restate the line. `# negate the bearing` is noise; `# Blender's +Z turns to port` is the reason.
+- **A comment that can go stale needs a test, or goes.** A number derived from values elsewhere, a list of things defined elsewhere, or a value copied from another file drifts in silence when that place changes. Pin it with an assertion and name the test beside it (`test_twin_pod holds it`), or leave it out. Nor does a comment carry context the repo does not hold: hardware it does not model, a product spec, a downstream consumer.
 - **Avoid the machine cadence.** `X, not just Y` for emphasis, lists of exactly three, uniformly long sentences, hedges like "it's worth noting". Prefer the specific: a number, a file name or a flag beats an adjective.
 - **Make PRs scannable.** A table, a before/after, or a rendered frame beats a paragraph.
 - Renders are cheap and settle arguments. If a change affects what the camera sees, show it.
