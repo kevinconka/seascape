@@ -13,10 +13,12 @@ import bpy
 import numpy as np
 import pytest
 
-from seascape import render, scene
+from seascape import labels, render, scene
+from seascape.calibration import Calibration
 from seascape.config import Band, ImageFormat, load
 
 BASELINE = Path(__file__).parent.parent / "scenarios" / "baseline.toml"
+TWIN_POD = BASELINE.with_name("twin-pod.toml")
 
 
 def _raise(*_: object) -> np.ndarray:
@@ -216,3 +218,69 @@ def test_a_relative_output_reaches_blender_absolute(
 
     assert Path(handed[0]).is_absolute()
     assert Path(handed[0]).parent == tmp_path / "out"
+
+
+@pytest.mark.render
+@pytest.mark.parametrize(("edge_m", "columns"), [(3.45, 3), (3.55, 4)])
+def test_the_object_index_pass_samples_the_pixel_centre(
+    tmp_path: Path, edge_m: float, columns: int
+) -> None:
+    """A plane's edge 0.05 px either side of a column of centres, 1 m to the pixel.
+
+    The boxes come from this pass. A sample anywhere else in the 1.5 px filter would
+    put the edge in a different column from row to row.
+    """
+    bpy.ops.wm.read_factory_settings(use_empty=True)
+    sc = bpy.context.scene
+    sc.render.engine = "CYCLES"
+    sc.render.resolution_x, sc.render.resolution_y = 8, 64
+    mesh = bpy.data.meshes.new("plane")
+    corners = [(-10, -10, 0), (edge_m, -10, 0), (edge_m, 74, 0), (-10, 74, 0)]
+    mesh.from_pydata(corners, [], [(0, 1, 2, 3)])
+    plane = bpy.data.objects.new("plane", mesh)
+    plane.pass_index = 1
+    lens = bpy.data.cameras.new("lens")
+    lens.type, lens.sensor_fit, lens.ortho_scale = "ORTHO", "HORIZONTAL", 8.0
+    camera = bpy.data.objects.new("camera", lens)
+    camera.location = (4.0, 32.0, 10.0)  # looking down, frame over x 0-8, y 0-64
+    for obj in (plane, camera):
+        sc.collection.objects.link(obj)
+    sc.camera = camera
+    render._index_output(tmp_path).file_name = "probe."
+    sc.render.filepath = str(tmp_path / "frame")
+
+    bpy.ops.render.render(write_still=True)
+
+    index = np.rint(render._pixels(tmp_path / "probe.index.exr")[..., 0])
+    assert (index[:, :columns] == 1).all()
+    assert (index[:, columns:] == 0).all()
+
+
+@pytest.mark.render
+def test_each_box_holds_its_hull_centre_through_the_calibration(
+    tmp_path: Path,
+) -> None:
+    """Boxes from the pass and calibration from the camera agree on where a hull is.
+
+    A box is sampled at pixel centres, so the hull can reach half a pixel past it.
+    """
+    scenario = load(TWIN_POD)
+    scenario = scenario.model_copy(
+        update={"outputs": scenario.outputs.model_copy(update={"bands": ("ir",)})}
+    )
+
+    render.render(scenario, tmp_path)
+
+    truth = labels.Labels.model_validate_json((tmp_path / labels.FILENAME).read_text())
+    cameras = {c.name: c for c in Calibration.read(tmp_path).cameras}
+    frames = {image.id: cameras[image.camera] for image in truth.images}
+    assert truth.annotations, "no target in any frame: nothing below ran"
+    for found in truth.annotations:
+        camera = frames[found.image_id]
+        centre = bpy.data.objects[found.name].matrix_world.translation
+        x, y, z, _ = np.linalg.inv(camera.extrinsics["world"]) @ (*centre, 1.0)
+        u, v, _ = np.array(camera.K) @ (x, y, z) / z + 0.5  # COCO pixels
+        left, top, width, height = found.bbox
+        assert left - 0.5 <= u <= left + width + 0.5, found.name
+        assert top - 0.5 <= v <= top + height + 0.5, found.name
+        assert found.waterline_range_m < found.range_m
