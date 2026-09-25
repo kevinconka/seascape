@@ -25,6 +25,7 @@ roughness^2 convention Cycles follows.
 import math
 from collections.abc import Iterable
 from dataclasses import dataclass
+from itertools import chain
 from typing import NamedTuple
 
 import bpy
@@ -601,6 +602,7 @@ class Built:
     vessel: bpy.types.Object
     pods: dict[str, bpy.types.Object]
     cameras: dict[str, bpy.types.Object]
+    targets: dict[str, list[bpy.types.Object]]  # by asset
 
 
 def calibrate(built: Built, mount: Mount, image: str) -> CameraCalibration:
@@ -627,6 +629,32 @@ def calibrate(built: Built, mount: Mount, image: str) -> CameraCalibration:
             "pod": _rows(pod.inverted() @ world),
         },
     )
+
+
+def waterline_m(anchor: bpy.types.Object) -> np.ndarray:
+    """Where a hull's edges cross its waterline, as world east and north, (N, 2).
+
+    The waterline is the anchor's level: `_fit` puts the keel a draught below it and
+    `_pose` never tilts it.
+    """
+    # ponytail: the crossings, not the segments between them, so the nearest one to a
+    # camera at range r is up to side^2 / 2r further than a side facing it.
+    level = anchor.matrix_world.translation.z
+    crossings = []
+    for part in _meshes([anchor]):
+        mesh = part.data
+        local = np.empty(3 * len(mesh.vertices), dtype=np.float32)
+        mesh.vertices.foreach_get("co", local)
+        ends = np.empty(2 * len(mesh.edges), dtype=np.int32)
+        mesh.edges.foreach_get("vertices", ends)
+        m = np.array(part.matrix_world)
+        world = local.reshape(-1, 3) @ m[:3, :3].T + m[:3, 3]
+        a, b = world[ends.reshape(-1, 2)].transpose(1, 0, 2)
+        cross = (a[:, 2] - level) * (b[:, 2] - level) < 0
+        a, b = a[cross], b[cross]
+        t = (level - a[:, 2]) / (b[:, 2] - a[:, 2])
+        crossings.append((a + t[:, None] * (b - a))[:, :2])
+    return np.concatenate(crossings)
 
 
 def _rows(m: Matrix) -> Matrix4:
@@ -906,10 +934,17 @@ def build(scenario: Scenario, band: Band = "eo") -> Built:
     hulls: dict[str, list[bpy.types.Object]] = {}
     vessel = _ownship(scenario.ownship, band, scenario.sky, rig.root, hulls)
     radius_m = earth_radius_m(scenario.sea.refraction_k)
+    targets: dict[str, list[bpy.types.Object]] = {}
     for spec in scenario.objects:
-        _object(spec, band, radius_m, scenario.sky, hulls)
+        anchor = _object(spec, band, radius_m, scenario.sky, hulls)
+        targets.setdefault(spec.asset, []).append(anchor)
     if scenario.targets is not None:
-        _targets(scenario.targets, band, radius_m, scenario.sky, hulls)
+        anchors = _targets(scenario.targets, band, radius_m, scenario.sky, hulls)
+        targets.setdefault(scenario.targets.asset, []).extend(anchors)
+    # The object-index pass reads 0 for everything else: sky, sea and ownship.
+    for index, anchor in enumerate(chain(*targets.values()), start=1):
+        for part in [anchor, *anchor.children_recursive]:
+            part.pass_index = index
     # Scenario order, so the first camera is EO in the baseline: an IR build would
     # otherwise open on a camera whose optics belong to the other band.
     first = next(mount for mount in scenario.rig.mounts if mount.camera.kind == band)
@@ -923,4 +958,4 @@ def build(scenario: Scenario, band: Band = "eo") -> Built:
     # Until the depsgraph runs, every child still reports its pre-parenting
     # matrix_world, so anything measuring the scene reads the wrong place.
     bpy.context.view_layer.update()
-    return Built(vessel, rig.pods, rig.cameras)
+    return Built(vessel, rig.pods, rig.cameras, targets)

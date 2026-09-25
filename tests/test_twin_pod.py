@@ -16,6 +16,7 @@ from bpy_extras.object_utils import world_to_camera_view
 from mathutils import Matrix, Vector
 
 from seascape import panorama, scene
+from seascape.assets import manifest
 from seascape.calibration import Calibration
 from seascape.config import Mount, Pod, Scenario, load
 from seascape.montage import INK
@@ -212,6 +213,16 @@ def test_the_calibration_projects_every_target_where_blender_draws_it(
             projected += 1
 
     assert projected, "no target in any frame: the assertions above ran on nothing"
+
+
+def test_a_waterline_rings_its_hull_within_its_length(built: scene.Built) -> None:
+    """World metres: in the mesh's own frame it would sit at the origin, 7 NM off."""
+    for asset, anchors in built.targets.items():
+        for anchor in anchors:
+            centre = np.array(anchor.matrix_world.translation.xy)
+            reach = np.linalg.norm(scene.waterline_m(anchor) - centre, axis=1)
+
+            assert 0.0 < reach.max() <= manifest()[asset].length_m / 2, anchor.name
 
 
 def test_a_calibration_with_fields_it_does_not_know_still_reads(
