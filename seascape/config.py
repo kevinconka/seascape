@@ -60,7 +60,9 @@ class Camera(Model):
         description="Its image's filename. Derived from its place in the pod when "
         "absent.",
     )
-    hfov_deg: float = Field(gt=0.0, lt=180.0, description="Horizontal field of view.")
+    hfov_deg: float = Field(
+        gt=0.0, lt=180.0, description="Across the image width, portrait or landscape."
+    )
     width_px: int = Field(gt=0, description="Image width.")
     height_px: int = Field(gt=0, description="Image height.")
 
@@ -86,7 +88,7 @@ class Pod(Model):
     offset_y_m: float = Field(
         default=0.0, description="From midships, positive forward."
     )
-    cameras: list[Camera] = Field(min_length=1, description="At least one.")
+    cameras: list[Camera] = Field(min_length=1, description="Behind this pod's yaw.")
 
 
 class Mount(NamedTuple):
@@ -122,7 +124,7 @@ class Rig(Model):
     near_clip_m: float = Field(
         default=5.0, gt=0.0, description="Anything nearer a camera is not rendered."
     )
-    pods: list[Pod] = Field(min_length=1, description="At least one.")
+    pods: list[Pod] = Field(min_length=1, description="The enclosures.")
 
     @property
     def mounts(self) -> list[Mount]:
@@ -166,14 +168,14 @@ class Sea(Model):
     wind_speed_mps: float = Field(
         default=7.0, ge=0.0, description="Sets the waves' length and slope."
     )
-    # The atmosphere bends a ray down, so the sea curves at R / (1 - k). At k = 1 the
-    # effective radius is infinite.
+    # The atmosphere bends a ray down, so the sea curves at R / (1 - k). 0.13 is the
+    # standard survey value for average air (0.13-0.16 usual). At k = 1 the effective
+    # radius is infinite.
     refraction_k: float = Field(
         default=0.13,
         ge=0.0,
         lt=1.0,
-        description="Coefficient of terrestrial refraction. 0.13 is the standard "
-        "survey value for average air (0.13-0.16 usual); 0 is no refraction.",
+        description="Coefficient of terrestrial refraction; 0 is none.",
     )
 
 
@@ -219,18 +221,17 @@ class Sky(Model):
     )
 
 
-_ASSET = "A name in `seascape/assets.toml`."
-_T_HULL = "Shaded hull temperature; sunlit faces add `sky.solar_gain_k`. IR only."
+_ASSET = "An asset name from the manifest."
+_T_HULL = "Shaded hull temperature. IR only."
 _HEADING = "Where its bow points, clockwise from the ownship's bow."
+_RANGE = "Horizontal, from the ownship's origin."
 
 
 class Object(Model):
     """Something to detect."""
 
     asset: str = Field(description=_ASSET)
-    range_m: float = Field(
-        gt=0.0, description="Horizontal, from the ownship's origin to its own."
-    )
+    range_m: float = Field(gt=0.0, description=_RANGE)
     bearing_deg: float = Field(description="Clockwise from the ownship's bow.")
     heading_deg: float = Field(default=0.0, description=_HEADING)
     t_k: float = Field(default=293.0, ge=250.0, le=400.0, description=_T_HULL)
@@ -258,9 +259,7 @@ class Targets(Model):
 
     asset: str = Field(description=_ASSET)
     count: int = Field(gt=0, description="How many.")
-    range_m: float = Field(
-        gt=0.0, description="Horizontal, from the ownship's origin, for all of them."
-    )
+    range_m: float = Field(gt=0.0, description=_RANGE)
     bearing_deg: tuple[float, float] = Field(
         description="First and last, clockwise from the ownship's bow. Both ends get "
         "a target."
@@ -268,7 +267,7 @@ class Targets(Model):
     # Spread so aspect varies between targets.
     heading_deg: tuple[float, float] = Field(
         default=(0.0, 315.0),
-        description="First and last, spread evenly. " + _HEADING,
+        description="First and last, spread evenly, clockwise from the ownship's bow.",
     )
     t_k: float = Field(default=293.0, ge=250.0, le=400.0, description=_T_HULL)
 
@@ -310,11 +309,9 @@ class Outputs(Model):
         default=("eo", "ir"),
         min_length=1,
         json_schema_extra={"uniqueItems": True},
-        description="Bands to render. A band the rig has no camera for is skipped.",
+        description="A band with no camera is skipped.",
     )
-    samples: Samples = Field(
-        default_factory=lambda: Samples(), description="Cycles samples per band."
-    )
+    samples: Samples = Field(default_factory=lambda: Samples())
     format: ImageFormat = Field(
         default="png", description="png to look at, exr to keep the radiance."
     )
@@ -323,8 +320,7 @@ class Outputs(Model):
         default=-5.0,
         ge=-32.0,
         le=32.0,
-        description="EO exposure in stops; EO clips to white at 0. The exr and ir "
-        "ignore it.",
+        description="Stops. EO png only.",
     )
 
     @model_validator(mode="after")
@@ -338,24 +334,18 @@ class Outputs(Model):
 class Scenario(Model):
     """One scene: the rig, the world around it, and what a render writes."""
 
-    seed: int = Field(
-        default=0, description="One seed, one scene: every random draw derives from it."
-    )
-    rig: Rig = Field(description="The pods and their cameras.")
-    ownship: Ownship = Field(
-        default_factory=Ownship, description="The vessel carrying the rig."
-    )
+    seed: int = Field(default=0, description="Seeds every random draw.")
+    rig: Rig
+    ownship: Ownship = Field(default_factory=Ownship)
     targets: Targets | None = Field(
         default=None, description="A ring of identical vessels."
     )
-    sea: Sea = Field(default_factory=Sea, description="Sea state.")
-    sky: Sky = Field(default_factory=Sky, description="Sun and sky.")
+    sea: Sea = Field(default_factory=Sea)
+    sky: Sky = Field(default_factory=Sky)
     objects: list[Object] = Field(
         default_factory=list, description="Vessels placed one by one."
     )
-    outputs: Outputs = Field(
-        default_factory=Outputs, description="What a render writes."
-    )
+    outputs: Outputs = Field(default_factory=Outputs)
 
 
 def _merge(base: dict[str, Any], over: dict[str, Any]) -> dict[str, Any]:

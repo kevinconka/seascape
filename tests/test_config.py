@@ -252,11 +252,13 @@ def test_every_model_and_field_describes_itself() -> None:
         name: model for name, model in schema["$defs"].items() if "properties" in model
     }
     missing = [name for name, model in models.items() if not model.get("description")]
+    # A bare reference to a model hovers as that model's own description.
     missing += [
         f"{name}.{field}"
         for name, model in models.items()
         for field, spec in model["properties"].items()
         if not spec.get("description")
+        and spec.get("$ref", "").removeprefix("#/$defs/") not in models
     ]
     assert not missing
 
