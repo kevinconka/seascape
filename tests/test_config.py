@@ -356,20 +356,3 @@ def test_sea_temperature_bounds_are_the_tables_span() -> None:
     bounds = Sea.model_json_schema()["properties"]["t_sea_k"]
     _, temperatures, _ = lwir._table()
     assert (bounds["minimum"], bounds["maximum"]) == (temperatures[0], temperatures[-1])
-
-
-@pytest.mark.parametrize("name", ["baseline.toml", "twin-pod.toml"])
-def test_the_sun_is_out_of_every_frame(name: str) -> None:
-    """Its disc and glitter would saturate whichever camera saw them."""
-    scenario = load(SCENARIOS / name)
-    for mount in scenario.rig.mounts:
-        off = (scenario.sky.sun_bearing_deg - mount.nominal_bearing_deg + 180) % 360
-        assert abs(off - 180) > mount.camera.hfov_deg / 2, mount.name
-
-
-def test_the_baseline_ship_is_in_every_frame(baseline) -> None:
-    """Both bands' tests measure the one ship."""
-    (ship,) = baseline.objects
-    for mount in baseline.rig.mounts:
-        off = abs(ship.bearing_deg - mount.nominal_bearing_deg)
-        assert off < mount.camera.hfov_deg / 2, mount.name

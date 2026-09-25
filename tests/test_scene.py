@@ -14,6 +14,7 @@ from mathutils import Vector
 
 from seascape import lwir, scene
 from seascape.assets import Asset, manifest
+from seascape.calibration import CameraCalibration
 from seascape.config import Mount, load
 
 BASELINE = Path(__file__).parent.parent / "scenarios" / "baseline.toml"
@@ -25,6 +26,57 @@ RIG_ONLY = f'extends = "{BASELINE}"\nobjects = []\n'
 
 def camera_of(mount: Mount) -> bpy.types.Object:
     return bpy.data.objects[mount.name]
+
+
+def _in_frame(camera: CameraCalibration, direction: Vector | np.ndarray) -> bool:
+    """Whether a world direction from the camera lands on its sensor."""
+    rotation = np.array(camera.extrinsics["world"])[:3, :3]
+    x, y, z = np.array(camera.K) @ (rotation.T @ np.asarray(direction))
+    # Pixel centres sit at integers, so the sensor spans -0.5 to size - 0.5.
+    return bool(
+        z > 0
+        and -0.5 <= x / z <= camera.width_px - 0.5
+        and -0.5 <= y / z <= camera.height_px - 0.5
+    )
+
+
+def _rays(camera: CameraCalibration, n: int = 101) -> np.ndarray:
+    """Unit world directions through an n x n grid spanning the sensor."""
+    u, v = np.meshgrid(
+        np.linspace(-0.5, camera.width_px - 0.5, n),
+        np.linspace(-0.5, camera.height_px - 0.5, n),
+    )
+    pixels = np.stack([u.ravel(), v.ravel(), np.ones(n * n)])
+    rotation = np.array(camera.extrinsics["world"])[:3, :3]
+    rays = rotation @ np.linalg.solve(np.array(camera.K), pixels)
+    return (rays / np.linalg.norm(rays, axis=0)).T
+
+
+# Cox & Munk's slope density falls as exp(-s^2 / sigma^2), 1e-7 of its peak at 4 sigma:
+# there the sun, 1361 W m^-2 over 6.8e-5 sr, reflects dimmer than a daylit sky.
+GLITTER_SIGMAS = 4.0
+
+
+@pytest.mark.parametrize("name", ["baseline.toml", "twin-pod.toml"])
+def test_the_sun_and_its_glitter_are_out_of_every_frame(name: str) -> None:
+    scenario = load(BASELINE.parent / name)
+    ownship = scenario.ownship.model_copy(update={"asset": None})
+    bare = scenario.model_copy(
+        update={"objects": [], "targets": None, "ownship": ownship}
+    )
+    built = scene.build(bare, "eo")
+    sun = np.array(scene._sun_vector(scenario.sky))
+    sigma = scene.wave_slope(scenario.sea.wind_speed_mps)
+
+    for mount in scenario.rig.mounts:
+        camera = scene.calibrate(built, mount, "")
+        assert not _in_frame(camera, sun), f"the sun is in {mount.name}"
+        rays = _rays(camera)
+        sea = rays[rays[:, 2] < 0]
+        # The facet normal that mirrors each sea ray into the sun.
+        normal = sun - sea
+        slope = np.hypot(normal[:, 0], normal[:, 1]) / normal[:, 2]
+        assert slope.min() > GLITTER_SIGMAS * sigma, f"glitter in {mount.name}"
 
 
 def baked(name: str) -> np.ndarray:
@@ -90,8 +142,8 @@ class TestGeometry:
 
     @pytest.fixture(scope="class", autouse=True)
     @classmethod
-    def built(cls) -> None:
-        scene.build(SCENARIO, "eo")
+    def built(cls) -> scene.Built:
+        return scene.build(SCENARIO, "eo")
 
     def test_a_flat_rig_points_where_the_scenario_asked(self) -> None:
         """The one negation. Two of them cancel and the whole rig mirrors unnoticed."""
@@ -142,6 +194,15 @@ class TestGeometry:
             assert math.degrees(math.atan2(east, north)) == pytest.approx(
                 spec.bearing_deg
             )
+
+    def test_the_ship_is_in_every_frame(self, built: scene.Built) -> None:
+        """Both bands' tests measure the one ship."""
+        (spec,) = SCENARIO.objects
+        ship = bpy.data.objects[spec.asset].matrix_world.translation
+        for mount in SCENARIO.rig.mounts:
+            eye = camera_of(mount).matrix_world.translation
+            camera = scene.calibrate(built, mount, "")
+            assert _in_frame(camera, ship - eye), mount.name
 
     def test_a_target_is_fitted_to_its_manifest_length(self) -> None:
         """The mesh arrives in its author's units; unfitted it is a speck at range."""
