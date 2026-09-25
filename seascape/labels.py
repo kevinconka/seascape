@@ -18,8 +18,8 @@ from seascape.config import Model
 
 FILENAME = "labels.json"
 
-# 16 segments: the horizon bows 1.6 px off its chord across a 49 deg 4K frame at
-# 52 m, and a segment's bow falls with the square of its length, to under 0.01 px.
+# The horizon bows f dip (sec(hfov / 2) - 1) off its chord, and a segment's bow falls
+# with the square of its length: 16 segments leave 1/256 of it.
 HORIZON_POINTS = 17
 
 
@@ -92,8 +92,11 @@ class Labels(Model):
         )
         self.images.append(image)
         at = np.array(camera.extrinsics["world"])[:2, 3]
+        rows, columns = np.nonzero(index)
+        seen = index[rows, columns]
         for target in targets:
-            ys, xs = np.nonzero(index == target.pass_index)
+            mine = seen == target.pass_index
+            ys, xs = rows[mine], columns[mine]
             if not len(xs):
                 continue
             x0, y0, x1, y1 = int(xs.min()), int(ys.min()), int(xs.max()), int(ys.max())

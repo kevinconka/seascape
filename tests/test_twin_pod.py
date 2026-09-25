@@ -216,7 +216,7 @@ def test_the_calibration_projects_every_target_where_blender_draws_it(
 
 
 def test_a_waterline_rings_its_hull_within_its_length(built: scene.Built) -> None:
-    """World metres: in the mesh's own frame it would sit at the origin, 7 NM off."""
+    """World metres: in the mesh's own frame it would sit at the origin, far off."""
     for asset, anchors in built.targets.items():
         for anchor in anchors:
             centre = np.array(anchor.matrix_world.translation.xy)

@@ -115,7 +115,9 @@ def _commit() -> str | None:
         return None
     try:
         return subprocess.run(
-            ["git", "-C", str(root), "describe", "--always", "--dirty", "--abbrev=40"],
+            # --exclude: a tag would otherwise replace the hash with its own name.
+            ["git", "describe", "--always", "--dirty", "--abbrev=40", "--exclude=*"],
+            cwd=root,
             capture_output=True,
             text=True,
             check=True,
