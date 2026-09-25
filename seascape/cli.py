@@ -106,6 +106,11 @@ def main(argv: list[str] | None = None) -> int:
         "--ruler", action="store_true", help="a strip of bearing ticks under the image"
     )
 
+    film = commands.add_parser(
+        "video", help="encode each camera's frames as an mp4, from labels.json"
+    )
+    film.add_argument("folder", type=Path, help="a render's output directory")
+
     commands.add_parser("schema", help="print the scenario JSON schema on stdout")
 
     args = parser.parse_args(argv)
@@ -121,6 +126,11 @@ def main(argv: list[str] | None = None) -> int:
             for path in panorama.panoramas(
                 args.folder, args.projection, args.frame, args.max_width, args.ruler
             ):
+                print(path)
+        elif args.command == "video":
+            from seascape import video
+
+            for path in video.encode(args.folder):
                 print(path)
         else:
             _build(args.scenario, args.output, args.band, args.overrides)
