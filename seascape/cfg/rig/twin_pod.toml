@@ -1,13 +1,8 @@
-# Two pods on the bridge wings, both forward-facing.
-#
-# EO: 129 deg per pod, 9 deg overlap. IR: one camera per pod, turned inboard so the
-# pair straddles the bow, 44 deg across with 4 deg overlap.
-# `test_pod_span_and_overlap_measured_from_the_scene` holds these.
-#
-# Offsets: bridge-wing tops of the container_ship mesh, measured on the fitted hull.
+# Two pods on the bridge wings, both forward-facing. Offsets are the wing tops of the
+# container_ship mesh.
 
 # 2 m of bracket above the wing top keeps the deck plate out of every lower frame
-# edge. `test_a_pod_stands_on_the_ship_rather_than_beside_it` holds the bracket.
+# edge.
 height_m = 51.8
 pitch_deg = 0.0
 

@@ -10,7 +10,7 @@ Before writing a module, check whether Blender already has the feature. The sky 
 
 Two things are **not** Blender's, both documented so nobody helpfully puts them back.
 
-**Waves are bump normals, not the Ocean modifier.** Displaced geometry goes sub-pixel before the horizon, and sub-pixel geometry aliases instead of averaging; a bump normal is evaluated per pixel, so the far field averages out on its own. The sea does carry geometry, for the earth's curve -- kilometres across, never sub-pixel. It needs no distance fade, and a measured one changed the far-field texture by 3% and the aliasing not at all -- do not add one back without a render to show it earns its place. The accepted cost is that a bump normal cannot occlude, so a wave can never hide a target. `tests/test_render_drift.py` holds this in place; run it with `--render` before touching the sea shader.
+**Waves are bump normals, not the Ocean modifier.** Displaced geometry goes sub-pixel before the horizon, and sub-pixel geometry aliases instead of averaging; a bump normal is evaluated per pixel, so the far field averages out on its own. The sea does carry geometry, for the earth's curve -- kilometres across, never sub-pixel. It needs no distance fade, and a measured one changed the far-field texture by 3% and the aliasing not at all -- do not add one back without a render to show it earns its place. The accepted cost is that a bump normal cannot occlude, so a wave can never hide a target. Run `pytest --render` before touching the sea shader.
 
 **LWIR radiometry lives in numpy.** Blender has no concept of an 8–14 µm band, and its Fresnel node takes a scalar IOR where seawater emissivity needs complex IOR (n + i·k).
 
@@ -60,7 +60,6 @@ These produce wrong output with no error. They are the reason this file exists.
 - **`rotation_mode` is often `QUATERNION`.** Assigning `rotation_euler` is then ignored entirely — no exception, no warning, object doesn't move. Set the mode first.
 - **Address shader sockets by name, never by index.** `inputs["Distance"]` raises if Blender renames it; `inputs[1]` happily writes to whatever now sits in that slot.
 - **Objects can share a mesh datablock.** Material slots link to mesh data by default, so assigning a material to one object silently changes the other. Use `slot.link = "OBJECT"` when they must differ.
-- **Shader node trees leak.** Cleanup must remove a whole chain, not the one node you tagged. `build` starts from factory settings instead; `test_building_twice_leaves_the_same_scene` holds it.
 - **LWIR waves do not need `t_sea_k - t_air_k`.** A tilted facet reflects a different elevation of a sky that runs cold overhead to ambient at the horizon, so relief shows with the sea exactly at air temperature. Wave signal as MAD within a row, baseline against a flat-sea control at equal samples:
 
   | rows below the horizon | dT = 0 K | dT = 3 K |
@@ -124,7 +123,7 @@ The render-drift check runs only with `--render` and needs a GPU to finish in re
 - **Branches:** matching prefixes (`feat/...`, `fix/...`).
 - **Be concise.** Commit messages, PR descriptions, comments and docs state the fact, not the journey. No debugging narration, no restating the diff, no closing paragraph that repeats what was just said.
 - **Comments are for what the code cannot say.** A better name beats a comment explaining a worse one. Write one for a non-obvious constraint, a unit, a workaround, a source — never to restate the line. `# negate the bearing` is noise; `# Blender's +Z turns to port` is the reason.
-- **A comment that can go stale needs a test, or goes.** A number derived from values elsewhere, a list of things defined elsewhere, or a value copied from another file drifts in silence when that place changes. Pin it with an assertion and name the test beside it (`test_twin_pod holds it`), or leave it out. Nor does a comment carry context the repo does not hold: hardware it does not model, a product spec, a downstream consumer.
+- **Nothing that can go stale, nothing from outside the code.** No numbers derived from values elsewhere, no lists or values copied from another file, no names of tests, no PRs, reviews, conversations or history, no hardware, specs or consumers the repo does not model. If a claim matters, a test asserts it; the comment does not point there. When in doubt, delete the line.
 - **Avoid the machine cadence.** `X, not just Y` for emphasis, lists of exactly three, uniformly long sentences, hedges like "it's worth noting". Prefer the specific: a number, a file name or a flag beats an adjective.
 - **Make PRs scannable.** A table, a before/after, or a rendered frame beats a paragraph.
 - Renders are cheap and settle arguments. If a change affects what the camera sees, show it.

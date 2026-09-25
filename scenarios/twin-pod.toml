@@ -13,7 +13,7 @@ preset = "twin_pod"
 t_sea_k = 291.0
 
 [sky]
-# Keeps the sun disc and its glitter out of frame: `test_the_sun_is_out_of_every_frame`.
+# Keeps the sun disc and its glitter out of frame.
 sun_bearing_deg = 135.0
 
 [ownship]
@@ -26,7 +26,7 @@ pitch_deg = 0.5
 asset = "container_ship"
 # 7 NM, the EO detection range the pod is specified against.
 range_m = 12964.0
-# Enough that every camera sees one: `test_every_camera_has_a_target_in_frame`.
+# Enough that every camera sees one.
 count = 8
 bearing_deg = [-120.0, 120.0]
 

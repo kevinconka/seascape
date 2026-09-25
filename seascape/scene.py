@@ -82,7 +82,7 @@ CAPILLARY_WAVELENGTH_M = 0.0173
 
 # RMS gradient of the noise's Fac per noise unit, so a Distance of slope x wavelength
 # delivers 0.55 of the slope asked for. Quoted at 2 cm sampling: finer sampling finds
-# more. `test_the_noise_delivers_the_slope_it_is_asked_for` pins it.
+# more.
 NOISE_SLOPE_PER_UNIT = 0.55
 
 
@@ -168,11 +168,7 @@ def sea_z_m(east_m: float, north_m: float, radius_m: float) -> float:
 
 
 def horizon_m(height_m: float, refraction_k: float) -> float:
-    """Distance to the horizon from `height_m`, tangent to the effective sphere.
-
-    The 3.86 sqrt(h_m) km rule of thumb at k = 0.13 agrees to 1%;
-    `test_published_values_have_not_drifted` holds it.
-    """
+    """Distance to the horizon from `height_m`, tangent to the effective sphere."""
     return math.sqrt(2.0 * earth_radius_m(refraction_k) * height_m)
 
 
@@ -371,7 +367,6 @@ def _wave_normals(
     Shading, not geometry. A bump normal is evaluated per pixel and varies
     continuously, so distant water averages smooth; displaced geometry at any
     affordable spacing goes sub-pixel before the horizon and aliases instead.
-    `tests/test_render_drift.py` holds this in place.
 
     Relief does not fade with range. A fade reads as an obvious fix for the stipple
     past the point waves go sub-pixel, and measurably is not one: at 30 km it changed

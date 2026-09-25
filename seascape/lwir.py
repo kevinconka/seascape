@@ -124,8 +124,7 @@ def optical_constants(
     """Wavelength (m), n, k across the band at `t_k`, ascending in wavelength.
 
     Linearly interpolated between the table's steps and clamped outside its span,
-    which already covers any sea surface. `test_the_shipped_grid_is_unbroken` holds the
-    grid.
+    which already covers any sea surface.
     """
     grid, temperatures, nk = _table()
     t = float(np.clip(_checked_kelvin(t_k), temperatures[0], temperatures[-1]))
