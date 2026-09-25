@@ -1,6 +1,4 @@
 # Daylight camera.
-#
-# Native resolution: downsample in the pipeline, never render smaller.
 kind = "eo"
 hfov_deg = 49.0
 width_px = 3840
