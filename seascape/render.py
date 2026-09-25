@@ -59,6 +59,8 @@ def _thermal_png(exr: Path, png: Path) -> None:
 
 def render(scenario: Scenario, into: Path) -> list[Path]:
     """Write one image per camera into `into`, and their calibration beside them."""
+    # Blender resolves a relative render.filepath against the .blend, not the shell.
+    into = into.resolve()
     into.mkdir(parents=True, exist_ok=True)
     outputs = scenario.outputs
     written: list[Path] = []
