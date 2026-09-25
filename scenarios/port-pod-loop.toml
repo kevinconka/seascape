@@ -1,0 +1,12 @@
+#:schema ../schema/scenario.json
+
+extends = "twin-pod.toml"
+
+[rig]
+pods = [{ preset = "port" }]
+
+# Whole cycles of every period.
+[outputs]
+duration_s = 40.0
+fps = 9
+loop = true
