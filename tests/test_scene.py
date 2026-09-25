@@ -724,7 +724,7 @@ class TestSeaEvolves:
 
 def test_a_drifting_hull_traces_a_figure_eight_about_its_pose() -> None:
     """Across its heading once a period and along it twice, the heading held."""
-    scenario = load(DRIFTING, ["outputs.duration_s = 4.0"])
+    scenario = load(DRIFTING, ["outputs.fps = 8"])
     (spec,) = scenario.objects
     assert spec.drift is not None
     anchor = scene.build(scenario).targets[spec.asset][0]
@@ -767,7 +767,7 @@ def keyed() -> Iterator[tuple[str, np.ndarray]]:
 
 def test_a_loop_runs_from_its_last_frame_into_its_first_like_any_other() -> None:
     """Wrapped round, no channel bends at the seam more than it does anywhere else."""
-    scene.build(load(DRIFTING, ["outputs.duration_s = 5.0"]))
+    scene.build(load(DRIFTING, ["outputs.fps = 2"]))
     channels = dict(keyed())
 
     assert len(channels) == 8, "the target's xyz, pitch, roll, heave, the sea's z, W"

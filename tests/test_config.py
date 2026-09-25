@@ -392,6 +392,8 @@ def test_a_loop_rounds_each_period_to_a_whole_fraction_of_the_clip() -> None:
             ],
             "drift",
         ),
+        ("drifting.toml", ["outputs.duration_s = 8"], "ownship.roll's 9.0 s"),
+        ("drifting.toml", ["outputs.duration_s = 20"], "container_ship drift"),
     ],
 )
 def test_a_loop_that_cannot_close_is_an_error(name, overrides, match) -> None:

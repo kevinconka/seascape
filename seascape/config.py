@@ -419,6 +419,22 @@ class Scenario(Model):
                     f"{spec.asset} has speed_mps > 0, and a straight run never comes "
                     "back to close a loop: give it a drift instead"
                 )
+        ownship = self.ownship
+        periods = [
+            ("ownship.roll", ownship.roll),
+            ("ownship.pitch", ownship.pitch),
+            ("ownship.heave", ownship.heave),
+            *((f"{spec.asset} drift", spec.drift) for spec in self.objects),
+            ("targets.drift", self.targets.drift if self.targets else None),
+        ]
+        span_s = self.outputs.span_s
+        for name, motion in periods:
+            # Rounding it to the span would speed the motion up.
+            if motion is not None and motion.period_s > span_s:
+                raise ValueError(
+                    f"a {span_s} s loop is shorter than {name}'s {motion.period_s} s "
+                    "period: make outputs.duration_s at least that"
+                )
         return self
 
 
