@@ -129,7 +129,6 @@ def _info(scenario: Scenario) -> dict[str, Any]:
     devices = bpy.context.preferences.addons["cycles"].preferences.devices
     gpu = bpy.context.scene.cycles.device == "GPU"
     return {
-        "description": "seascape render",
         "version": version("seascape"),
         "date_created": datetime.now(UTC).isoformat(timespec="seconds"),
         "commit": _commit(),
