@@ -778,18 +778,27 @@ def _pose(
     range_m: float,
     bearing_deg: float,
     heading_deg: float,
+    speed_mps: float,
     radius_m: float,
+    times_s: Sequence[float],
 ) -> None:
-    """Put a hull on the sea at a bearing and range, steering the given course.
+    """Put a hull on the sea at a bearing and range at t = 0, underway along its
+    heading.
 
     A hull left at z = 0 flies above the curved sea.
 
     Not tilted to the local vertical: at any range the sea reaches, range / R moves a
     hull's ends far less than its draught.
     """
-    east = range_m * math.sin(math.radians(bearing_deg))
-    north = range_m * math.cos(math.radians(bearing_deg))
-    _place(anchor, east, north, sea_z_m(east, north, radius_m))
+    bearing, heading = math.radians(bearing_deg), math.radians(heading_deg)
+
+    def at(t_s: float) -> tuple[float, float, float]:
+        east = range_m * math.sin(bearing) + speed_mps * t_s * math.sin(heading)
+        north = range_m * math.cos(bearing) + speed_mps * t_s * math.cos(heading)
+        return east, north, sea_z_m(east, north, radius_m)
+
+    _place(anchor, *at(0.0))
+    _animate(anchor, "location", times_s, at)
     anchor.rotation_euler = (0.0, 0.0, _yaw(heading_deg))
 
 
@@ -814,6 +823,7 @@ def _targets(
     radius_m: float,
     sky: Sky,
     hulls: dict[str, list[bpy.types.Object]],
+    times_s: Sequence[float],
 ) -> list[bpy.types.Object]:
     first = _vessel(spec.asset, spec.t_k, band, sky, hulls)
     poses = spec.poses()
@@ -822,7 +832,15 @@ def _targets(
         zip(anchors, poses, strict=True)
     ):
         anchor.name = f"target_{i}"
-        _pose(anchor, spec.range_m, bearing_deg, heading_deg, radius_m)
+        _pose(
+            anchor,
+            spec.range_m,
+            bearing_deg,
+            heading_deg,
+            spec.speed_mps,
+            radius_m,
+            times_s,
+        )
     return anchors
 
 
@@ -832,9 +850,18 @@ def _object(
     radius_m: float,
     sky: Sky,
     hulls: dict[str, list[bpy.types.Object]],
+    times_s: Sequence[float],
 ) -> bpy.types.Object:
     anchor = _vessel(spec.asset, spec.t_k, band, sky, hulls)
-    _pose(anchor, spec.range_m, spec.bearing_deg, spec.heading_deg, radius_m)
+    _pose(
+        anchor,
+        spec.range_m,
+        spec.bearing_deg,
+        spec.heading_deg,
+        spec.speed_mps,
+        radius_m,
+        times_s,
+    )
     return anchor
 
 
@@ -915,12 +942,15 @@ def build(scenario: Scenario, band: Band = "eo") -> Built:
     hulls: dict[str, list[bpy.types.Object]] = {}
     vessel = _ownship(scenario.ownship, band, scenario.sky, rig.root, hulls)
     radius_m = earth_radius_m(scenario.sea.refraction_k)
+    times_s = scenario.outputs.times_s
     targets: dict[str, list[bpy.types.Object]] = {}
     for spec in scenario.objects:
-        anchor = _object(spec, band, radius_m, scenario.sky, hulls)
+        anchor = _object(spec, band, radius_m, scenario.sky, hulls, times_s)
         targets.setdefault(spec.asset, []).append(anchor)
     if scenario.targets is not None:
-        anchors = _targets(scenario.targets, band, radius_m, scenario.sky, hulls)
+        anchors = _targets(
+            scenario.targets, band, radius_m, scenario.sky, hulls, times_s
+        )
         targets.setdefault(scenario.targets.asset, []).extend(anchors)
     # The object-index pass reads 0 for everything else: sky, sea and ownship.
     for index, anchor in enumerate(chain(*targets.values()), start=1):
@@ -939,7 +969,7 @@ def build(scenario: Scenario, band: Band = "eo") -> Built:
     # After the last import, which sets fps and fps_base to the file's own. The
     # factory scene starts at frame 1.
     sc.frame_start = sc.frame_current = 0
-    sc.frame_end = len(scenario.outputs.times_s) - 1
+    sc.frame_end = len(times_s) - 1
     sc.render.fps, sc.render.fps_base = scenario.outputs.fps, 1.0
     # Until the depsgraph runs, every child still reports its pre-parenting
     # matrix_world, so anything measuring the scene reads the wrong place.

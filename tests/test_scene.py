@@ -17,6 +17,7 @@ from seascape.calibration import CameraCalibration
 from seascape.config import Mount, load
 
 BASELINE = Path(__file__).parent.parent / "scenarios" / "baseline.toml"
+UNDERWAY = BASELINE.with_name("underway.toml")
 SCENARIO = load(BASELINE)
 RIG_ONLY = f'extends = "{BASELINE}"\nobjects = []\n'
 
@@ -621,3 +622,30 @@ class TestAnimate:
         scene._animate(empty, "location", [0.0], lambda t: (1.0, 2.0, 3.0))
         assert tuple(empty.location) == (1.0, 2.0, 3.0)
         assert empty.animation_data is None
+
+
+def test_a_target_underway_runs_along_its_heading_on_the_curved_sea() -> None:
+    """At t = 0 it sits where a still would; the run from there is speed times time,
+    along the heading."""
+    scenario = load(UNDERWAY, ["outputs.duration_s = 0.3"])
+    (spec,) = scenario.objects
+    radius = scene.earth_radius_m(scenario.sea.refraction_k)
+    anchor = scene.build(scenario).targets[spec.asset][0]
+    sc = bpy.context.scene
+
+    start = anchor.matrix_world.translation.copy()
+    for frame, t in enumerate(scenario.outputs.times_s[1:], start=1):
+        sc.frame_set(frame)
+        east, north, up = anchor.matrix_world.translation
+        run_east, run_north = east - start.x, north - start.y
+
+        assert math.hypot(run_east, run_north) == pytest.approx(
+            spec.speed_mps * t, rel=1e-3
+        )
+        assert math.degrees(math.atan2(run_east, run_north)) % 360 == pytest.approx(
+            spec.heading_deg % 360
+        )
+        assert up == pytest.approx(scene.sea_z_m(east, north, radius), abs=1e-3)
+    sc.frame_set(0)
+    assert anchor.matrix_world.translation == start
+    assert start.xy.length == pytest.approx(spec.range_m)

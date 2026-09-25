@@ -303,8 +303,8 @@ class Outputs(Model):
     """What a render writes.
 
     Every camera of a listed band is rendered. A png is 8-bit: EO through the exposure
-    and the film curve, LWIR auto-contrasted per frame, so a thermal pixel is not a
-    temperature. An exr keeps the radiance, in W m^-2 sr^-1.
+    and the film curve, LWIR auto-contrasted per camera over its frames, so a thermal
+    pixel is not a temperature. An exr keeps the radiance, in W m^-2 sr^-1.
     """
 
     # uniqueItems for editors validating against the schema; `_bands_are_distinct`

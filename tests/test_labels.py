@@ -54,7 +54,7 @@ def test_a_box_covers_whole_pixels_from_its_top_left_corner() -> None:
     index[10:13, 20:25] = 1
     truth = labels.Labels()
 
-    truth.add(camera(), index, [target(1)], RADIUS_M)
+    truth.add(camera(), 0.0, index, [target(1)], RADIUS_M)
 
     (found,) = truth.annotations
     assert found.bbox == (20, 10, 5, 3)
@@ -67,7 +67,7 @@ def test_a_box_on_the_frame_edge_is_truncated() -> None:
     index[40:, 60:] = 1
     truth = labels.Labels()
 
-    truth.add(camera(), index, [target(1)], RADIUS_M)
+    truth.add(camera(), 0.0, index, [target(1)], RADIUS_M)
 
     assert truth.annotations[0].truncated
 
@@ -77,10 +77,18 @@ def test_only_a_target_in_frame_is_labelled_or_categorised() -> None:
     index[10, 10] = 1
     truth = labels.Labels()
 
-    truth.add(camera(), index, [target(1), target(2, "buoy")], RADIUS_M)
+    truth.add(camera(), 0.0, index, [target(1), target(2, "buoy")], RADIUS_M)
 
     assert [a.name for a in truth.annotations] == ["t1"]
     assert [c.name for c in truth.categories] == ["ship"]
+
+
+def test_a_frame_carries_its_time() -> None:
+    truth = labels.Labels()
+
+    truth.add(camera(), 2.5, np.zeros((48, 64), dtype=int), [], RADIUS_M)
+
+    assert truth.images[0].time_s == 2.5
 
 
 def test_ranges_run_from_the_camera_to_the_centre_and_the_nearest_waterline() -> None:
@@ -88,7 +96,7 @@ def test_ranges_run_from_the_camera_to_the_centre_and_the_nearest_waterline() ->
     index[10, 10] = 1
     truth = labels.Labels()
 
-    truth.add(camera(at_m=(0.0, 0.0, 50.0)), index, [target(1)], RADIUS_M)
+    truth.add(camera(at_m=(0.0, 0.0, 50.0)), 0.0, index, [target(1)], RADIUS_M)
 
     found = truth.annotations[0]
     assert (found.range_m, found.waterline_range_m, found.bearing_deg) == (

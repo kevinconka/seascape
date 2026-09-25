@@ -124,7 +124,7 @@
     },
     "Outputs": {
       "additionalProperties": false,
-      "description": "What a render writes.\n\nEvery camera of a listed band is rendered. A png is 8-bit: EO through the exposure\nand the film curve, LWIR auto-contrasted per frame, so a thermal pixel is not a\ntemperature. An exr keeps the radiance, in W m^-2 sr^-1.",
+      "description": "What a render writes.\n\nEvery camera of a listed band is rendered. A png is 8-bit: EO through the exposure\nand the film curve, LWIR auto-contrasted per camera over its frames, so a thermal\npixel is not a temperature. An exr keeps the radiance, in W m^-2 sr^-1.",
       "properties": {
         "bands": {
           "default": [
