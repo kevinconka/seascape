@@ -2,6 +2,7 @@
 
 import math
 
+import cv2
 import numpy as np
 import pytest
 
@@ -22,13 +23,8 @@ def camera(
     """Facing north, then pitched about its x and rolled about its z."""
     f = width / 2 / math.tan(math.radians(hfov_deg) / 2)
     level = np.array([[1.0, 0.0, 0.0], [0.0, 0.0, 1.0], [0.0, -1.0, 0.0]])
-    p, r = math.radians(pitch_deg), math.radians(roll_deg)
-    pitch = np.array(
-        [[1, 0, 0], [0, math.cos(p), -math.sin(p)], [0, math.sin(p), math.cos(p)]]
-    )
-    roll = np.array(
-        [[math.cos(r), -math.sin(r), 0], [math.sin(r), math.cos(r), 0], [0, 0, 1]]
-    )
+    pitch, _ = cv2.Rodrigues(np.array([math.radians(pitch_deg), 0.0, 0.0]))
+    roll, _ = cv2.Rodrigues(np.array([0.0, 0.0, math.radians(roll_deg)]))
     pose = np.eye(4)
     pose[:3, :3], pose[:3, 3] = level @ pitch @ roll, at_m
     return CameraCalibration(
