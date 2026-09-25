@@ -44,7 +44,7 @@
           "title": "Name"
         },
         "hfov_deg": {
-          "description": "Across the image width, portrait or landscape.",
+          "description": "Measured across the image width, even in portrait.",
           "exclusiveMaximum": 180.0,
           "exclusiveMinimum": 0.0,
           "title": "Hfov Deg",
@@ -131,7 +131,7 @@
             "eo",
             "ir"
           ],
-          "description": "A band with no camera is skipped.",
+          "description": "Bands to render; one with no camera is skipped.",
           "items": {
             "$ref": "#/$defs/Band"
           },
@@ -150,7 +150,7 @@
         },
         "exposure_ev": {
           "default": -5.0,
-          "description": "Stops. EO png only.",
+          "description": "Exposure in stops. Applies to EO pngs only.",
           "maximum": 32.0,
           "minimum": -32.0,
           "title": "Exposure Ev",
@@ -233,7 +233,7 @@
           "type": "number"
         },
         "cameras": {
-          "description": "Behind this pod's yaw.",
+          "description": "The cameras in this pod.",
           "items": {
             "$ref": "#/$defs/Camera"
           },
@@ -276,7 +276,7 @@
           "type": "number"
         },
         "pods": {
-          "description": "The enclosures.",
+          "description": "The camera enclosures on the ownship.",
           "items": {
             "$ref": "#/$defs/Pod"
           },

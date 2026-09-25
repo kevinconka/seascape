@@ -61,7 +61,9 @@ class Camera(Model):
         "absent.",
     )
     hfov_deg: float = Field(
-        gt=0.0, lt=180.0, description="Across the image width, portrait or landscape."
+        gt=0.0,
+        lt=180.0,
+        description="Measured across the image width, even in portrait.",
     )
     width_px: int = Field(gt=0, description="Image width.")
     height_px: int = Field(gt=0, description="Image height.")
@@ -88,7 +90,7 @@ class Pod(Model):
     offset_y_m: float = Field(
         default=0.0, description="From midships, positive forward."
     )
-    cameras: list[Camera] = Field(min_length=1, description="Behind this pod's yaw.")
+    cameras: list[Camera] = Field(min_length=1, description="The cameras in this pod.")
 
 
 class Mount(NamedTuple):
@@ -124,7 +126,9 @@ class Rig(Model):
     near_clip_m: float = Field(
         default=5.0, gt=0.0, description="Anything nearer a camera is not rendered."
     )
-    pods: list[Pod] = Field(min_length=1, description="The enclosures.")
+    pods: list[Pod] = Field(
+        min_length=1, description="The camera enclosures on the ownship."
+    )
 
     @property
     def mounts(self) -> list[Mount]:
@@ -309,7 +313,7 @@ class Outputs(Model):
         default=("eo", "ir"),
         min_length=1,
         json_schema_extra={"uniqueItems": True},
-        description="A band with no camera is skipped.",
+        description="Bands to render; one with no camera is skipped.",
     )
     samples: Samples = Field(default_factory=lambda: Samples())
     format: ImageFormat = Field(
@@ -320,7 +324,7 @@ class Outputs(Model):
         default=-5.0,
         ge=-32.0,
         le=32.0,
-        description="Stops. EO png only.",
+        description="Exposure in stops. Applies to EO pngs only.",
     )
 
     @model_validator(mode="after")
