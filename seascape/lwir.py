@@ -37,7 +37,7 @@ that fail silently:
 - Kirchhoff's law, eps = 1 - R. Holds because water is opaque across this band well
   inside any depth the sensor resolves, so there is no transmitted term.
 - Band emissivity is the Planck-weighted mean of the spectral emissivity. Exact only for
-  a flat sensor response; a specific microbolometer wants its own curve here.
+  a flat sensor response.
 """
 
 import functools
@@ -229,7 +229,7 @@ def band_radiance(t_k: float) -> float:
 # np.interp clamps past the ends, so a hull the sun heats past 400 K reads as 400.
 _TB_GRID = np.linspace(200.0, 400.0, 1024)
 # Through band_radiance, not a second copy of its integral: the two must stay
-# inverses, and a microbolometer's spectral response would be swapped in there.
+# inverses.
 _TB_RADIANCE = np.array([band_radiance(t) for t in _TB_GRID])
 
 

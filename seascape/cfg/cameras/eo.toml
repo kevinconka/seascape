@@ -1,4 +1,3 @@
-# Daylight camera.
 kind = "eo"
 hfov_deg = 49.0
 width_px = 3840

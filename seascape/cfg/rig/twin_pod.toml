@@ -1,12 +1,8 @@
 # Two pods on the bridge wings, both forward-facing.
 #
-# Pod axis +-60 deg from the bow; the spec's mounting angle is 58.5.
-#
 # EO: 129 deg per pod, 9 deg overlap. IR: one camera per pod, turned inboard so the
 # pair straddles the bow, 44 deg across with 4 deg overlap.
 # `test_pod_span_and_overlap_measured_from_the_scene` holds these.
-#
-# Headroom above the horizon is half the vertical field minus the pitch.
 #
 # Offsets: bridge-wing tops of the container_ship mesh, measured on the fitted hull.
 
