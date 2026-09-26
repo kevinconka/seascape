@@ -180,6 +180,18 @@
           "default": null,
           "description": "A figure-eight about its pose."
         },
+        "orbit": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Orbit"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Round the ownship."
+        },
         "t_k": {
           "default": 293.0,
           "description": "Shaded hull temperature. IR only.",
@@ -195,6 +207,30 @@
         "bearing_deg"
       ],
       "title": "Object",
+      "type": "object"
+    },
+    "Orbit": {
+      "additionalProperties": false,
+      "description": "Round the ownship's origin clockwise from the hull's bearing, at its range, bow\nalong the circle.\n\nIdentical hulls share the lap evenly, so in a loop each need only reach the next\none's start: `count` of them go `count` times slower.",
+      "properties": {
+        "period_s": {
+          "description": "One full lap.",
+          "exclusiveMinimum": 0.0,
+          "title": "Period S",
+          "type": "number"
+        },
+        "count": {
+          "default": 1,
+          "description": "Hulls spaced evenly on it.",
+          "exclusiveMinimum": 0,
+          "title": "Count",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "period_s"
+      ],
+      "title": "Orbit",
       "type": "object"
     },
     "Outputs": {

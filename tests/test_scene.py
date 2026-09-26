@@ -758,6 +758,27 @@ def test_a_drifting_hull_traces_a_figure_eight_about_its_pose() -> None:
     assert pose.length == pytest.approx(spec.range_m)
 
 
+def test_orbiting_hulls_share_a_lap_clockwise_bow_first() -> None:
+    yachts = (
+        'objects = [{ asset = "yacht", range_m = 200.0, bearing_deg = -90.0,'
+        " orbit = { period_s = 80.0, count = 2 } }]"
+    )
+    scenario = load(DRIFTING, [yachts, "outputs.duration_s = 40", "outputs.fps = 1"])
+    first, second = scene.build(scenario).targets["yacht"]
+    sc = bpy.context.scene
+
+    for frame in (0, 10, 39):
+        sc.frame_set(frame)
+        for hull, start_deg in ((first, -90.0), (second, 90.0)):
+            bearing_deg = start_deg + 360.0 * frame / 80.0
+            bearing = math.radians(bearing_deg)
+            east, north, _ = hull.matrix_world.translation
+            assert (east, north) == pytest.approx(
+                (200.0 * math.sin(bearing), 200.0 * math.cos(bearing)), abs=1e-3
+            )
+            assert hull.rotation_euler.z == pytest.approx(scene._yaw(bearing_deg + 90))
+
+
 def keyed() -> Iterator[tuple[str, np.ndarray]]:
     """Every keyed channel in the scene, its values frame by frame."""
     for action in bpy.data.actions:
