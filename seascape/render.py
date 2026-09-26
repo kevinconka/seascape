@@ -108,6 +108,12 @@ def _targets(built: scene.Built) -> list[labels.Target]:
     ]
 
 
+def _write_truth(
+    into: Path, cameras: list[CameraCalibration], truth: labels.Labels
+) -> list[Path]:
+    return [Calibration(cameras=cameras).write(into), truth.write(into)]
+
+
 def _commit() -> str | None:
     """The source checkout's commit, or None for an installed package."""
     root = Path(__file__).parents[1]
@@ -183,10 +189,11 @@ def render(scenario: Scenario, into: Path) -> list[Path]:
                     sc.render.filepath = str(into / name)
                     index_output.file_name = f"{mount.name}."
                     bpy.ops.render.render(write_still=True)
-                    file_name = f"{name}.{outputs.format}"
+                    written.append(into / f"{name}.{outputs.format}")
+                    # What exists on disk: an 8-bit ir frame waits for the band's span.
+                    file_name = f"{name}.{'exr' if thermal else outputs.format}"
                     if thermal:
-                        exrs.setdefault(mount.name, []).append(into / f"{name}.exr")
-                    written.append(into / file_name)
+                        exrs.setdefault(mount.name, []).append(into / file_name)
                     camera = scene.calibrate(built, mount, file_name)
                     cameras.append(camera)
                     index = _pixels(passes / f"{mount.name}.index.exr")[::-1, :, 0]
@@ -194,14 +201,18 @@ def render(scenario: Scenario, into: Path) -> list[Path]:
                         camera, time_s, np.rint(index).astype(int), targets, radius_m
                     )
                 # Every frame, so a render that dies keeps what it wrote.
-                Calibration(cameras=cameras).write(into)
-                truth.write(into)
+                _write_truth(into, cameras, truth)
             for frames in exrs.values():
                 _thermal_images(frames, outputs.format)
+            if thermal:
+                suffix = f".{outputs.format}"
+                for camera in cameras:
+                    camera.image = str(Path(camera.image).with_suffix(suffix))
+                for image in truth.images:
+                    image.file_name = str(Path(image.file_name).with_suffix(suffix))
+                _write_truth(into, cameras, truth)
     if not written:
         raise ValueError(
             f"the rig has no camera in any of {outputs.bands}: nothing to render"
         )
-    written.append(Calibration(cameras=cameras).write(into))
-    written.append(truth.write(into))
-    return written
+    return written + _write_truth(into, cameras, truth)

@@ -364,3 +364,39 @@ def test_a_render_that_dies_keeps_the_truth_of_every_frame_it_wrote(
     assert [image.time_s for image in truth.images] == [0.0, 1.0]
     assert truth.info["scenario"] == scenario.model_dump(mode="json")
     assert len(Calibration.read(tmp_path).cameras) == 2
+
+
+@pytest.mark.render
+def test_an_ir_render_that_dies_names_the_frames_on_disk(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The 8-bit ir frames wait for the band's span, so until then the exrs are what
+    exists."""
+    scenario = load(
+        UNDERWAY,
+        [
+            "outputs.duration_s = 3.0",
+            "outputs.fps = 1",
+            'outputs.bands = ["ir"]',
+            "outputs.samples.ir = 2",
+            'rig.pods = [{ name = "bow", yaw_deg = 0.0, cameras = ['
+            '{ kind = "ir", hfov_deg = 24.0, width_px = 80, height_px = 64 }] }]',
+        ],
+    )
+    real, calls = bpy.ops.render.render, []
+
+    def dies_on_the_third(**kwargs: object) -> None:
+        calls.append(None)
+        if len(calls) == 3:
+            raise RuntimeError("killed")
+        real(**kwargs)
+
+    monkeypatch.setattr(bpy.ops, "render", SimpleNamespace(render=dies_on_the_third))
+    with pytest.raises(RuntimeError, match="killed"):
+        render.render(scenario, tmp_path)
+
+    truth = labels.Labels.model_validate_json((tmp_path / labels.FILENAME).read_text())
+    named = [image.file_name for image in truth.images]
+    assert [Path(name).suffix for name in named] == [".exr", ".exr"]
+    assert all((tmp_path / name).exists() for name in named)
+    assert [c.image for c in Calibration.read(tmp_path).cameras] == named
