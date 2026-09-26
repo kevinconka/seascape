@@ -727,8 +727,14 @@ def _import(name: str, band: Band) -> list[bpy.types.Object]:
     An asset arrives in its author's units, off-origin, in many parts.
     """
     before = set(bpy.data.objects)
-    bpy.ops.import_scene.fbx(filepath=str(fetch(name)))
+    path = fetch(name)
+    importer = {".fbx": bpy.ops.import_scene.fbx, ".glb": bpy.ops.import_scene.gltf}
+    importer[path.suffix](filepath=str(path))
     imported = set(bpy.data.objects) - before
+    # A Poly glTF brings its viewer's camera and lights, which would light the scene.
+    for obj in [o for o in imported if o.type in {"CAMERA", "LIGHT"}]:
+        imported.remove(obj)
+        bpy.data.objects.remove(obj)
     # Measure everything, move the roots. An FBX keeps meshes under empties, and
     # measuring only the roots would leave them out of the fit.
     parts = [o for o in imported if o.parent is None]

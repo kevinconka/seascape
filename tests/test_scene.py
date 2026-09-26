@@ -315,6 +315,13 @@ def test_a_hull_is_fitted_along_its_own_bow_axis(bow_deg, bow_corner) -> None:
     assert (fit @ long).y == pytest.approx(100.0), "and the bow ends up at +Y"
 
 
+def test_a_glb_asset_leaves_its_lights_behind() -> None:
+    yacht = 'objects = [{ asset = "yacht", range_m = 200.0, bearing_deg = 0.0 }]'
+    scene.build(load(BASELINE, [yacht]), "eo")
+
+    assert not [o for o in bpy.data.objects if o.type == "LIGHT"]
+
+
 @pytest.mark.parametrize("band", ["eo", "ir"])
 def test_the_active_camera_belongs_to_the_band_built(band) -> None:
     """Opened on the rig's first camera, an IR build could render through EO optics
