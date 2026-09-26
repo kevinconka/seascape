@@ -331,3 +331,36 @@ def test_a_sequence_writes_each_camera_a_folder_of_frames(tmp_path: Path) -> Non
         assert left == sorted(left, reverse=True), mount.name
         assert left[0] > left[-1], mount.name
     assert not list(tmp_path.rglob("*.exr"))
+
+
+@pytest.mark.render
+def test_a_render_that_dies_keeps_the_truth_of_every_frame_it_wrote(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    scenario = load(
+        UNDERWAY,
+        [
+            "outputs.duration_s = 3.0",
+            "outputs.fps = 1",
+            'outputs.bands = ["eo"]',
+            "outputs.samples.eo = 2",
+            'rig.pods = [{ name = "bow", yaw_deg = 0.0, cameras = ['
+            '{ kind = "eo", hfov_deg = 45.0, width_px = 96, height_px = 54 }] }]',
+        ],
+    )
+    real, calls = bpy.ops.render.render, []
+
+    def dies_on_the_third(**kwargs: object) -> None:
+        calls.append(kwargs)
+        if len(calls) == 3:
+            raise RuntimeError("killed")
+        real(**kwargs)
+
+    monkeypatch.setattr(bpy.ops, "render", SimpleNamespace(render=dies_on_the_third))
+    with pytest.raises(RuntimeError, match="killed"):
+        render.render(scenario, tmp_path)
+
+    truth = labels.Labels.model_validate_json((tmp_path / labels.FILENAME).read_text())
+    assert [image.time_s for image in truth.images] == [0.0, 1.0]
+    assert truth.info["scenario"] == scenario.model_dump(mode="json")
+    assert len(Calibration.read(tmp_path).cameras) == 2

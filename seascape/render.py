@@ -164,6 +164,8 @@ def render(scenario: Scenario, into: Path) -> list[Path]:
                 continue
             thermal = band == "ir" and outputs.format != "exr"
             built = scene.build(scenario, band)
+            # After a build: the first one picks the device.
+            truth.info = truth.info or _info(scenario)
             index_output = _index_output(passes)
             sc = bpy.context.scene
             exrs: dict[str, list[Path]] = {}
@@ -191,6 +193,9 @@ def render(scenario: Scenario, into: Path) -> list[Path]:
                     truth.add(
                         camera, time_s, np.rint(index).astype(int), targets, radius_m
                     )
+                # Every frame, so a render that dies keeps the truth of what it wrote.
+                Calibration(cameras=cameras).write(into)
+                truth.write(into)
             for frames in exrs.values():
                 _thermal_images(frames, outputs.format)
     if not written:
@@ -198,7 +203,5 @@ def render(scenario: Scenario, into: Path) -> list[Path]:
             f"the rig has no camera in any of {outputs.bands}: nothing to render"
         )
     written.append(Calibration(cameras=cameras).write(into))
-    # After the builds: the first one picks the device.
-    truth.info = _info(scenario)
     written.append(truth.write(into))
     return written

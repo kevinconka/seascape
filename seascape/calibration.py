@@ -51,8 +51,10 @@ class Calibration(_Record):
 
     def write(self, folder: Path) -> Path:
         path = folder / FILENAME
-        path.write_text(self.model_dump_json(indent=2) + "\n")
-        return path
+        # Through a rename, so a process killed mid-write leaves the last whole file.
+        partial = path.with_name(f"{path.name}.partial")
+        partial.write_text(self.model_dump_json(indent=2) + "\n")
+        return partial.replace(path)
 
     @classmethod
     def read(cls, folder: Path) -> "Calibration":
