@@ -723,7 +723,6 @@ class TestSeaEvolves:
 
 
 def test_a_drifting_hull_traces_a_figure_eight_about_its_pose() -> None:
-    """Across its heading once a period and along it twice, the heading held."""
     scenario = load(DRIFTING, ["outputs.fps = 8"])
     (spec,) = scenario.objects
     assert spec.drift is not None

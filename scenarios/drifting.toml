@@ -19,7 +19,6 @@ preset = "container_ship"
 range_m = 2000.0
 bearing_deg = 8.0
 heading_deg = 250.0
-# Fishtailing at anchor, inside both frames throughout.
 drift = { sway_m = 40.0, surge_m = 10.0, period_s = 30.0 }
 
 [outputs]

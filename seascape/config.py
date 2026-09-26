@@ -364,8 +364,8 @@ class Outputs(Model):
     fps: int = Field(default=10, gt=0, description="Frames per second of a sequence.")
     loop: bool = Field(
         default=False,
-        description="Makes the clip repeat seamlessly. Each period is rounded to a "
-        "whole fraction of duration_s.",
+        description="Repeats seamlessly: each period rounds to a whole fraction of "
+        "duration_s.",
     )
 
     @property
@@ -419,11 +419,10 @@ class Scenario(Model):
                     f"{spec.asset} has speed_mps > 0, and a straight run never comes "
                     "back to close a loop: give it a drift instead"
                 )
-        ownship = self.ownship
         periods = [
-            ("ownship.roll", ownship.roll),
-            ("ownship.pitch", ownship.pitch),
-            ("ownship.heave", ownship.heave),
+            ("ownship.roll", self.ownship.roll),
+            ("ownship.pitch", self.ownship.pitch),
+            ("ownship.heave", self.ownship.heave),
             *((f"{spec.asset} drift", spec.drift) for spec in self.objects),
             ("targets.drift", self.targets.drift if self.targets else None),
         ]

@@ -82,8 +82,8 @@ NOISE_ROUGHNESS = 0.5
 # spectrum.
 CAPILLARY_WAVELENGTH_M = 0.0173
 
-# RMS gradient of the noise's Fac per noise unit in x or y, at 2 cm sampling: finer
-# sampling finds more. Blender scales 4D noise down from 3D.
+# RMS gradient of the noise's Fac per noise unit, at 2 cm sampling: finer sampling
+# finds more.
 NOISE_SLOPE_PER_UNIT = 0.55
 NOISE_SLOPE_PER_UNIT_4D = 0.48
 
@@ -833,7 +833,7 @@ def _pose(
     outputs: Outputs,
 ) -> None:
     """Put a hull on the sea at a bearing and range at t = 0, underway along its
-    heading and drifting about it.
+    heading and drifting about that pose.
 
     A hull left at z = 0 flies above the curved sea.
 

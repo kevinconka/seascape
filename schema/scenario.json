@@ -246,7 +246,7 @@
         },
         "loop": {
           "default": false,
-          "description": "Makes the clip repeat seamlessly. Each period is rounded to a whole fraction of duration_s.",
+          "description": "Repeats seamlessly: each period rounds to a whole fraction of duration_s.",
           "title": "Loop",
           "type": "boolean"
         }
