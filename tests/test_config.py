@@ -362,3 +362,11 @@ def test_sea_temperature_bounds_are_the_tables_span() -> None:
     bounds = Sea.model_json_schema()["properties"]["t_sea_k"]
     _, temperatures, _ = lwir._table()
     assert (bounds["minimum"], bounds["maximum"]) == (temperatures[0], temperatures[-1])
+
+
+@pytest.mark.parametrize(
+    ("duration_s", "fps", "times_s"),
+    [(0.0, 10, [0.0]), (0.3, 10, [0.0, 0.1, 0.2]), (1.0, 2, [0.0, 0.5])],
+)
+def test_a_frame_is_at_its_index_over_the_rate(duration_s, fps, times_s) -> None:
+    assert Outputs(duration_s=duration_s, fps=fps).times_s == pytest.approx(times_s)

@@ -155,6 +155,20 @@
           "minimum": -32.0,
           "title": "Exposure Ev",
           "type": "number"
+        },
+        "duration_s": {
+          "default": 0.0,
+          "description": "0 is a still.",
+          "minimum": 0.0,
+          "title": "Duration S",
+          "type": "number"
+        },
+        "fps": {
+          "default": 10,
+          "description": "Frames per second of a sequence.",
+          "exclusiveMinimum": 0,
+          "title": "Fps",
+          "type": "integer"
         }
       },
       "title": "Outputs",

@@ -326,6 +326,12 @@ class Outputs(Model):
         le=32.0,
         description="Exposure in stops. Applies to EO pngs only.",
     )
+    duration_s: float = Field(default=0.0, ge=0.0, description="0 is a still.")
+    fps: int = Field(default=10, gt=0, description="Frames per second of a sequence.")
+
+    @property
+    def times_s(self) -> list[float]:
+        return [f / self.fps for f in range(max(1, round(self.duration_s * self.fps)))]
 
     @model_validator(mode="after")
     def _bands_are_distinct(self) -> "Outputs":

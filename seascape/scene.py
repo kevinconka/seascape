@@ -20,7 +20,7 @@ roughness^2 convention Cycles follows.
 """
 
 import math
-from collections.abc import Iterable
+from collections.abc import Callable, Iterable, Sequence
 from dataclasses import dataclass
 from itertools import chain
 from typing import NamedTuple
@@ -192,6 +192,24 @@ def _place(obj: bpy.types.Object, east_m: float, north_m: float, up_m: float) ->
     """
     obj.rotation_mode = "XYZ"
     obj.location = (east_m, north_m, up_m)
+
+
+def _animate(
+    owner: bpy.types.bpy_struct,
+    data_path: str,
+    times_s: Sequence[float],
+    value_at: Callable[[float], float | tuple[float, ...]],
+    index: int = -1,
+) -> None:
+    """A key per frame, not an extrapolated curve: on the curved sea a hull follows
+    neither a line nor a sine."""
+    for frame, t in enumerate(times_s):
+        if index < 0:
+            setattr(owner, data_path, value_at(t))
+        else:
+            getattr(owner, data_path)[index] = value_at(t)
+        if len(times_s) > 1:
+            owner.keyframe_insert(data_path, index=index, frame=frame)
 
 
 def _sky(sky: Sky, band: Band) -> bpy.types.World:
@@ -866,6 +884,9 @@ def _output(outputs: Outputs, band: Band) -> None:
     file_format, depth = _FORMATS[outputs.format if band == "eo" else "exr"]
     sc.render.image_settings.file_format = file_format
     sc.render.image_settings.color_depth = depth
+    sc.render.use_persistent_data = True
+    # A fixed seed would hold the sample noise still while the scene moves under it.
+    sc.cycles.use_animated_seed = True
 
 
 def _viewport(near_m: float, far_m: float) -> None:
@@ -915,6 +936,11 @@ def build(scenario: Scenario, band: Band = "eo") -> Built:
         first.camera.height_px,
     )
     _viewport(scenario.rig.near_clip_m, far_m)
+    # After the last import, which sets fps and fps_base to the file's own. The
+    # factory scene starts at frame 1.
+    sc.frame_start = sc.frame_current = 0
+    sc.frame_end = len(scenario.outputs.times_s) - 1
+    sc.render.fps, sc.render.fps_base = scenario.outputs.fps, 1.0
     # Until the depsgraph runs, every child still reports its pre-parenting
     # matrix_world, so anything measuring the scene reads the wrong place.
     bpy.context.view_layer.update()

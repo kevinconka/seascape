@@ -594,3 +594,30 @@ class TestIrBand:
         view = bpy.context.scene.view_settings
         assert (view.view_transform, view.look) == ("Standard", "None")
         assert (view.exposure, view.gamma) == (0.0, 1.0)
+
+
+class TestAnimate:
+    @pytest.fixture
+    def empty(self) -> bpy.types.Object:
+        scene.build(load(BASELINE, ["outputs.duration_s = 0.3"]))
+        obj = bpy.data.objects.new("probe", None)
+        bpy.context.scene.collection.objects.link(obj)
+        return obj
+
+    def test_every_frame_holds_the_value_at_its_time(self, empty) -> None:
+        sc = bpy.context.scene
+        scene._animate(empty, "location", [0.0, 0.1, 0.2], lambda t: 10 * t, index=0)
+        assert (sc.frame_start, sc.frame_end, sc.render.fps, sc.render.fps_base) == (
+            0,
+            2,
+            10,
+            1.0,
+        )
+        for frame, x in enumerate([0.0, 1.0, 2.0]):
+            sc.frame_set(frame)
+            assert empty.matrix_world.translation.x == pytest.approx(x)
+
+    def test_a_still_is_set_and_not_keyed(self, empty) -> None:
+        scene._animate(empty, "location", [0.0], lambda t: (1.0, 2.0, 3.0))
+        assert tuple(empty.location) == (1.0, 2.0, 3.0)
+        assert empty.animation_data is None
