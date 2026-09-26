@@ -243,6 +243,20 @@ class Object(Model):
     t_k: float = Field(default=293.0, ge=250.0, le=400.0, description=_T_HULL)
 
 
+class Swing(Model):
+    """A sinusoid about the mean attitude, starting at the mean."""
+
+    amplitude_deg: float = Field(ge=0.0, lt=90.0, description="Peak, either way.")
+    period_s: float = Field(gt=0.0, description="One full cycle.")
+
+
+class Heave(Model):
+    """A sinusoid about the waterline, starting at it."""
+
+    amplitude_m: float = Field(ge=0.0, description="Peak, either way.")
+    period_s: float = Field(gt=0.0, description="One full cycle.")
+
+
 class Ownship(Model):
     """The vessel the rig is bolted to, rolling and pitching about its origin at the
     waterline. Without an asset it is the attitude alone."""
@@ -255,6 +269,11 @@ class Ownship(Model):
     pitch_deg: float = Field(
         default=0.0, gt=-90.0, lt=90.0, description="Positive is bow up."
     )
+    # ponytail: one sine per axis, a sum over a wave spectrum when irregular motion
+    # matters.
+    roll: Swing | None = Field(default=None, description="About roll_deg.")
+    pitch: Swing | None = Field(default=None, description="About pitch_deg.")
+    heave: Heave | None = Field(default=None, description="About the waterline.")
 
 
 class Targets(Model):

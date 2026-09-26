@@ -212,6 +212,10 @@ def _animate(
             owner.keyframe_insert(data_path, index=index, frame=frame)
 
 
+def _sine(mean: float, amplitude: float, period_s: float) -> Callable[[float], float]:
+    return lambda t: mean + amplitude * math.sin(2.0 * math.pi * t / period_s)
+
+
 def _sky(sky: Sky, band: Band) -> bpy.types.World:
     world = bpy.data.worlds.new("sky")
     tree = world.node_tree
@@ -753,6 +757,7 @@ def _ownship(
     sky: Sky,
     rig: bpy.types.Object,
     hulls: dict[str, list[bpy.types.Object]],
+    times_s: Sequence[float],
 ) -> bpy.types.Object:
     """At the origin, bow to +Y, carrying the rig: its offsets are in this frame."""
     if ownship.asset is None:
@@ -770,6 +775,20 @@ def _ownship(
         math.radians(ownship.roll_deg),
         0.0,
     )
+    for index, mean_deg, swing in (
+        (0, ownship.pitch_deg, ownship.pitch),
+        (1, ownship.roll_deg, ownship.roll),
+    ):
+        if swing is not None:
+            value_at = _sine(
+                math.radians(mean_deg),
+                math.radians(swing.amplitude_deg),
+                swing.period_s,
+            )
+            _animate(anchor, "rotation_euler", times_s, value_at, index)
+    if (heave := ownship.heave) is not None:
+        value_at = _sine(anchor.location.z, heave.amplitude_m, heave.period_s)
+        _animate(anchor, "location", times_s, value_at, index=2)
     return anchor
 
 
@@ -940,9 +959,9 @@ def build(scenario: Scenario, band: Band = "eo") -> Built:
     _sea(scenario.sea, scenario.seed, reach_m, band)
     rig = _rig(scenario.rig, far_m)
     hulls: dict[str, list[bpy.types.Object]] = {}
-    vessel = _ownship(scenario.ownship, band, scenario.sky, rig.root, hulls)
-    radius_m = earth_radius_m(scenario.sea.refraction_k)
     times_s = scenario.outputs.times_s
+    vessel = _ownship(scenario.ownship, band, scenario.sky, rig.root, hulls, times_s)
+    radius_m = earth_radius_m(scenario.sea.refraction_k)
     targets: dict[str, list[bpy.types.Object]] = {}
     for spec in scenario.objects:
         anchor = _object(spec, band, radius_m, scenario.sky, hulls, times_s)
