@@ -328,7 +328,6 @@ class Samples(Model):
     and drop the band left out.
     """
 
-    # ir is not denoised, so it needs more.
     eo: int = Field(default=16, gt=0, description="Per pixel, for EO frames.")
     ir: int = Field(default=64, gt=0, description="Per pixel, for IR frames.")
 

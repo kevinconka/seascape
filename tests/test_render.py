@@ -175,11 +175,11 @@ class TestSettings:
 
         assert sc.render.image_settings.color_depth == "32"
 
-    @pytest.mark.parametrize(("band", "denoised"), [("eo", True), ("ir", False)])
-    def test_only_eo_is_denoised(self, band: Band, denoised: bool) -> None:
+    @pytest.mark.parametrize("band", ["eo", "ir"])
+    def test_no_band_is_denoised(self, band: Band) -> None:
         sc = built(band)
 
-        assert sc.cycles.use_denoising is denoised
+        assert sc.cycles.use_denoising is False
 
     @pytest.mark.parametrize("band", get_args(Band.__value__))
     def test_both_bands_render_in_cycles(self, band: Band) -> None:
