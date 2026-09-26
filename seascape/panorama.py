@@ -156,7 +156,7 @@ def stitch(
     warper = cv2.PyRotationWarper(kind, scale)
 
     warped = []
-    for camera, (k, r) in zip(cameras, poses, strict=True):
+    for camera, (k_full, r) in zip(cameras, poses, strict=True):
         path = folder / camera.image
         image = cv2.imread(str(path), cv2.IMREAD_COLOR)
         if image is None:
@@ -164,7 +164,7 @@ def stitch(
                 f"cannot read {path}: panorama takes the 8-bit frames that "
                 'outputs.format = "png" or "jpg" writes'
             )
-        image, k = _shrink(image, k, scale / float(k[0, 0]))
+        image, k = _shrink(image, k_full, scale / float(k_full[0, 0]))
         corner, pixels = warper.warp(image, k, r, cv2.INTER_LINEAR, cv2.BORDER_REFLECT)
         mask = np.full(image.shape[:2], 255, np.uint8)
         _, mask = warper.warp(mask, k, r, cv2.INTER_NEAREST, cv2.BORDER_CONSTANT)

@@ -348,7 +348,7 @@ class Outputs(Model):
         json_schema_extra={"uniqueItems": True},
         description="Bands to render; one with no camera is skipped.",
     )
-    samples: Samples = Field(default_factory=lambda: Samples())
+    samples: Samples = Field(default_factory=Samples)
     format: ImageFormat = Field(
         default="jpg",
         description="jpg to look at, png lossless, exr to keep the radiance.",

@@ -149,6 +149,22 @@ def _info(scenario: Scenario) -> dict[str, Any]:
     }
 
 
+def _stretch(
+    exrs: dict[str, list[Path]],
+    fmt: ImageFormat,
+    cameras: list[CameraCalibration],
+    truth: labels.Labels,
+) -> None:
+    """Turn each camera's ir exrs into `fmt` over one span, and rename them."""
+    for frames in exrs.values():
+        _thermal_images(frames, fmt)
+    suffix = f".{fmt}"
+    for camera in cameras:
+        camera.image = str(Path(camera.image).with_suffix(suffix))
+    for image in truth.images:
+        image.file_name = str(Path(image.file_name).with_suffix(suffix))
+
+
 def render(scenario: Scenario, into: Path) -> list[Path]:
     """Write one image per camera and frame into `into`, their calibration and their
     labels. A sequence puts each camera's frames in a folder of its own."""
@@ -202,14 +218,8 @@ def render(scenario: Scenario, into: Path) -> list[Path]:
                     )
                 # Every frame, so a render that dies keeps what it wrote.
                 _write_truth(into, cameras, truth)
-            for frames in exrs.values():
-                _thermal_images(frames, outputs.format)
             if thermal:
-                suffix = f".{outputs.format}"
-                for camera in cameras:
-                    camera.image = str(Path(camera.image).with_suffix(suffix))
-                for image in truth.images:
-                    image.file_name = str(Path(image.file_name).with_suffix(suffix))
+                _stretch(exrs, outputs.format, cameras, truth)
                 _write_truth(into, cameras, truth)
     if not written:
         raise ValueError(

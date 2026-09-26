@@ -6,7 +6,7 @@ import sys
 from pathlib import Path
 from typing import get_args
 
-from seascape import panorama
+from seascape import montage, panorama
 from seascape.config import Band, Scenario, load
 
 
@@ -41,8 +41,6 @@ def _render(scenario_path: Path, output: Path | None, overrides: list[str]) -> N
 
 
 def _montage(scenario_path: Path, output: Path | None, overrides: list[str]) -> None:
-    from seascape import montage
-
     scenario = load(scenario_path, overrides)
     into = output or scenario_path.with_suffix("")
     print(montage.compose(scenario, into))
