@@ -16,11 +16,19 @@ select = [
     "RUF", # ruff-specific rules
     "C90", # mccabe
     "PL",  # pylint
+    "TID", # flake8-tidy-imports
 ]
 ignore = [
-    "PLC0415", # imports deferred so `schema` and `--help` skip loading bpy
-    "PLR2004", # literals sit beside the source they cite
+    "PLR2004", # a literal sits beside the source it cites
 ]
+
+[lint.per-file-ignores]
+"seascape/{render,scene,video}.py" = ["TID253"]
+"tests/**" = ["TID253"]
+
+[lint.flake8-tidy-imports]
+# Imported where used, so `schema` and a failed validation skip loading bpy.
+banned-module-level-imports = ["bpy", "seascape.render", "seascape.scene", "seascape.video"]
 
 [lint.pylint]
 max-args = 8

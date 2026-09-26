@@ -8,7 +8,7 @@ import bpy
 import numpy as np
 import pytest
 
-from seascape import labels, render, scene
+from seascape import labels, lwir, render, scene
 from seascape.calibration import Calibration
 from seascape.config import Band, ImageFormat, load
 
@@ -56,8 +56,6 @@ class TestThermalImage:
     """
 
     def test_the_frame_is_stretched_to_the_full_range(self, tmp_path: Path) -> None:
-        from seascape import lwir
-
         exr = exr_of(tmp_path, [lwir.band_radiance(t) for t in (272.0, 295.0)])
         render._thermal_images([exr], "png")
         png = exr.with_suffix(".png")
@@ -67,8 +65,6 @@ class TestThermalImage:
 
     def test_the_middle_temperature_is_mid_grey(self, tmp_path: Path) -> None:
         """Catches an sRGB encode, which puts 0.5 at 0.74."""
-        from seascape import lwir
-
         exr = exr_of(tmp_path, [lwir.band_radiance(t) for t in (270.0, 285.0, 300.0)])
         render._thermal_images([exr], "png")
         png = exr.with_suffix(".png")
@@ -76,8 +72,6 @@ class TestThermalImage:
 
     def test_a_target_is_not_flattened_to_white(self, tmp_path: Path) -> None:
         """A percentile stretch would trim the few rows a distant hull occupies."""
-        from seascape import lwir
-
         sea = [lwir.band_radiance(285.0)] * 40
         exr = exr_of(tmp_path, [*sea, lwir.band_radiance(300.0)])
         render._thermal_images([exr], "png")
@@ -89,30 +83,22 @@ class TestThermalImage:
     def test_a_frame_of_one_temperature_does_not_divide_by_zero(
         self, tmp_path: Path
     ) -> None:
-        from seascape import lwir
-
         exr = exr_of(tmp_path, [lwir.band_radiance(290.0)] * 4)
         render._thermal_images([exr], "png")
         png = exr.with_suffix(".png")
         assert np.isfinite(grey_of(png)).all()
 
     def test_a_jpg_is_the_same_grey(self, tmp_path: Path) -> None:
-        from seascape import lwir
-
         exr = exr_of(tmp_path, [lwir.band_radiance(t) for t in (270.0, 285.0, 300.0)])
         render._thermal_images([exr], "jpg")
         assert grey_of(exr.with_suffix(".jpg")) == pytest.approx([0, 0.5, 1], abs=0.02)
 
     def test_the_float_render_is_removed_on_success(self, tmp_path: Path) -> None:
-        from seascape import lwir
-
         exr = exr_of(tmp_path, [lwir.band_radiance(285.0), lwir.band_radiance(295.0)])
         render._thermal_images([exr], "png")
         assert not exr.exists()
 
     def test_a_sequence_shares_one_span(self, tmp_path: Path) -> None:
-        from seascape import lwir
-
         cold, warm = (
             exr_of(tmp_path, [lwir.band_radiance(t) for t in span], name=name)
             for name, span in (("cold", (280.0, 290.0)), ("warm", (290.0, 300.0)))
@@ -132,8 +118,6 @@ class TestThermalImage:
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         """A failed conversion must not throw the render away."""
-        from seascape import lwir
-
         exr = exr_of(tmp_path, [lwir.band_radiance(285.0)])
         before = len(bpy.data.images)
         monkeypatch.setattr(render.lwir, "brightness_temperature", _raise)
