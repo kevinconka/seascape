@@ -966,10 +966,8 @@ def _output(outputs: Outputs, band: Band) -> None:
     sc.render.engine = "CYCLES"
     sc.cycles.device = "GPU" if _enable_gpu() else "CPU"
     sc.cycles.samples = getattr(outputs.samples, band)
-    # OIDN is on by default and is a picture filter: it breaks the R=G=B that the ir
-    # png reads.
-    sc.cycles.use_denoising = band == "eo"
-    sc.cycles.denoising_quality = "FAST"
+    # On by default. OIDN breaks the ir frame's R=G=B and blurs sub-pixel waves.
+    sc.cycles.use_denoising = False
     view = sc.view_settings
     if band == "eo":
         view.exposure = outputs.exposure_ev
