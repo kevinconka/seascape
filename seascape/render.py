@@ -1,8 +1,8 @@
 """Render the cameras a scenario asks for: one image each, per band and frame.
 
 EO reaches 8 bits through the exposure and Blender's film curve. LWIR cannot: its
-pixels are radiance in W m^-2 sr^-1, which Blender would clip to white, so an ir png
-is rendered float and stretched here from the coldest pixel a camera saw to its
+pixels are radiance in W m^-2 sr^-1, which Blender would clip to white, so an 8-bit ir
+frame is rendered float and stretched here from the coldest pixel a camera saw to its
 hottest.
 """
 
@@ -19,7 +19,7 @@ import numpy as np
 
 from seascape import labels, lwir, scene
 from seascape.calibration import Calibration, CameraCalibration
-from seascape.config import Scenario
+from seascape.config import ImageFormat, Scenario
 
 
 def _pixels(path: Path) -> np.ndarray:
@@ -38,9 +38,8 @@ def _temperatures_k(exr: Path) -> np.ndarray:
     return lwir.brightness_temperature(_pixels(exr)[..., 0])
 
 
-def _thermal_pngs(exrs: Sequence[Path]) -> None:
-    """Rewrite float LWIR renders as 8-bit grey pngs beside them, and delete the
-    exrs.
+def _thermal_images(exrs: Sequence[Path], fmt: ImageFormat) -> None:
+    """Rewrite float LWIR renders as 8-bit grey `fmt` beside them, and delete the exrs.
 
     One span for all, so a sequence does not flicker.
     """
@@ -64,9 +63,9 @@ def _thermal_pngs(exrs: Sequence[Path]) -> None:
             out.pixels.foreach_set(
                 np.column_stack([grey, grey, grey, np.ones_like(grey)]).ravel()
             )
-            out.file_format = "PNG"
-            out.filepath_raw = str(exr.with_suffix(".png"))
-            out.save()
+            out.file_format = scene.FORMATS[fmt][0]
+            out.filepath_raw = str(exr.with_suffix(f".{fmt}"))
+            out.save(quality=scene.JPEG_QUALITY)
         finally:
             bpy.data.images.remove(out)
     # Last, so a failure keeps every exr for a retry without re-rendering.
@@ -163,7 +162,7 @@ def render(scenario: Scenario, into: Path) -> list[Path]:
             mounts = [m for m in scenario.rig.mounts if m.camera.kind == band]
             if not mounts:
                 continue
-            thermal_png = band == "ir" and outputs.format == "png"
+            thermal = band == "ir" and outputs.format != "exr"
             built = scene.build(scenario, band)
             index_output = _index_output(passes)
             sc = bpy.context.scene
@@ -183,7 +182,7 @@ def render(scenario: Scenario, into: Path) -> list[Path]:
                     index_output.file_name = f"{mount.name}."
                     bpy.ops.render.render(write_still=True)
                     file_name = f"{name}.{outputs.format}"
-                    if thermal_png:
+                    if thermal:
                         exrs.setdefault(mount.name, []).append(into / f"{name}.exr")
                     written.append(into / file_name)
                     camera = scene.calibrate(built, mount, file_name)
@@ -193,7 +192,7 @@ def render(scenario: Scenario, into: Path) -> list[Path]:
                         camera, time_s, np.rint(index).astype(int), targets, radius_m
                     )
             for frames in exrs.values():
-                _thermal_pngs(frames)
+                _thermal_images(frames, outputs.format)
     if not written:
         raise ValueError(
             f"the rig has no camera in any of {outputs.bands}: nothing to render"

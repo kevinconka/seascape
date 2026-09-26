@@ -1,4 +1,4 @@
-"""Render settings, the thermal png, and the object-index pass."""
+"""Render settings, the thermal image, and the object-index pass."""
 
 from pathlib import Path
 from types import SimpleNamespace
@@ -50,7 +50,7 @@ def grey_of(png: Path) -> np.ndarray:
     return buffer.reshape(height, width, 4)[:, 0, 0]
 
 
-class TestThermalPng:
+class TestThermalImage:
     """An inverted, flipped or sRGB-encoded frame is still a plausible-looking picture,
     so only the numbers catch it.
     """
@@ -59,7 +59,7 @@ class TestThermalPng:
         from seascape import lwir
 
         exr = exr_of(tmp_path, [lwir.band_radiance(t) for t in (272.0, 295.0)])
-        render._thermal_pngs([exr])
+        render._thermal_images([exr], "png")
         png = exr.with_suffix(".png")
         low, high = grey_of(png)
         assert low == pytest.approx(0.0, abs=0.01)
@@ -70,7 +70,7 @@ class TestThermalPng:
         from seascape import lwir
 
         exr = exr_of(tmp_path, [lwir.band_radiance(t) for t in (270.0, 285.0, 300.0)])
-        render._thermal_pngs([exr])
+        render._thermal_images([exr], "png")
         png = exr.with_suffix(".png")
         assert grey_of(png)[1] == pytest.approx(0.5, abs=0.01)
 
@@ -80,7 +80,7 @@ class TestThermalPng:
 
         sea = [lwir.band_radiance(285.0)] * 40
         exr = exr_of(tmp_path, [*sea, lwir.band_radiance(300.0)])
-        render._thermal_pngs([exr])
+        render._thermal_images([exr], "png")
         png = exr.with_suffix(".png")
         grey = grey_of(png)
         assert grey[-1] == pytest.approx(1.0, abs=0.01)  # the hull
@@ -92,15 +92,22 @@ class TestThermalPng:
         from seascape import lwir
 
         exr = exr_of(tmp_path, [lwir.band_radiance(290.0)] * 4)
-        render._thermal_pngs([exr])
+        render._thermal_images([exr], "png")
         png = exr.with_suffix(".png")
         assert np.isfinite(grey_of(png)).all()
+
+    def test_a_jpg_is_the_same_grey(self, tmp_path: Path) -> None:
+        from seascape import lwir
+
+        exr = exr_of(tmp_path, [lwir.band_radiance(t) for t in (270.0, 285.0, 300.0)])
+        render._thermal_images([exr], "jpg")
+        assert grey_of(exr.with_suffix(".jpg")) == pytest.approx([0, 0.5, 1], abs=0.02)
 
     def test_the_float_render_is_removed_on_success(self, tmp_path: Path) -> None:
         from seascape import lwir
 
         exr = exr_of(tmp_path, [lwir.band_radiance(285.0), lwir.band_radiance(295.0)])
-        render._thermal_pngs([exr])
+        render._thermal_images([exr], "png")
         assert not exr.exists()
 
     def test_a_sequence_shares_one_span(self, tmp_path: Path) -> None:
@@ -110,7 +117,7 @@ class TestThermalPng:
             exr_of(tmp_path, [lwir.band_radiance(t) for t in span], name=name)
             for name, span in (("cold", (280.0, 290.0)), ("warm", (290.0, 300.0)))
         )
-        render._thermal_pngs([cold, warm])
+        render._thermal_images([cold, warm], "png")
         (low, cold_top), (warm_bottom, high) = (
             grey_of(exr.with_suffix(".png")) for exr in (cold, warm)
         )
@@ -131,7 +138,7 @@ class TestThermalPng:
         before = len(bpy.data.images)
         monkeypatch.setattr(render.lwir, "brightness_temperature", _raise)
         with pytest.raises(RuntimeError):
-            render._thermal_pngs([exr])
+            render._thermal_images([exr], "png")
         assert exr.exists()
         assert len(bpy.data.images) == before
 
@@ -152,7 +159,7 @@ def built(band: Band, **outputs: object) -> bpy.types.Scene:
 class TestSettings:
     def test_every_format_maps_to_one_blender_identifier(self) -> None:
         """A format added to the Literal alone renders as whatever was set last."""
-        assert set(scene._FORMATS) == set(get_args(ImageFormat.__value__))
+        assert set(scene.FORMATS) == set(get_args(ImageFormat.__value__))
 
     @pytest.mark.parametrize("fmt", get_args(ImageFormat.__value__))
     def test_the_extension_matches_the_name_render_files_under(
@@ -312,7 +319,7 @@ def test_a_sequence_writes_each_camera_a_folder_of_frames(tmp_path: Path) -> Non
     for mount in scenario.rig.mounts:
         frames = [image for image in truth.images if image.camera == mount.name]
         assert [image.file_name for image in frames] == [
-            f"{mount.name}/{f:04d}.png" for f in range(3)
+            f"{mount.name}/{f:04d}.jpg" for f in range(3)
         ]
         assert all((tmp_path / image.file_name).exists() for image in frames)
         assert [image.time_s for image in frames] == [0.0, 1.0, 2.0]
