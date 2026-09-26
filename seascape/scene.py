@@ -213,7 +213,6 @@ def _animate(
 
 
 def _sine(mean: float, amplitude: float, period_s: float) -> Callable[[float], float]:
-    """Starting at the mean, rising."""
     return lambda t: mean + amplitude * math.sin(2.0 * math.pi * t / period_s)
 
 
@@ -960,11 +959,9 @@ def build(scenario: Scenario, band: Band = "eo") -> Built:
     _sea(scenario.sea, scenario.seed, reach_m, band)
     rig = _rig(scenario.rig, far_m)
     hulls: dict[str, list[bpy.types.Object]] = {}
-    vessel = _ownship(
-        scenario.ownship, band, scenario.sky, rig.root, hulls, scenario.outputs.times_s
-    )
-    radius_m = earth_radius_m(scenario.sea.refraction_k)
     times_s = scenario.outputs.times_s
+    vessel = _ownship(scenario.ownship, band, scenario.sky, rig.root, hulls, times_s)
+    radius_m = earth_radius_m(scenario.sea.refraction_k)
     targets: dict[str, list[bpy.types.Object]] = {}
     for spec in scenario.objects:
         anchor = _object(spec, band, radius_m, scenario.sky, hulls, times_s)

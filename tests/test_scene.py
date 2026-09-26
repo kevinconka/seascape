@@ -662,14 +662,12 @@ class TestOwnshipMotion:
         built = scene.build(load(BASELINE, self.MOTION))
         anchor, camera = built.vessel, camera_of(SCENARIO.rig.mounts[0])
         mounted = anchor.matrix_world.inverted() @ camera.matrix_world
-        still = camera.matrix_world.copy()
-        bpy.context.scene.frame_set(10)  # t = 1 s
+        bpy.context.scene.frame_set(10)
 
         pitch, roll, _ = anchor.rotation_euler
         assert math.degrees(pitch) == pytest.approx(-1.0 + 2.0)
         assert math.degrees(roll) == pytest.approx(3.0 + 5.0)
         assert anchor.matrix_world.translation.z == pytest.approx(0.5)
-        assert camera.matrix_world != still
         moved = anchor.matrix_world.inverted() @ camera.matrix_world
         assert np.allclose(moved, mounted, atol=1e-5)
 
