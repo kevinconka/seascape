@@ -335,9 +335,10 @@ class Samples(Model):
 class Outputs(Model):
     """What a render writes.
 
-    Every camera of a listed band is rendered. A png or jpg is 8-bit: EO through the
-    exposure and the film curve, LWIR auto-contrasted per camera over its frames, so a
-    thermal pixel is not a temperature. An exr keeps the radiance, in W m^-2 sr^-1.
+    Every camera of a listed band is rendered. An EO png or jpg is 8-bit, through the
+    exposure and the film curve. An LWIR png is 16-bit, a hundredth of a kelvin per
+    count; an LWIR jpg is 8-bit grey, auto-contrasted as a thermal camera does. An exr
+    keeps the radiance, in W m^-2 sr^-1.
     """
 
     # uniqueItems for editors validating against the schema; `_bands_are_distinct`
@@ -351,7 +352,7 @@ class Outputs(Model):
     samples: Samples = Field(default_factory=Samples)
     format: ImageFormat = Field(
         default="jpg",
-        description="jpg to look at, png lossless, exr to keep the radiance.",
+        description="jpg to look at, png lossless or LWIR in kelvin, exr the radiance.",
     )
     # Blender clamps to +/-32 in silence.
     exposure_ev: float = Field(
