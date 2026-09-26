@@ -319,7 +319,7 @@ def test_a_sequence_writes_each_camera_a_folder_of_frames(tmp_path: Path) -> Non
     for mount in scenario.rig.mounts:
         frames = [image for image in truth.images if image.camera == mount.name]
         assert [image.file_name for image in frames] == [
-            f"{mount.name}/{f:04d}.png" for f in range(3)
+            f"{mount.name}/{f:04d}.jpg" for f in range(3)
         ]
         assert all((tmp_path / image.file_name).exists() for image in frames)
         assert [image.time_s for image in frames] == [0.0, 1.0, 2.0]

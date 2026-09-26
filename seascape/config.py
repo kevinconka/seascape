@@ -351,8 +351,9 @@ class Outputs(Model):
     )
     samples: Samples = Field(default_factory=lambda: Samples())
     format: ImageFormat = Field(
-        default="png",
-        description="png or the smaller jpg to look at, exr to keep the radiance.",
+        default="jpg",
+        description="jpg to look at, png to look at losslessly, exr to keep the "
+        "radiance.",
     )
     # Blender clamps to +/-32 in silence.
     exposure_ev: float = Field(

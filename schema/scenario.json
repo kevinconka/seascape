@@ -220,8 +220,8 @@
         },
         "format": {
           "$ref": "#/$defs/ImageFormat",
-          "default": "png",
-          "description": "png or the smaller jpg to look at, exr to keep the radiance."
+          "default": "jpg",
+          "description": "jpg to look at, png to look at losslessly, exr to keep the radiance."
         },
         "exposure_ev": {
           "default": -5.0,
