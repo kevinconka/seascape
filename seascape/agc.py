@@ -29,6 +29,15 @@ def kelvin(path: Path) -> np.ndarray | None:
     return image / CENTIKELVIN
 
 
+def grey(t_k: np.ndarray, low_k: float, high_k: float) -> np.ndarray:
+    """8-bit grey, black at `low_k` and white at `high_k`."""
+    # One temperature throughout has no contrast to stretch; mid-grey, not NaN.
+    if high_k - low_k < 1e-6:
+        low_k, high_k = low_k - 0.5, low_k + 0.5
+    scaled = np.clip((t_k - low_k) / (high_k - low_k), 0.0, 1.0)
+    return np.rint(255 * scaled).astype(np.uint8)
+
+
 class Agc:
     """8-bit grey from one camera's frames in order, its span damped over time as a
     thermal camera damps its AGC, so a sequence does not flicker.
@@ -50,8 +59,4 @@ class Agc:
             low = keep * self._span[0] + (1 - keep) * low
             high = keep * self._span[1] + (1 - keep) * high
         self._span = low, high
-        # One temperature throughout has no contrast to stretch; mid-grey, not NaN.
-        if high - low < 1e-6:
-            low, high = low - 0.5, low + 0.5
-        grey = np.clip((t_k - low) / (high - low), 0.0, 1.0)
-        return np.rint(255 * grey).astype(np.uint8)
+        return grey(t_k, low, high)
