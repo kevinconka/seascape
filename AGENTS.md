@@ -98,7 +98,7 @@ These produce wrong output with no error. They are the reason this file exists.
 - **Every physical number cites a source**, in a comment beside it: a published relation, or a derivation from one, or a measurement of Blender itself that a test pins. Never a constant fitted to a render. Renders of an eyeballed scene are not a physics target, and a fitted number cannot be checked by anyone reading the diff.
 - **Units in field names.** `height_m`, `t_sea_k`, `range_m`. No units library.
 - **Randomness comes from named substreams** off the scenario seed — `_substream(seed, "sea/surface")`. Never `np.random` module functions. Named streams mean adding a component doesn't perturb an existing one.
-- **Poses are functions of time**, sampled into a key per frame by `scene._animate`. Ground truth records a timestamp, not a frame index: sensors run at different rates, so frame *n* is not one instant.
+- **Poses are functions of time.** Ground truth records a timestamp, not a frame index: sensors run at different rates, so frame *n* is not one instant.
 - **Never commit a `.blend` or an asset.** `.blend` files are build artifacts; assets are fetched from `assets.toml` into a gitignored cache.
 - **New components are pydantic models in a discriminated union**, registered in one place. Not a registry dict, not entry points.
 - Annotate every function signature.

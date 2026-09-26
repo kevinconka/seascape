@@ -201,11 +201,8 @@ def _animate(
     value_at: Callable[[float], float | tuple[float, ...]],
     index: int = -1,
 ) -> None:
-    """Set `data_path` to `value_at(t)`, keyed at every frame of a sequence.
-
-    Sampled rather than a curve Blender extrapolates: a hull on the curved sea moves
-    along neither a line nor a sine, and a key per frame keeps every frame exact.
-    """
+    """A key per frame, not an extrapolated curve: on the curved sea a hull follows
+    neither a line nor a sine."""
     for frame, t in enumerate(times_s):
         if index < 0:
             setattr(owner, data_path, value_at(t))
@@ -887,8 +884,6 @@ def _output(outputs: Outputs, band: Band) -> None:
     file_format, depth = _FORMATS[outputs.format if band == "eo" else "exr"]
     sc.render.image_settings.file_format = file_format
     sc.render.image_settings.color_depth = depth
-    # Cycles then keeps the BVH, images and kernels between frames, and updates only
-    # what moved.
     sc.render.use_persistent_data = True
     # A fixed seed would hold the sample noise still while the scene moves under it.
     sc.cycles.use_animated_seed = True
@@ -941,8 +936,8 @@ def build(scenario: Scenario, band: Band = "eo") -> Built:
         first.camera.height_px,
     )
     _viewport(scenario.rig.near_clip_m, far_m)
-    # Frame f is t = f / fps. After the imports: an FBX import sets the scene's fps to
-    # its own, even with use_anim off. The factory scene starts at 1, a frame in.
+    # After the last import, which sets fps to the file's own. The factory scene
+    # starts at frame 1.
     sc.frame_start = sc.frame_current = 0
     sc.frame_end = len(scenario.outputs.times_s) - 1
     sc.render.fps = scenario.outputs.fps
