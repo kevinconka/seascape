@@ -99,6 +99,8 @@ import fiftyone as fo
 fo.Dataset.from_dir("out/", fo.types.COCODetectionDataset, data_path=".")
 ```
 
+An LWIR jpg is what a thermal camera shows: 8-bit grey, its contrast span damped over about a second so a clip does not flicker. An LWIR png is what it measures: 16-bit centikelvin, a FLIR Boson's radiometric convention, so `cv2.imread(path, cv2.IMREAD_UNCHANGED) / 100` is kelvin. A viewer shows that as flat grey; `montage`, `panorama` and `video` tone it through the same AGC as the jpg.
+
 `seascape montage` lays a render out for review, one row per band, each frame captioned with its camera. It reads the images already written, so it needs no Blender and a layout can be redone without re-rendering:
 
 ```bash
