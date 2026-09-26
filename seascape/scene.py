@@ -932,13 +932,14 @@ def _object(
     return anchor
 
 
+JPEG_QUALITY = 95
+
 # Blender's identifier and bit depth.
 FORMATS: dict[ImageFormat, tuple[str, str]] = {
     "exr": ("OPEN_EXR", "32"),
     "png": ("PNG", "8"),
     "jpg": ("JPEG", "8"),
 }
-JPEG_QUALITY = 95
 
 
 def _enable_gpu() -> bool:
@@ -976,7 +977,7 @@ def _output(outputs: Outputs, band: Band) -> None:
         # Radiance in W m^-2 sr^-1, not a picture; the default AgX film curve bends it.
         view.view_transform, view.look = "Standard", "None"
         view.exposure, view.gamma = 0.0, 1.0
-    # 8-bit radiance is not radiance; `render` maps the ir png from the exr.
+    # 8-bit radiance is not radiance; `render` maps 8-bit ir from the exr.
     file_format, depth = FORMATS[outputs.format if band == "eo" else "exr"]
     sc.render.image_settings.file_format = file_format
     sc.render.image_settings.color_depth = depth

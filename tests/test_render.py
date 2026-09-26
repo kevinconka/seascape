@@ -1,4 +1,4 @@
-"""Render settings, the thermal png, and the object-index pass."""
+"""Render settings, the thermal image, and the object-index pass."""
 
 from pathlib import Path
 from types import SimpleNamespace
@@ -50,7 +50,7 @@ def grey_of(png: Path) -> np.ndarray:
     return buffer.reshape(height, width, 4)[:, 0, 0]
 
 
-class TestThermalPng:
+class TestThermalImage:
     """An inverted, flipped or sRGB-encoded frame is still a plausible-looking picture,
     so only the numbers catch it.
     """

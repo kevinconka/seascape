@@ -52,8 +52,7 @@ def compose(scenario: Scenario, into: Path) -> Path:
         for mount in scenario.rig.mounts:
             if mount.camera.kind != band:
                 continue
-            # An exr is float radiance, and turning one into a picture is the render's
-            # display transform, not this.
+            # An exr is radiance; making it a picture is the render's job.
             frame = into / f"{mount.name}.{scenario.outputs.format}"
             if scenario.outputs.format == "exr" or not frame.exists():
                 raise FileNotFoundError(f"{frame}: render it, as png or jpg")
