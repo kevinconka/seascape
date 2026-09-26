@@ -873,6 +873,30 @@ def _pose(
     anchor.rotation_euler = (0.0, 0.0, _yaw(heading_deg))
 
 
+def _orbit(
+    anchor: bpy.types.Object,
+    range_m: float,
+    bearing_deg: float,
+    lap_s: float,
+    radius_m: float,
+    times_s: Sequence[float],
+) -> None:
+    def bearing_at_deg(t_s: float) -> float:
+        return bearing_deg + 360.0 * t_s / lap_s
+
+    def at(t_s: float) -> tuple[float, float, float]:
+        bearing = math.radians(bearing_at_deg(t_s))
+        east, north = range_m * math.sin(bearing), range_m * math.cos(bearing)
+        return east, north, sea_z_m(east, north, radius_m)
+
+    _place(anchor, *at(0.0))
+    _animate(anchor, "location", times_s, at)
+    # Clockwise, the bow runs a right angle ahead of the bearing.
+    _animate(
+        anchor, "rotation_euler", times_s, lambda t: _yaw(bearing_at_deg(t) + 90), 2
+    )
+
+
 def _copy_tree(
     obj: bpy.types.Object, parent: bpy.types.Object | None
 ) -> bpy.types.Object:
@@ -923,19 +947,27 @@ def _object(
     sky: Sky,
     hulls: dict[str, list[bpy.types.Object]],
     outputs: Outputs,
-) -> bpy.types.Object:
+) -> list[bpy.types.Object]:
     anchor = _vessel(spec.asset, spec.t_k, band, sky, hulls)
-    _pose(
-        anchor,
-        spec.range_m,
-        spec.bearing_deg,
-        spec.heading_deg,
-        spec.speed_mps,
-        spec.drift,
-        radius_m,
-        outputs,
-    )
-    return anchor
+    orbit = spec.orbit
+    if orbit is None:
+        _pose(
+            anchor,
+            spec.range_m,
+            spec.bearing_deg,
+            spec.heading_deg,
+            spec.speed_mps,
+            spec.drift,
+            radius_m,
+            outputs,
+        )
+        return [anchor]
+    anchors = [anchor, *(_copy_tree(anchor, None) for _ in range(orbit.count - 1))]
+    lap_s = orbit.count * outputs.period_s(orbit.period_s / orbit.count)
+    for i, hull in enumerate(anchors):
+        bearing_deg = spec.bearing_deg + 360.0 * i / orbit.count
+        _orbit(hull, spec.range_m, bearing_deg, lap_s, radius_m, outputs.times_s)
+    return anchors
 
 
 JPEG_QUALITY = 95
@@ -1020,8 +1052,8 @@ def build(scenario: Scenario, band: Band = "eo") -> Built:
     radius_m = earth_radius_m(scenario.sea.refraction_k)
     targets: dict[str, list[bpy.types.Object]] = {}
     for spec in scenario.objects:
-        anchor = _object(spec, band, radius_m, scenario.sky, hulls, outputs)
-        targets.setdefault(spec.asset, []).append(anchor)
+        anchors = _object(spec, band, radius_m, scenario.sky, hulls, outputs)
+        targets.setdefault(spec.asset, []).extend(anchors)
     if scenario.targets is not None:
         anchors = _targets(
             scenario.targets, band, radius_m, scenario.sky, hulls, outputs
