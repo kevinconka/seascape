@@ -370,8 +370,6 @@ def test_a_render_that_dies_keeps_the_truth_of_every_frame_it_wrote(
 def test_an_ir_render_that_dies_names_the_frames_on_disk(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """The 8-bit ir frames wait for the band's span, so until then the exrs are what
-    exists."""
     scenario = load(
         UNDERWAY,
         [
