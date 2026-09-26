@@ -933,10 +933,12 @@ def _object(
 
 
 # Blender's identifier and bit depth.
-_FORMATS: dict[ImageFormat, tuple[str, str]] = {
+FORMATS: dict[ImageFormat, tuple[str, str]] = {
     "exr": ("OPEN_EXR", "32"),
     "png": ("PNG", "8"),
+    "jpg": ("JPEG", "8"),
 }
+JPEG_QUALITY = 95
 
 
 def _enable_gpu() -> bool:
@@ -975,9 +977,10 @@ def _output(outputs: Outputs, band: Band) -> None:
         view.view_transform, view.look = "Standard", "None"
         view.exposure, view.gamma = 0.0, 1.0
     # 8-bit radiance is not radiance; `render` maps the ir png from the exr.
-    file_format, depth = _FORMATS[outputs.format if band == "eo" else "exr"]
+    file_format, depth = FORMATS[outputs.format if band == "eo" else "exr"]
     sc.render.image_settings.file_format = file_format
     sc.render.image_settings.color_depth = depth
+    sc.render.image_settings.quality = JPEG_QUALITY
     sc.render.use_persistent_data = True
     # A fixed seed would hold the sample noise still while the scene moves under it.
     sc.cycles.use_animated_seed = True

@@ -52,11 +52,11 @@ def compose(scenario: Scenario, into: Path) -> Path:
         for mount in scenario.rig.mounts:
             if mount.camera.kind != band:
                 continue
-            # png whatever `outputs.format` says: an exr is float radiance, and
-            # turning one into a picture is the render's display transform, not this.
-            frame = into / f"{mount.name}.png"
-            if not frame.exists():
-                raise FileNotFoundError(f"{frame}: render it, as png rather than exr")
+            # An exr is float radiance, and turning one into a picture is the render's
+            # display transform, not this.
+            frame = into / f"{mount.name}.{scenario.outputs.format}"
+            if scenario.outputs.format == "exr" or not frame.exists():
+                raise FileNotFoundError(f"{frame}: render it, as png or jpg")
             tiles.append(_tile(frame, font, mount.name))
         if tiles:
             rows.append(tiles)

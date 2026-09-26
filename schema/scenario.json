@@ -130,7 +130,8 @@
     "ImageFormat": {
       "enum": [
         "exr",
-        "png"
+        "png",
+        "jpg"
       ],
       "type": "string"
     },
@@ -198,7 +199,7 @@
     },
     "Outputs": {
       "additionalProperties": false,
-      "description": "What a render writes.\n\nEvery camera of a listed band is rendered. A png is 8-bit: EO through the exposure\nand the film curve, LWIR auto-contrasted per camera over its frames, so a thermal\npixel is not a temperature. An exr keeps the radiance, in W m^-2 sr^-1.",
+      "description": "What a render writes.\n\nEvery camera of a listed band is rendered. A png or a jpg is 8-bit: EO through the\nexposure and the film curve, LWIR auto-contrasted per camera over its frames, so a\nthermal pixel is not a temperature. An exr keeps the radiance, in W m^-2 sr^-1.",
       "properties": {
         "bands": {
           "default": [
@@ -220,11 +221,11 @@
         "format": {
           "$ref": "#/$defs/ImageFormat",
           "default": "png",
-          "description": "png to look at, exr to keep the radiance."
+          "description": "png or the smaller jpg to look at, exr to keep the radiance."
         },
         "exposure_ev": {
           "default": -5.0,
-          "description": "Exposure in stops. Applies to EO pngs only.",
+          "description": "Exposure in stops. Applies to 8-bit EO only.",
           "maximum": 32.0,
           "minimum": -32.0,
           "title": "Exposure Ev",

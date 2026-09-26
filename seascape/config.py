@@ -29,7 +29,7 @@ CFG_DIR = Path(__file__).parent / "cfg"
 # A camera's kind is the band it sees in.
 type Band = Literal["eo", "ir"]
 
-type ImageFormat = Literal["exr", "png"]
+type ImageFormat = Literal["exr", "png", "jpg"]
 
 
 class Model(BaseModel):
@@ -336,9 +336,9 @@ class Samples(Model):
 class Outputs(Model):
     """What a render writes.
 
-    Every camera of a listed band is rendered. A png is 8-bit: EO through the exposure
-    and the film curve, LWIR auto-contrasted per camera over its frames, so a thermal
-    pixel is not a temperature. An exr keeps the radiance, in W m^-2 sr^-1.
+    Every camera of a listed band is rendered. A png or a jpg is 8-bit: EO through the
+    exposure and the film curve, LWIR auto-contrasted per camera over its frames, so a
+    thermal pixel is not a temperature. An exr keeps the radiance, in W m^-2 sr^-1.
     """
 
     # uniqueItems for editors validating against the schema; `_bands_are_distinct`
@@ -351,14 +351,15 @@ class Outputs(Model):
     )
     samples: Samples = Field(default_factory=lambda: Samples())
     format: ImageFormat = Field(
-        default="png", description="png to look at, exr to keep the radiance."
+        default="png",
+        description="png or the smaller jpg to look at, exr to keep the radiance.",
     )
     # Blender clamps to +/-32 in silence.
     exposure_ev: float = Field(
         default=-5.0,
         ge=-32.0,
         le=32.0,
-        description="Exposure in stops. Applies to EO pngs only.",
+        description="Exposure in stops. Applies to 8-bit EO only.",
     )
     duration_s: float = Field(default=0.0, ge=0.0, description="0 is a still.")
     fps: int = Field(default=10, gt=0, description="Frames per second of a sequence.")

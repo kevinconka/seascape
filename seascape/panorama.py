@@ -162,7 +162,7 @@ def stitch(
         if image is None:
             raise ValueError(
                 f"cannot read {path}: panorama takes the 8-bit frames that "
-                'outputs.format = "png" writes'
+                'outputs.format = "png" or "jpg" writes'
             )
         image, k = _shrink(image, k, scale / float(k[0, 0]))
         corner, pixels = warper.warp(image, k, r, cv2.INTER_LINEAR, cv2.BORDER_REFLECT)
