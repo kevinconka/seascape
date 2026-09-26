@@ -229,6 +229,7 @@ _ASSET = "An asset name from the manifest."
 _T_HULL = "Shaded hull temperature. IR only."
 _HEADING = "Where its bow points, clockwise from the ownship's bow."
 _RANGE = "Horizontal, from the ownship's origin."
+_SPEED = "Along its heading."
 
 
 class Object(Model):
@@ -238,6 +239,7 @@ class Object(Model):
     range_m: float = Field(gt=0.0, description=_RANGE)
     bearing_deg: float = Field(description="Clockwise from the ownship's bow.")
     heading_deg: float = Field(default=0.0, description=_HEADING)
+    speed_mps: float = Field(default=0.0, ge=0.0, description=_SPEED)
     t_k: float = Field(default=293.0, ge=250.0, le=400.0, description=_T_HULL)
 
 
@@ -273,6 +275,7 @@ class Targets(Model):
         default=(0.0, 315.0),
         description="First and last, spread evenly, clockwise from the ownship's bow.",
     )
+    speed_mps: float = Field(default=0.0, ge=0.0, description=_SPEED)
     t_k: float = Field(default=293.0, ge=250.0, le=400.0, description=_T_HULL)
 
     def _spread(self, span: tuple[float, float], i: int) -> float:
@@ -303,8 +306,8 @@ class Outputs(Model):
     """What a render writes.
 
     Every camera of a listed band is rendered. A png is 8-bit: EO through the exposure
-    and the film curve, LWIR auto-contrasted per frame, so a thermal pixel is not a
-    temperature. An exr keeps the radiance, in W m^-2 sr^-1.
+    and the film curve, LWIR auto-contrasted per camera over its frames, so a thermal
+    pixel is not a temperature. An exr keeps the radiance, in W m^-2 sr^-1.
     """
 
     # uniqueItems for editors validating against the schema; `_bands_are_distinct`

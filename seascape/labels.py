@@ -74,6 +74,7 @@ class Labels(Model):
     def add(
         self,
         camera: CameraCalibration,
+        time_s: float,
         index: np.ndarray,
         targets: Sequence[Target],
         radius_m: float,
@@ -87,7 +88,7 @@ class Labels(Model):
             height=camera.height_px,
             camera=camera.name,
             band=camera.band,
-            time_s=0.0,  # ponytail: one instant until poses are sampled over time
+            time_s=time_s,
             horizon_px=horizon_px(camera, radius_m),
         )
         self.images.append(image)

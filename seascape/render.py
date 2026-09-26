@@ -1,12 +1,14 @@
-"""Render the cameras a scenario asks for: one image each, per band.
+"""Render the cameras a scenario asks for: one image each, per band and frame.
 
 EO reaches 8 bits through the exposure and Blender's film curve. LWIR cannot: its
 pixels are radiance in W m^-2 sr^-1, which Blender would clip to white, so an ir png
-is rendered float and stretched here from its coldest pixel to its hottest.
+is rendered float and stretched here from the coldest pixel a camera saw to its
+hottest.
 """
 
 import subprocess
 import tempfile
+from collections.abc import Sequence
 from datetime import UTC, datetime
 from importlib.metadata import version
 from pathlib import Path
@@ -32,36 +34,44 @@ def _pixels(path: Path) -> np.ndarray:
     return buffer.reshape(height, width, 4)
 
 
-def _thermal_png(exr: Path, png: Path) -> None:
-    """Rewrite a float LWIR render as 8-bit grey, and delete the exr."""
-    radiance = _pixels(exr)
-    height, width, _ = radiance.shape
-    out = bpy.data.images.new(png.stem, width, height)
-    try:
-        t_k = lwir.brightness_temperature(radiance[..., 0].ravel())
-        # Full span: a target is a small fraction of the frame, and trimming the tails
-        # flattens it to white.
-        low, high = float(t_k.min()), float(t_k.max())
-        # A frame of one temperature has no contrast to stretch; mid-grey, not NaN.
-        if high - low < 1e-6:
-            low, high = low - 0.5, low + 0.5
-        # float32: foreach_set takes the buffer's type literally and rejects a double.
-        grey = np.clip((t_k - low) / (high - low), 0.0, 1.0).astype(np.float32)
+def _temperatures_k(exr: Path) -> np.ndarray:
+    return lwir.brightness_temperature(_pixels(exr)[..., 0])
 
-        # Before the pixels, never after: assigning the colorspace second re-reads
-        # what is already there and leaves the image black, with no error.
-        out.colorspace_settings.name = "Non-Color"
-        out.pixels.foreach_set(
-            np.column_stack([grey, grey, grey, np.ones_like(grey)]).ravel()
-        )
-        out.file_format = "PNG"
-        out.filepath_raw = str(png)
-        out.save()
-    finally:
-        # The exr survives a failure, so the conversion can be retried without
-        # re-rendering.
-        bpy.data.images.remove(out)
-    exr.unlink()
+
+def _thermal_pngs(exrs: Sequence[Path]) -> None:
+    """Rewrite float LWIR renders as 8-bit grey pngs beside them, and delete the
+    exrs.
+
+    One span for all, so a sequence does not flicker.
+    """
+    # Full span: a target is a small fraction of the frame, and trimming the tails
+    # flattens it to white. Read twice rather than held: a sequence outgrows memory.
+    spans = [(t_k.min(), t_k.max()) for t_k in map(_temperatures_k, exrs)]
+    low, high = min(s[0] for s in spans), max(s[1] for s in spans)
+    # One temperature throughout has no contrast to stretch; mid-grey, not NaN.
+    if high - low < 1e-6:
+        low, high = low - 0.5, low + 0.5
+    for exr in exrs:
+        t_k = _temperatures_k(exr)
+        height, width = t_k.shape
+        # float32: foreach_set takes the buffer's type literally and rejects a double.
+        grey = np.clip((t_k - low) / (high - low), 0.0, 1.0).astype(np.float32).ravel()
+        out = bpy.data.images.new(exr.stem, width, height)
+        try:
+            # Before the pixels, never after: assigning the colorspace second re-reads
+            # what is already there and leaves the image black, with no error.
+            out.colorspace_settings.name = "Non-Color"
+            out.pixels.foreach_set(
+                np.column_stack([grey, grey, grey, np.ones_like(grey)]).ravel()
+            )
+            out.file_format = "PNG"
+            out.filepath_raw = str(exr.with_suffix(".png"))
+            out.save()
+        finally:
+            bpy.data.images.remove(out)
+    # Last, so a failure keeps every exr for a retry without re-rendering.
+    for exr in exrs:
+        exr.unlink()
 
 
 def _index_output(folder: Path) -> bpy.types.CompositorNodeOutputFile:
@@ -135,12 +145,14 @@ def _info(scenario: Scenario) -> dict[str, Any]:
 
 
 def render(scenario: Scenario, into: Path) -> list[Path]:
-    """Write one image per camera into `into`, their calibration and their labels."""
+    """Write one image per camera and frame into `into`, their calibration and their
+    labels. A sequence puts each camera's frames in a folder of its own."""
     # Blender resolves a relative render.filepath against the .blend, not the shell.
     into = into.resolve()
     into.mkdir(parents=True, exist_ok=True)
     outputs = scenario.outputs
     radius_m = scene.earth_radius_m(scenario.sea.refraction_k)
+    sequence = len(outputs.times_s) > 1
     written: list[Path] = []
     cameras: list[CameraCalibration] = []
     truth = labels.Labels()
@@ -153,26 +165,35 @@ def render(scenario: Scenario, into: Path) -> list[Path]:
                 continue
             thermal_png = band == "ir" and outputs.format == "png"
             built = scene.build(scenario, band)
-            targets = _targets(built)
             index_output = _index_output(passes)
             sc = bpy.context.scene
-            for mount in mounts:
-                sc.camera = built.cameras[mount.name]
-                sc.render.resolution_x, sc.render.resolution_y = (
-                    mount.camera.width_px,
-                    mount.camera.height_px,
-                )
-                sc.render.filepath = str(into / mount.name)
-                index_output.file_name = f"{mount.name}."
-                bpy.ops.render.render(write_still=True)
-                image = into / f"{mount.name}.{outputs.format}"
-                if thermal_png:
-                    _thermal_png(into / f"{mount.name}.exr", image)
-                written.append(image)
-                camera = scene.calibrate(built, mount, image.name)
-                cameras.append(camera)
-                index = _pixels(passes / f"{mount.name}.index.exr")[::-1, :, 0]
-                truth.add(camera, np.rint(index).astype(int), targets, radius_m)
+            exrs: dict[str, list[Path]] = {}
+            for frame, time_s in enumerate(outputs.times_s):
+                sc.frame_set(frame)
+                # Both read matrix_world, which moves with the frame.
+                targets = _targets(built)
+                for mount in mounts:
+                    sc.camera = built.cameras[mount.name]
+                    sc.render.resolution_x, sc.render.resolution_y = (
+                        mount.camera.width_px,
+                        mount.camera.height_px,
+                    )
+                    name = f"{mount.name}/{frame:04d}" if sequence else mount.name
+                    sc.render.filepath = str(into / name)
+                    index_output.file_name = f"{mount.name}."
+                    bpy.ops.render.render(write_still=True)
+                    file_name = f"{name}.{outputs.format}"
+                    if thermal_png:
+                        exrs.setdefault(mount.name, []).append(into / f"{name}.exr")
+                    written.append(into / file_name)
+                    camera = scene.calibrate(built, mount, file_name)
+                    cameras.append(camera)
+                    index = _pixels(passes / f"{mount.name}.index.exr")[::-1, :, 0]
+                    truth.add(
+                        camera, time_s, np.rint(index).astype(int), targets, radius_m
+                    )
+            for frames in exrs.values():
+                _thermal_pngs(frames)
     if not written:
         raise ValueError(
             f"the rig has no camera in any of {outputs.bands}: nothing to render"

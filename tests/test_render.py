@@ -14,13 +14,16 @@ from seascape.config import Band, ImageFormat, load
 
 BASELINE = Path(__file__).parent.parent / "scenarios" / "baseline.toml"
 TWIN_POD = BASELINE.with_name("twin-pod.toml")
+UNDERWAY = BASELINE.with_name("underway.toml")
 
 
 def _raise(*_: object) -> np.ndarray:
     raise RuntimeError("injected")
 
 
-def exr_of(tmp_path: Path, radiance: list[float], width: int = 4) -> Path:
+def exr_of(
+    tmp_path: Path, radiance: list[float], width: int = 4, name: str = "probe"
+) -> Path:
     """One row per value, bottom row first, as Blender orders pixels."""
     image = bpy.data.images.new("probe", width, len(radiance), float_buffer=True)
     image.colorspace_settings.name = "Non-Color"
@@ -29,7 +32,7 @@ def exr_of(tmp_path: Path, radiance: list[float], width: int = 4) -> Path:
         np.column_stack([rows, rows, rows, np.ones_like(rows)]).ravel()
     )
     image.file_format = "OPEN_EXR"
-    path = tmp_path / "probe.exr"
+    path = tmp_path / f"{name}.exr"
     image.filepath_raw = str(path)
     image.save()
     bpy.data.images.remove(image)
@@ -56,8 +59,8 @@ class TestThermalPng:
         from seascape import lwir
 
         exr = exr_of(tmp_path, [lwir.band_radiance(t) for t in (272.0, 295.0)])
-        png = tmp_path / "out.png"
-        render._thermal_png(exr, png)
+        render._thermal_pngs([exr])
+        png = exr.with_suffix(".png")
         low, high = grey_of(png)
         assert low == pytest.approx(0.0, abs=0.01)
         assert high == pytest.approx(1.0, abs=0.01)
@@ -67,8 +70,8 @@ class TestThermalPng:
         from seascape import lwir
 
         exr = exr_of(tmp_path, [lwir.band_radiance(t) for t in (270.0, 285.0, 300.0)])
-        png = tmp_path / "out.png"
-        render._thermal_png(exr, png)
+        render._thermal_pngs([exr])
+        png = exr.with_suffix(".png")
         assert grey_of(png)[1] == pytest.approx(0.5, abs=0.01)
 
     def test_a_target_is_not_flattened_to_white(self, tmp_path: Path) -> None:
@@ -77,8 +80,8 @@ class TestThermalPng:
 
         sea = [lwir.band_radiance(285.0)] * 40
         exr = exr_of(tmp_path, [*sea, lwir.band_radiance(300.0)])
-        png = tmp_path / "out.png"
-        render._thermal_png(exr, png)
+        render._thermal_pngs([exr])
+        png = exr.with_suffix(".png")
         grey = grey_of(png)
         assert grey[-1] == pytest.approx(1.0, abs=0.01)  # the hull
         assert grey[0] == pytest.approx(0.0, abs=0.01)  # the sea
@@ -89,16 +92,34 @@ class TestThermalPng:
         from seascape import lwir
 
         exr = exr_of(tmp_path, [lwir.band_radiance(290.0)] * 4)
-        png = tmp_path / "out.png"
-        render._thermal_png(exr, png)
+        render._thermal_pngs([exr])
+        png = exr.with_suffix(".png")
         assert np.isfinite(grey_of(png)).all()
 
     def test_the_float_render_is_removed_on_success(self, tmp_path: Path) -> None:
         from seascape import lwir
 
         exr = exr_of(tmp_path, [lwir.band_radiance(285.0), lwir.band_radiance(295.0)])
-        render._thermal_png(exr, tmp_path / "out.png")
+        render._thermal_pngs([exr])
         assert not exr.exists()
+
+    def test_a_sequence_shares_one_span(self, tmp_path: Path) -> None:
+        from seascape import lwir
+
+        cold, warm = (
+            exr_of(tmp_path, [lwir.band_radiance(t) for t in span], name=name)
+            for name, span in (("cold", (280.0, 290.0)), ("warm", (290.0, 300.0)))
+        )
+        render._thermal_pngs([cold, warm])
+        (low, cold_top), (warm_bottom, high) = (
+            grey_of(exr.with_suffix(".png")) for exr in (cold, warm)
+        )
+        assert (low, high) == (
+            pytest.approx(0.0, abs=0.01),
+            pytest.approx(1.0, abs=0.01),
+        )
+        assert cold_top == pytest.approx(warm_bottom, abs=0.01)
+        assert cold_top == pytest.approx(0.5, abs=0.01)
 
     def test_a_failure_keeps_the_float_render_and_leaks_nothing(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
@@ -110,7 +131,7 @@ class TestThermalPng:
         before = len(bpy.data.images)
         monkeypatch.setattr(render.lwir, "brightness_temperature", _raise)
         with pytest.raises(RuntimeError):
-            render._thermal_png(exr, tmp_path / "out.png")
+            render._thermal_pngs([exr])
         assert exr.exists()
         assert len(bpy.data.images) == before
 
@@ -266,3 +287,40 @@ def test_each_box_holds_its_hull_centre_through_the_calibration(
         assert left - 0.5 <= u <= left + width + 0.5, found.name
         assert top - 0.5 <= v <= top + height + 0.5, found.name
         assert found.waterline_range_m < found.range_m
+
+
+@pytest.mark.render
+def test_a_sequence_writes_each_camera_a_folder_of_frames(tmp_path: Path) -> None:
+    """Fast enough that the ship crosses pixels between frames."""
+    scenario = load(
+        UNDERWAY,
+        [
+            "outputs.duration_s = 3.0",
+            "outputs.fps = 1",
+            "outputs.samples = { eo = 2, ir = 4 }",
+            'rig.pods = [{ name = "bow", yaw_deg = 0.0, cameras = ['
+            '{ kind = "eo", hfov_deg = 45.0, width_px = 96, height_px = 54 }, '
+            '{ kind = "ir", hfov_deg = 24.0, width_px = 80, height_px = 64 }] }]',
+            'objects = [{ asset = "container_ship", range_m = 2000.0, '
+            "bearing_deg = 8.0, heading_deg = 270.0, speed_mps = 50.0 }]",
+        ],
+    )
+
+    render.render(scenario, tmp_path)
+
+    truth = labels.Labels.model_validate_json((tmp_path / labels.FILENAME).read_text())
+    for mount in scenario.rig.mounts:
+        frames = [image for image in truth.images if image.camera == mount.name]
+        assert [image.file_name for image in frames] == [
+            f"{mount.name}/{f:04d}.png" for f in range(3)
+        ]
+        assert all((tmp_path / image.file_name).exists() for image in frames)
+        assert [image.time_s for image in frames] == [0.0, 1.0, 2.0]
+        left = [
+            next(a.bbox[0] for a in truth.annotations if a.image_id == image.id)
+            for image in frames
+        ]
+        # Heading west, across a camera facing north.
+        assert left == sorted(left, reverse=True), mount.name
+        assert left[0] > left[-1], mount.name
+    assert not list(tmp_path.rglob("*.exr"))

@@ -1,0 +1,14 @@
+#:schema ../schema/scenario.json
+
+extends = "baseline.toml"
+
+[[objects]]
+preset = "container_ship"
+range_m = 2000.0
+bearing_deg = 8.0
+# Crossing the bow to port.
+heading_deg = 270.0
+speed_mps = 6.0
+
+[outputs]
+duration_s = 30.0
