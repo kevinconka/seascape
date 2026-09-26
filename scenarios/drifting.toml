@@ -1,0 +1,26 @@
+#:schema ../schema/scenario.json
+
+extends = "baseline.toml"
+
+[ownship.roll]
+amplitude_deg = 3.0
+period_s = 9.0
+
+[ownship.pitch]
+amplitude_deg = 1.0
+period_s = 7.0
+
+[ownship.heave]
+amplitude_m = 0.5
+period_s = 8.0
+
+[[objects]]
+preset = "container_ship"
+range_m = 2000.0
+bearing_deg = 8.0
+heading_deg = 250.0
+drift = { sway_m = 40.0, surge_m = 10.0, period_s = 30.0 }
+
+[outputs]
+duration_s = 30.0
+loop = true

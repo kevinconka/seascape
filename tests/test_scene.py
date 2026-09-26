@@ -19,6 +19,7 @@ from seascape.config import Mount, load
 
 BASELINE = Path(__file__).parent.parent / "scenarios" / "baseline.toml"
 UNDERWAY = BASELINE.with_name("underway.toml")
+DRIFTING = BASELINE.with_name("drifting.toml")
 SCENARIO = load(BASELINE)
 RIG_ONLY = f'extends = "{BASELINE}"\nobjects = []\n'
 
@@ -719,3 +720,58 @@ class TestSeaEvolves:
             scale = tuple(offset.inputs["Vector_001"].default_value)
             assert scale == pytest.approx((per_m, per_m, 0.0))
             assert tuple(offset.inputs["Vector_002"].default_value[:2]) == (0.0, 0.0)
+
+
+def test_a_drifting_hull_traces_a_figure_eight_about_its_pose() -> None:
+    scenario = load(DRIFTING, ["outputs.fps = 8"])
+    (spec,) = scenario.objects
+    assert spec.drift is not None
+    anchor = scene.build(scenario).targets[spec.asset][0]
+    period_s = scenario.outputs.period_s(spec.drift.period_s)
+    heading = math.radians(spec.heading_deg)
+    ahead = Vector((math.sin(heading), math.cos(heading)))
+    starboard = Vector((math.cos(heading), -math.sin(heading)))
+    radius = scene.earth_radius_m(scenario.sea.refraction_k)
+    pose = anchor.matrix_world.translation.xy.copy()
+    s = math.sqrt(0.5)
+    eighths = [(0, 0), (s, 1), (1, 0), (s, -1), (0, 0), (-s, 1), (-1, 0), (-s, -1)]
+    sc = bpy.context.scene
+
+    for eighth, (across, along) in enumerate(eighths):
+        sc.frame_set(round(eighth * period_s / 8 * scenario.outputs.fps))
+        east, north, up = anchor.matrix_world.translation
+        offset = Vector((east, north)) - pose
+
+        assert offset.dot(starboard) == pytest.approx(
+            across * spec.drift.sway_m, abs=1e-2
+        )
+        assert offset.dot(ahead) == pytest.approx(along * spec.drift.surge_m, abs=1e-2)
+        assert up == pytest.approx(scene.sea_z_m(east, north, radius), abs=1e-3)
+        assert anchor.rotation_euler.z == pytest.approx(scene._yaw(spec.heading_deg))
+    assert pose.length == pytest.approx(spec.range_m)
+
+
+def keyed() -> Iterator[tuple[str, np.ndarray]]:
+    """Every keyed channel in the scene, its values frame by frame."""
+    for action in bpy.data.actions:
+        for layer in action.layers:
+            for strip in layer.strips:
+                for bag in strip.channelbags:
+                    for curve in bag.fcurves:
+                        keys = np.empty(2 * len(curve.keyframe_points))
+                        curve.keyframe_points.foreach_get("co", keys)
+                        path = f"{curve.data_path}[{curve.array_index}]"
+                        yield f"{action.name} {path}", keys[1::2]
+
+
+def test_a_loop_runs_from_its_last_frame_into_its_first_like_any_other() -> None:
+    """Wrapped round, no channel bends at the seam more than it does anywhere else."""
+    scene.build(load(DRIFTING, ["outputs.fps = 2"]))
+    channels = dict(keyed())
+
+    assert len(channels) == 8, "the target's xyz, pitch, roll, heave, the sea's z, W"
+    for name, values in channels.items():
+        bend = np.abs(np.diff(np.append(values, values[:2]), 2))
+        # A few ulps: F-curves are float32.
+        ulp = np.spacing(np.float32(np.abs(values).max()))
+        assert bend[-2:].max() <= bend[:-2].max() + 4 * ulp, name

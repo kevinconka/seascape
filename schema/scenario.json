@@ -72,6 +72,37 @@
       "title": "Camera",
       "type": "object"
     },
+    "Drift": {
+      "additionalProperties": false,
+      "description": "A hull at single anchor fishtails: across its heading once a period, along it\ntwice. Starts at its pose; the heading holds.",
+      "properties": {
+        "sway_m": {
+          "description": "Peak, across the heading.",
+          "minimum": 0.0,
+          "title": "Sway M",
+          "type": "number"
+        },
+        "surge_m": {
+          "description": "Peak, along the heading.",
+          "minimum": 0.0,
+          "title": "Surge M",
+          "type": "number"
+        },
+        "period_s": {
+          "description": "One full figure-eight.",
+          "exclusiveMinimum": 0.0,
+          "title": "Period S",
+          "type": "number"
+        }
+      },
+      "required": [
+        "sway_m",
+        "surge_m",
+        "period_s"
+      ],
+      "title": "Drift",
+      "type": "object"
+    },
     "Heave": {
       "additionalProperties": false,
       "description": "A sinusoid about the waterline, starting at it.",
@@ -135,6 +166,18 @@
           "minimum": 0.0,
           "title": "Speed Mps",
           "type": "number"
+        },
+        "drift": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Drift"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "A figure-eight about its pose."
         },
         "t_k": {
           "default": 293.0,
@@ -200,6 +243,12 @@
           "exclusiveMinimum": 0,
           "title": "Fps",
           "type": "integer"
+        },
+        "loop": {
+          "default": false,
+          "description": "Repeats seamlessly: each period rounds to a whole fraction of duration_s.",
+          "title": "Loop",
+          "type": "boolean"
         }
       },
       "title": "Outputs",
@@ -557,6 +606,18 @@
           "minimum": 0.0,
           "title": "Speed Mps",
           "type": "number"
+        },
+        "drift": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Drift"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "A figure-eight about its pose."
         },
         "t_k": {
           "default": 293.0,

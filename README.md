@@ -85,6 +85,8 @@ uv run seascape render scenarios/underway.toml -o out/   # out/<camera>/0000.png
 uv run seascape video out/                               # out/<camera>.mp4
 ```
 
+`outputs.loop = true` makes a seamless clip: every period rounds to a whole fraction of `duration_s`. A looping target cannot be underway; give it a `drift`, as `scenarios/drifting.toml` does.
+
 Every frame has its own entry in `calibration.json` and `labels.json`, stamped with `time_s`. `seascape video` paces the frames by it, so a clip re-encodes without re-rendering. The `.blend` from `seascape build` carries the motion as keyframes. `montage` and `panorama` take stills.
 
 ## Outputs

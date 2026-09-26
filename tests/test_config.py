@@ -370,3 +370,32 @@ def test_sea_temperature_bounds_are_the_tables_span() -> None:
 )
 def test_a_frame_is_at_its_index_over_the_rate(duration_s, fps, times_s) -> None:
     assert Outputs(duration_s=duration_s, fps=fps).times_s == pytest.approx(times_s)
+
+
+def test_a_loop_rounds_each_period_to_a_whole_fraction_of_the_clip() -> None:
+    loop = Outputs(duration_s=30.0, loop=True)
+    periods = [loop.period_s(p) for p in (7.0, 9.0, 30.0, 100.0)]
+    assert periods == pytest.approx([7.5, 10.0, 30.0, 30.0])
+    assert Outputs(duration_s=30.0).period_s(9.0) == 9.0
+
+
+@pytest.mark.parametrize(
+    ("name", "overrides", "match"),
+    [
+        ("baseline.toml", ["outputs.loop = true"], "duration_s > 0"),
+        ("underway.toml", ["outputs.loop = true"], "drift"),
+        (
+            "drifting.toml",
+            [
+                'targets = { asset = "container_ship", count = 2, range_m = 900.0,'
+                " bearing_deg = [-5.0, 5.0], speed_mps = 1.0 }"
+            ],
+            "drift",
+        ),
+        ("drifting.toml", ["outputs.duration_s = 8"], "ownship.roll's 9.0 s"),
+        ("drifting.toml", ["outputs.duration_s = 20"], "container_ship drift"),
+    ],
+)
+def test_a_loop_that_cannot_close_is_an_error(name, overrides, match) -> None:
+    with pytest.raises(ValidationError, match=match):
+        load(SCENARIOS / name, overrides)

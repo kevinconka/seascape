@@ -37,6 +37,7 @@ from seascape.assets import Asset, fetch, manifest
 from seascape.calibration import CameraCalibration, Matrix4
 from seascape.config import (
     Band,
+    Drift,
     ImageFormat,
     Mount,
     Object,
@@ -84,6 +85,7 @@ CAPILLARY_WAVELENGTH_M = 0.0173
 # RMS gradient of the noise's Fac per noise unit, at 2 cm sampling: finer sampling
 # finds more.
 NOISE_SLOPE_PER_UNIT = 0.55
+NOISE_SLOPE_PER_UNIT_4D = 0.48
 
 
 def wave_length_m(wind_speed_mps: float) -> float:
@@ -374,7 +376,7 @@ def _sunlit_emission(
 
 
 def _wave_normals(
-    tree: bpy.types.NodeTree, sea: Sea, seed: int, times_s: Sequence[float]
+    tree: bpy.types.NodeTree, sea: Sea, seed: int, outputs: Outputs
 ) -> bpy.types.NodeSocket:
     """Wave normals from world position.
 
@@ -390,15 +392,6 @@ def _wave_normals(
     scale = tree.nodes.new("ShaderNodeVectorMath")
     scale.operation = "MULTIPLY_ADD"
     scale.inputs["Vector_001"].default_value = (1.0 / length_m, 1.0 / length_m, 0.0)
-    phase = _substream(seed, "sea/surface").random() * 1e3
-    period_s = wave_period_s(sea.wind_speed_mps)
-    _animate(
-        scale.inputs["Vector_002"],
-        "default_value",
-        times_s,
-        lambda t: phase + t / period_s,
-        index=2,
-    )
     geometry = tree.nodes.new("ShaderNodeNewGeometry")
     noise = tree.nodes.new("ShaderNodeTexNoise")
     # Scale stays 1 so the vector above carries the wavelength in metres.
@@ -406,9 +399,30 @@ def _wave_normals(
     noise.inputs["Detail"].default_value = NOISE_DETAIL
     noise.inputs["Roughness"].default_value = NOISE_ROUGHNESS
 
+    phase = _substream(seed, "sea/surface").random() * 1e3
+    period_s = wave_period_s(sea.wind_speed_mps)
+    times_s = outputs.times_s
+    offset = scale.inputs["Vector_002"]
+    slope_per_unit = NOISE_SLOPE_PER_UNIT
+    if outputs.loop:
+        # A line in z never returns; a circle in (z, W) does, at the same speed.
+        noise.noise_dimensions = "4D"
+        slope_per_unit = NOISE_SLOPE_PER_UNIT_4D
+        span_s = outputs.span_s
+        radius = span_s / (2.0 * math.pi * period_s)
+        _animate(offset, "default_value", times_s, _sine(phase, radius, span_s), 2)
+        _animate(
+            noise.inputs["W"],
+            "default_value",
+            times_s,
+            lambda t: radius * (1.0 - math.cos(2.0 * math.pi * t / span_s)),
+        )
+    else:
+        _animate(offset, "default_value", times_s, lambda t: phase + t / period_s, 2)
+
     bump = tree.nodes.new("ShaderNodeBump")
     bump.inputs["Distance"].default_value = (
-        bump_slope(sea.wind_speed_mps) * length_m / NOISE_SLOPE_PER_UNIT
+        bump_slope(sea.wind_speed_mps) * length_m / slope_per_unit
     )
 
     link = tree.links.new
@@ -447,7 +461,7 @@ def _incidence_lookup(
     return texture.outputs["Color"]
 
 
-def _thermal_sea(sea: Sea, seed: int, times_s: Sequence[float]) -> bpy.types.Material:
+def _thermal_sea(sea: Sea, seed: int, outputs: Outputs) -> bpy.types.Material:
     """eps(theta) of the sea emitted, the remaining 1 - eps reflected from the sky.
 
     Complements, so the two very nearly cancel and the sea holds close to ambient at
@@ -469,7 +483,7 @@ def _thermal_sea(sea: Sea, seed: int, times_s: Sequence[float]) -> bpy.types.Mat
     output = tree.nodes.new("ShaderNodeOutputMaterial")
 
     link = tree.links.new
-    normal = _wave_normals(tree, sea, seed, times_s)
+    normal = _wave_normals(tree, sea, seed, outputs)
     link(normal, mirror.inputs["Normal"])
     # Mix Shader names both shader inputs "Shader", so they can only be indexed. Factor
     # is emissivity: 0 at grazing incidence takes the mirror, 1 head-on takes emission.
@@ -487,9 +501,7 @@ def _thermal_sea(sea: Sea, seed: int, times_s: Sequence[float]) -> bpy.types.Mat
     return material
 
 
-def _water_material(
-    sea: Sea, seed: int, times_s: Sequence[float]
-) -> bpy.types.Material:
+def _water_material(sea: Sea, seed: int, outputs: Outputs) -> bpy.types.Material:
     """Daylight water: rough enough to catch the sun, refracting at seawater's IOR."""
     material = bpy.data.materials.new("sea")
     tree = material.node_tree
@@ -497,12 +509,12 @@ def _water_material(
     principled.inputs["Base Color"].default_value = (0.004, 0.02, 0.035, 1.0)
     principled.inputs["Roughness"].default_value = 0.05
     principled.inputs["IOR"].default_value = 1.33
-    tree.links.new(_wave_normals(tree, sea, seed, times_s), principled.inputs["Normal"])
+    tree.links.new(_wave_normals(tree, sea, seed, outputs), principled.inputs["Normal"])
     return material
 
 
 def _sea(
-    sea: Sea, seed: int, reach_m: float, band: Band, times_s: Sequence[float]
+    sea: Sea, seed: int, reach_m: float, band: Band, outputs: Outputs
 ) -> bpy.types.Object:
     """A grid curved to the earth. The waves are in its material.
 
@@ -522,7 +534,7 @@ def _sea(
     for face in water.data.polygons:
         face.use_smooth = True
     material = _water_material if band == "eo" else _thermal_sea
-    water.data.materials.append(material(sea, seed, times_s))
+    water.data.materials.append(material(sea, seed, outputs))
     return water
 
 
@@ -773,7 +785,7 @@ def _ownship(
     sky: Sky,
     rig: bpy.types.Object,
     hulls: dict[str, list[bpy.types.Object]],
-    times_s: Sequence[float],
+    outputs: Outputs,
 ) -> bpy.types.Object:
     """At the origin, bow to +Y, carrying the rig: its offsets are in this frame."""
     if ownship.asset is None:
@@ -799,12 +811,14 @@ def _ownship(
             value_at = _sine(
                 math.radians(mean_deg),
                 math.radians(swing.amplitude_deg),
-                swing.period_s,
+                outputs.period_s(swing.period_s),
             )
-            _animate(anchor, "rotation_euler", times_s, value_at, index)
+            _animate(anchor, "rotation_euler", outputs.times_s, value_at, index)
     if (heave := ownship.heave) is not None:
-        value_at = _sine(anchor.location.z, heave.amplitude_m, heave.period_s)
-        _animate(anchor, "location", times_s, value_at, index=2)
+        value_at = _sine(
+            anchor.location.z, heave.amplitude_m, outputs.period_s(heave.period_s)
+        )
+        _animate(anchor, "location", outputs.times_s, value_at, index=2)
     return anchor
 
 
@@ -814,11 +828,12 @@ def _pose(
     bearing_deg: float,
     heading_deg: float,
     speed_mps: float,
+    drift: Drift | None,
     radius_m: float,
-    times_s: Sequence[float],
+    outputs: Outputs,
 ) -> None:
     """Put a hull on the sea at a bearing and range at t = 0, underway along its
-    heading.
+    heading and drifting about that pose.
 
     A hull left at z = 0 flies above the curved sea.
 
@@ -826,14 +841,29 @@ def _pose(
     hull's ends far less than its draught.
     """
     bearing, heading = math.radians(bearing_deg), math.radians(heading_deg)
+    sway = surge = _sine(0.0, 0.0, 1.0)
+    if drift is not None:
+        period_s = outputs.period_s(drift.period_s)
+        sway = _sine(0.0, drift.sway_m, period_s)
+        surge = _sine(0.0, drift.surge_m, period_s / 2.0)
 
     def at(t_s: float) -> tuple[float, float, float]:
-        east = range_m * math.sin(bearing) + speed_mps * t_s * math.sin(heading)
-        north = range_m * math.cos(bearing) + speed_mps * t_s * math.cos(heading)
+        along, across = speed_mps * t_s + surge(t_s), sway(t_s)
+        # Starboard of the heading is (cos, -sin).
+        east = (
+            range_m * math.sin(bearing)
+            + along * math.sin(heading)
+            + across * math.cos(heading)
+        )
+        north = (
+            range_m * math.cos(bearing)
+            + along * math.cos(heading)
+            - across * math.sin(heading)
+        )
         return east, north, sea_z_m(east, north, radius_m)
 
     _place(anchor, *at(0.0))
-    _animate(anchor, "location", times_s, at)
+    _animate(anchor, "location", outputs.times_s, at)
     anchor.rotation_euler = (0.0, 0.0, _yaw(heading_deg))
 
 
@@ -858,7 +888,7 @@ def _targets(
     radius_m: float,
     sky: Sky,
     hulls: dict[str, list[bpy.types.Object]],
-    times_s: Sequence[float],
+    outputs: Outputs,
 ) -> list[bpy.types.Object]:
     first = _vessel(spec.asset, spec.t_k, band, sky, hulls)
     poses = spec.poses()
@@ -873,8 +903,9 @@ def _targets(
             bearing_deg,
             heading_deg,
             spec.speed_mps,
+            spec.drift,
             radius_m,
-            times_s,
+            outputs,
         )
     return anchors
 
@@ -885,7 +916,7 @@ def _object(
     radius_m: float,
     sky: Sky,
     hulls: dict[str, list[bpy.types.Object]],
-    times_s: Sequence[float],
+    outputs: Outputs,
 ) -> bpy.types.Object:
     anchor = _vessel(spec.asset, spec.t_k, band, sky, hulls)
     _pose(
@@ -894,8 +925,9 @@ def _object(
         spec.bearing_deg,
         spec.heading_deg,
         spec.speed_mps,
+        spec.drift,
         radius_m,
-        times_s,
+        outputs,
     )
     return anchor
 
@@ -972,19 +1004,19 @@ def build(scenario: Scenario, band: Band = "eo") -> Built:
     bpy.context.scene.world = _sky(scenario.sky, band)
     reach_m = sea_reach_m(scenario.rig, scenario.sea)
     far_m = 1.5 * reach_m  # the sea's corner is reach * sqrt(2) away
-    times_s = scenario.outputs.times_s
-    _sea(scenario.sea, scenario.seed, reach_m, band, times_s)
+    outputs = scenario.outputs
+    _sea(scenario.sea, scenario.seed, reach_m, band, outputs)
     rig = _rig(scenario.rig, far_m)
     hulls: dict[str, list[bpy.types.Object]] = {}
-    vessel = _ownship(scenario.ownship, band, scenario.sky, rig.root, hulls, times_s)
+    vessel = _ownship(scenario.ownship, band, scenario.sky, rig.root, hulls, outputs)
     radius_m = earth_radius_m(scenario.sea.refraction_k)
     targets: dict[str, list[bpy.types.Object]] = {}
     for spec in scenario.objects:
-        anchor = _object(spec, band, radius_m, scenario.sky, hulls, times_s)
+        anchor = _object(spec, band, radius_m, scenario.sky, hulls, outputs)
         targets.setdefault(spec.asset, []).append(anchor)
     if scenario.targets is not None:
         anchors = _targets(
-            scenario.targets, band, radius_m, scenario.sky, hulls, times_s
+            scenario.targets, band, radius_m, scenario.sky, hulls, outputs
         )
         targets.setdefault(scenario.targets.asset, []).extend(anchors)
     # The object-index pass reads 0 for everything else: sky, sea and ownship.
@@ -1004,8 +1036,8 @@ def build(scenario: Scenario, band: Band = "eo") -> Built:
     # After the last import, which sets fps and fps_base to the file's own. The
     # factory scene starts at frame 1.
     sc.frame_start = sc.frame_current = 0
-    sc.frame_end = len(times_s) - 1
-    sc.render.fps, sc.render.fps_base = scenario.outputs.fps, 1.0
+    sc.frame_end = len(outputs.times_s) - 1
+    sc.render.fps, sc.render.fps_base = outputs.fps, 1.0
     # Until the depsgraph runs, every child still reports its pre-parenting
     # matrix_world, so anything measuring the scene reads the wrong place.
     bpy.context.view_layer.update()
