@@ -90,6 +90,9 @@ These produce wrong output with no error. They are the reason this file exists.
   the device once before the first render: switching mid-process pays Metal kernel
   compilation and the render comes out three times slower.
 - **An FBX import sets the scene's fps to the file's own**, even with `use_anim=False`, and a fractional rate lands in `fps_base`: 29.97 is fps 30 over 1.001. Anything that sets the timeline has to run after the last import, and set both.
+- **The sequencer tones its strips through the scene's view transform.** The factory AgX takes a png's white to about 195. `Standard` passes a picture through.
+- **A missing strip frame encodes as black**, in silence. Check the files exist first.
+- **A movie `render.filepath` without an extension gets the frame range appended**: `cam` is written as `cam0001-0300.mp4`.
 - **The Sky Texture's `turbidity` does nothing under the scattering models.** It belongs to Preetham and Hosek-Wilkie. Haze there is `aerosol_density`. Setting the wrong one is accepted in silence and changes no pixel, which was verified by rendering both.
 
 ## Conventions
