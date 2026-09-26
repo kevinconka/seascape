@@ -6,7 +6,7 @@ from pathlib import Path
 import cv2
 import numpy as np
 
-# A FLIR Boson's radiometric (TLinear) output in high gain: kelvin x 100.
+# The unit radiometric thermal cameras write, so real and rendered frames read alike.
 CENTIKELVIN = 100
 # A display choice, not physics: slow enough not to flash when a hot target enters,
 # fast enough to follow it.
