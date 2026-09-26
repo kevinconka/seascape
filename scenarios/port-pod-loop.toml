@@ -23,7 +23,6 @@ range_m = 7408.0
 bearing_deg = 10.0
 heading_deg = 280.0
 
-# Two share the lap, so each covers half of it per loop.
 [[objects]]
 asset = "yacht"
 range_m = 200.0

@@ -246,8 +246,7 @@ class Orbit(Model):
     """Round the ownship's origin clockwise from the hull's bearing, at its range, bow
     along the circle.
 
-    Identical hulls share the lap evenly, so in a loop each need only reach the next
-    one's start: `count` of them go `count` times slower.
+    Identical hulls share the lap evenly, so a loop need only last `period_s / count`.
     """
 
     period_s: float = Field(gt=0.0, description="One full lap.")

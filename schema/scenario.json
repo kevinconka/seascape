@@ -211,7 +211,7 @@
     },
     "Orbit": {
       "additionalProperties": false,
-      "description": "Round the ownship's origin clockwise from the hull's bearing, at its range, bow\nalong the circle.\n\nIdentical hulls share the lap evenly, so in a loop each need only reach the next\none's start: `count` of them go `count` times slower.",
+      "description": "Round the ownship's origin clockwise from the hull's bearing, at its range, bow\nalong the circle.\n\nIdentical hulls share the lap evenly, so a loop need only last `period_s / count`.",
       "properties": {
         "period_s": {
           "description": "One full lap.",

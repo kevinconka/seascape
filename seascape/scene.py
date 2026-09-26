@@ -881,8 +881,6 @@ def _orbit(
     radius_m: float,
     times_s: Sequence[float],
 ) -> None:
-    """Round the ownship's origin clockwise from a bearing, bow along the circle."""
-
     def bearing_at_deg(t_s: float) -> float:
         return bearing_deg + 360.0 * t_s / lap_s
 
@@ -965,7 +963,6 @@ def _object(
         )
         return [anchor]
     anchors = [anchor, *(_copy_tree(anchor, None) for _ in range(orbit.count - 1))]
-    # Each hull rounds its share of the lap to the loop.
     lap_s = orbit.count * outputs.period_s(orbit.period_s / orbit.count)
     for i, hull in enumerate(anchors):
         bearing_deg = spec.bearing_deg + 360.0 * i / orbit.count
