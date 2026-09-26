@@ -221,3 +221,7 @@ __marimo__/
 #   .blend files are build artifacts; `seascape build` regenerates them.
 *.blend
 *.blend[0-9]*
+
+# Renders
+#   Where the README's commands write; frames and videos are not source.
+/out/
