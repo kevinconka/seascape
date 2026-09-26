@@ -193,7 +193,7 @@ def render(scenario: Scenario, into: Path) -> list[Path]:
                     truth.add(
                         camera, time_s, np.rint(index).astype(int), targets, radius_m
                     )
-                # Every frame, so a render that dies keeps the truth of what it wrote.
+                # Every frame, so a render that dies keeps what it wrote.
                 Calibration(cameras=cameras).write(into)
                 truth.write(into)
             for frames in exrs.values():

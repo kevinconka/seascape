@@ -175,7 +175,7 @@ class TestSettings:
 
         assert sc.render.image_settings.color_depth == "32"
 
-    @pytest.mark.parametrize("band", ["eo", "ir"])
+    @pytest.mark.parametrize("band", get_args(Band.__value__))
     def test_no_band_is_denoised(self, band: Band) -> None:
         sc = built(band)
 
@@ -351,7 +351,7 @@ def test_a_render_that_dies_keeps_the_truth_of_every_frame_it_wrote(
     real, calls = bpy.ops.render.render, []
 
     def dies_on_the_third(**kwargs: object) -> None:
-        calls.append(kwargs)
+        calls.append(None)
         if len(calls) == 3:
             raise RuntimeError("killed")
         real(**kwargs)
