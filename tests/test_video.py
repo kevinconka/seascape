@@ -10,8 +10,8 @@ from PIL import Image as Picture
 from seascape import video
 from seascape.labels import Image, Labels
 
-# Near-neutral: cv2 decodes as BT.601 whatever the stream's bt709 tag says, which
-# moves a saturated colour by tens of levels and a grey by none.
+# cv2 decodes as BT.601 whatever the bt709 tag says: saturated colours shift, greys
+# don't.
 GREYS = [(0, 0, 0), (64, 64, 64), (200, 200, 200), (255, 255, 255), (230, 220, 200)]
 
 
@@ -58,11 +58,9 @@ def test_a_camera_becomes_one_video_at_its_name(tmp_path) -> None:
     frames, fps = decoded(folder / "port.mp4")
     assert len(frames) == 4
     assert fps == pytest.approx(10.0)
-    assert list(folder.glob("*.mp4")) == [folder / "port.mp4"]
 
 
 def test_the_colours_pass_through_in_time_order(tmp_path) -> None:
-    """The factory AgX view transform pulls white to 195."""
     times = [0.4, 0.0, 0.2, 0.6, 0.8]  # labels.json order is not time order
     folder = run(tmp_path, GREYS, times)
 

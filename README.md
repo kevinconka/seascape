@@ -85,7 +85,7 @@ uv run seascape render scenarios/underway.toml -o out/   # out/<camera>/0000.png
 uv run seascape video out/                               # out/<camera>.mp4
 ```
 
-Every frame has its own entry in `calibration.json` and `labels.json`, stamped with `time_s`. `seascape video` paces the frames by it, so a clip re-encodes without re-rendering. The `.blend` from `seascape build` carries the motion as keyframes: scrub Blender's timeline to see it. `montage` and `panorama` take stills.
+Every frame has its own entry in `calibration.json` and `labels.json`, stamped with `time_s`. `seascape video` paces the frames by it, so a clip re-encodes without re-rendering. The `.blend` from `seascape build` carries the motion as keyframes. `montage` and `panorama` take stills.
 
 ## Outputs
 

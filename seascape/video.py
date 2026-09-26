@@ -1,9 +1,4 @@
-"""One H.264 video per camera, from a render's frames in the order labels.json
-times them.
-
-Blender's sequencer encodes. The frames are pictures already, so the scene's colour
-management passes them through untouched.
-"""
+"""One H.264 video per camera, its frames in the order labels.json times them."""
 
 import math
 from itertools import pairwise
@@ -15,7 +10,6 @@ from seascape.labels import FILENAME, Image, Labels
 
 
 def encode(run: Path) -> list[Path]:
-    """Write `<camera>.mp4` into `run` for every camera its labels.json lists."""
     run = run.resolve()
     images = Labels.model_validate_json((run / FILENAME).read_text()).images
     cameras: dict[str, list[Image]] = {}
@@ -43,13 +37,12 @@ def _encode(run: Path, camera: str, frames: list[Image]) -> Path:
     strip = sc.sequence_editor_create().strips.new_image(camera, str(paths[0]), 1, 1)
     for path in paths[1:]:
         strip.elements.append(str(path.relative_to(paths[0].parent)))
-    sc.frame_start, sc.frame_end = 1, len(paths)
+    sc.frame_end = len(paths)
     r = sc.render
     r.resolution_x, r.resolution_y = frames[0].width, frames[0].height
-    r.resolution_percentage = 100
     r.fps, r.fps_base = 1, step
-    # The factory AgX would tone the pngs a second time.
-    sc.view_settings.view_transform, sc.view_settings.look = "Standard", "None"
+    # The factory AgX would tone the frames a second time.
+    sc.view_settings.view_transform = "Standard"
     r.image_settings.media_type = "VIDEO"
     r.ffmpeg.format, r.ffmpeg.codec = "MPEG4", "H264"
     r.ffmpeg.constant_rate_factor = "PERC_LOSSLESS"
