@@ -15,7 +15,11 @@ select = [
     "PTH", # flake8-use-pathlib
     "RUF", # ruff-specific rules
     "C90", # mccabe
-    "PLR09", # pylint: too many returns, branches, arguments, statements
+    "PL",  # pylint
+]
+ignore = [
+    "PLC0415", # imports deferred so `schema` and `--help` skip loading bpy
+    "PLR2004", # literals sit beside the source they cite
 ]
 
 [lint.pylint]
