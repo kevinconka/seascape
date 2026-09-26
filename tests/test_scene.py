@@ -4,6 +4,7 @@ Blender is one global session, so each class rebuilds in its own band on entry.
 """
 
 import math
+from collections.abc import Iterator
 from pathlib import Path
 
 import bpy
@@ -94,6 +95,8 @@ def test_published_values_have_not_drifted() -> None:
     assert scene.horizon_m(51.8, 0.13) == pytest.approx(rule_m, rel=0.01)
     # Pierson-Moskowitz: a fully developed sea at 7 m/s peaks near 41 m.
     assert scene.wave_length_m(7.0) == pytest.approx(40.8, abs=0.2)
+    # Its peak frequency, 0.877 g / U, as a period.
+    assert scene.wave_period_s(7.0) == pytest.approx(2 * math.pi * 7.0 / (0.877 * 9.81))
     # Minimum phase speed of a surface wave, where surface tension takes over.
     assert abs(scene.CAPILLARY_WAVELENGTH_M - 0.0173) < 1e-4
     # Masuda 1988 at this wind speed: near nadir, and at 80 deg where roughness has
@@ -676,3 +679,43 @@ class TestOwnshipMotion:
         built = scene.build(load(BASELINE, [f"outputs.duration_s = {duration_s}"]))
 
         assert built.vessel.animation_data is None
+
+
+def _wave_offset() -> bpy.types.ShaderNode:
+    nodes = bpy.data.materials["sea"].node_tree.nodes
+    return next(n for n in nodes if getattr(n, "operation", "") == "MULTIPLY_ADD")
+
+
+class TestSeaEvolves:
+    SEQUENCE = load(BASELINE, ["outputs.duration_s = 0.3"])
+
+    def _frames(self) -> Iterator[bpy.types.ShaderNode]:
+        """Yields the same node each frame; read it before advancing."""
+        sc = bpy.context.scene
+        for frame in range(sc.frame_start, sc.frame_end + 1):
+            sc.frame_set(frame)
+            yield _wave_offset()
+
+    @pytest.mark.parametrize("band", ["eo", "ir"])
+    def test_the_phase_advances_a_unit_per_dominant_period(self, band) -> None:
+        scene.build(self.SEQUENCE, band)
+        phases = [o.inputs["Vector_002"].default_value[2] for o in self._frames()]
+        period_s = scene.wave_period_s(self.SEQUENCE.sea.wind_speed_mps)
+        step = 1 / (self.SEQUENCE.outputs.fps * period_s)
+        assert len(phases) == 3
+        assert list(np.diff(phases)) == pytest.approx([step, step], rel=1e-4)
+
+    def test_a_still_keeps_the_seed_phase_unkeyed(self) -> None:
+        scene.build(SCENARIO, "eo")
+        seed_phase = scene._substream(SCENARIO.seed, "sea/surface").random() * 1e3
+        z = _wave_offset().inputs["Vector_002"].default_value[2]
+        assert z == pytest.approx(seed_phase)
+        assert bpy.data.materials["sea"].node_tree.animation_data is None
+
+    def test_the_wave_field_does_not_slide(self) -> None:
+        scene.build(self.SEQUENCE, "eo")
+        per_m = 1 / scene.wave_length_m(self.SEQUENCE.sea.wind_speed_mps)
+        for offset in self._frames():
+            scale = tuple(offset.inputs["Vector_001"].default_value)
+            assert scale == pytest.approx((per_m, per_m, 0.0))
+            assert tuple(offset.inputs["Vector_002"].default_value[:2]) == (0.0, 0.0)
