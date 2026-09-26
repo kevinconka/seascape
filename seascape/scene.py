@@ -93,7 +93,6 @@ def wave_length_m(wind_speed_mps: float) -> float:
 
 
 def wave_period_s(wind_speed_mps: float) -> float:
-    """Period of the dominant wave, from deep-water dispersion."""
     return math.sqrt(2 * math.pi * wave_length_m(wind_speed_mps) / GRAVITY_MS2)
 
 
@@ -385,8 +384,8 @@ def _wave_normals(
     """
     length_m = wave_length_m(sea.wind_speed_mps)
     # z multiplier 0: seed and time own that axis, so the sea curving under it cannot
-    # slide the wave field. The noise is isotropic, so a unit of z decorrelates it as
-    # much as a wavelength of x: time advances z a unit per dominant period.
+    # slide the wave field. A unit of z decorrelates the isotropic noise as a wavelength
+    # of x does, so time advances z a unit per dominant period.
     # Vector Math names all three inputs "Vector"; identifiers tell them apart.
     scale = tree.nodes.new("ShaderNodeVectorMath")
     scale.operation = "MULTIPLY_ADD"
@@ -441,8 +440,7 @@ def _incidence_lookup(
 
     link = tree.links.new
     link(geometry.outputs["Incoming"], dot.inputs[0])
-    # Vector Math names both inputs "Vector", so the second one can only be indexed.
-    link(normal, dot.inputs[1])
+    link(normal, dot.inputs["Vector_001"])
     link(dot.outputs["Value"], facing.inputs[0])
     link(facing.outputs["Value"], lookup.inputs["X"])
     link(lookup.outputs["Vector"], texture.inputs["Vector"])
@@ -499,8 +497,7 @@ def _water_material(
     principled.inputs["Base Color"].default_value = (0.004, 0.02, 0.035, 1.0)
     principled.inputs["Roughness"].default_value = 0.05
     principled.inputs["IOR"].default_value = 1.33
-    normal = _wave_normals(tree, sea, seed, times_s)
-    tree.links.new(normal, principled.inputs["Normal"])
+    tree.links.new(_wave_normals(tree, sea, seed, times_s), principled.inputs["Normal"])
     return material
 
 

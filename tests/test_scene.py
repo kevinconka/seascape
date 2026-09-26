@@ -682,7 +682,6 @@ class TestOwnshipMotion:
 
 
 def _wave_offset() -> bpy.types.ShaderNode:
-    """The node that turns world position into noise coordinates."""
     nodes = bpy.data.materials["sea"].node_tree.nodes
     return next(n for n in nodes if getattr(n, "operation", "") == "MULTIPLY_ADD")
 
@@ -691,7 +690,7 @@ class TestSeaEvolves:
     SEQUENCE = load(BASELINE, ["outputs.duration_s = 0.3"])
 
     def _frames(self) -> Iterator[bpy.types.ShaderNode]:
-        """The offset node, set to each frame in turn. Read it before the next."""
+        """Yields the same node each frame; read it before advancing."""
         sc = bpy.context.scene
         for frame in range(sc.frame_start, sc.frame_end + 1):
             sc.frame_set(frame)
