@@ -607,7 +607,12 @@ class TestAnimate:
     def test_every_frame_holds_the_value_at_its_time(self, empty) -> None:
         sc = bpy.context.scene
         scene._animate(empty, "location", [0.0, 0.1, 0.2], lambda t: 10 * t, index=0)
-        assert (sc.frame_start, sc.frame_end, sc.render.fps) == (0, 2, 10)
+        assert (sc.frame_start, sc.frame_end, sc.render.fps, sc.render.fps_base) == (
+            0,
+            2,
+            10,
+            1.0,
+        )
         for frame, x in enumerate([0.0, 1.0, 2.0]):
             sc.frame_set(frame)
             assert empty.matrix_world.translation.x == pytest.approx(x)

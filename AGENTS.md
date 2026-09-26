@@ -89,7 +89,7 @@ These produce wrong output with no error. They are the reason this file exists.
   about the same speed. `denoising_use_gpu` changes nothing measurable at 4K. Configure
   the device once before the first render: switching mid-process pays Metal kernel
   compilation and the render comes out three times slower.
-- **An FBX import sets the scene's fps to the file's own**, even with `use_anim=False`. Anything that sets the timeline has to run after the last import.
+- **An FBX import sets the scene's fps to the file's own**, even with `use_anim=False`, and a fractional rate lands in `fps_base`: 29.97 is fps 30 over 1.001. Anything that sets the timeline has to run after the last import, and set both.
 - **The Sky Texture's `turbidity` does nothing under the scattering models.** It belongs to Preetham and Hosek-Wilkie. Haze there is `aerosol_density`. Setting the wrong one is accepted in silence and changes no pixel, which was verified by rendering both.
 
 ## Conventions

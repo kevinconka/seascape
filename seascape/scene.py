@@ -936,11 +936,11 @@ def build(scenario: Scenario, band: Band = "eo") -> Built:
         first.camera.height_px,
     )
     _viewport(scenario.rig.near_clip_m, far_m)
-    # After the last import, which sets fps to the file's own. The factory scene
-    # starts at frame 1.
+    # After the last import, which sets fps and fps_base to the file's own. The
+    # factory scene starts at frame 1.
     sc.frame_start = sc.frame_current = 0
     sc.frame_end = len(scenario.outputs.times_s) - 1
-    sc.render.fps = scenario.outputs.fps
+    sc.render.fps, sc.render.fps_base = scenario.outputs.fps, 1.0
     # Until the depsgraph runs, every child still reports its pre-parenting
     # matrix_world, so anything measuring the scene reads the wrong place.
     bpy.context.view_layer.update()
