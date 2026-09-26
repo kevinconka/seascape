@@ -39,17 +39,16 @@ def _temperatures_k(exr: Path) -> np.ndarray:
 
 
 def _thermal_pngs(exrs: Sequence[Path]) -> None:
-    """Rewrite float LWIR renders as 8-bit grey pngs beside them, over one span, and
-    delete the exrs.
+    """Rewrite float LWIR renders as 8-bit grey pngs beside them, and delete the
+    exrs.
 
-    One span for all, so a sequence does not flicker as its hottest pixel comes and
-    goes.
+    One span for all, so a sequence does not flicker.
     """
     # Full span: a target is a small fraction of the frame, and trimming the tails
     # flattens it to white. Read twice rather than held: a sequence outgrows memory.
     spans = [(t_k.min(), t_k.max()) for t_k in map(_temperatures_k, exrs)]
     low, high = min(s[0] for s in spans), max(s[1] for s in spans)
-    # A frame of one temperature has no contrast to stretch; mid-grey, not NaN.
+    # One temperature throughout has no contrast to stretch; mid-grey, not NaN.
     if high - low < 1e-6:
         low, high = low - 0.5, low + 0.5
     for exr in exrs:
@@ -70,8 +69,7 @@ def _thermal_pngs(exrs: Sequence[Path]) -> None:
             out.save()
         finally:
             bpy.data.images.remove(out)
-    # The exrs survive a failure, so the conversion can be retried without
-    # re-rendering.
+    # Last, so a failure keeps every exr for a retry without re-rendering.
     for exr in exrs:
         exr.unlink()
 
@@ -172,7 +170,7 @@ def render(scenario: Scenario, into: Path) -> list[Path]:
             exrs: dict[str, list[Path]] = {}
             for frame, time_s in enumerate(outputs.times_s):
                 sc.frame_set(frame)
-                # Per frame: both read matrix_world, which moves with the frame.
+                # Both read matrix_world, which moves with the frame.
                 targets = _targets(built)
                 for mount in mounts:
                     sc.camera = built.cameras[mount.name]

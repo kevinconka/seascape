@@ -2,23 +2,11 @@
 
 extends = "baseline.toml"
 
-[ownship.roll]
-amplitude_deg = 3.0
-period_s = 9.0
-
-[ownship.pitch]
-amplitude_deg = 1.0
-period_s = 7.0
-
-[ownship.heave]
-amplitude_m = 0.5
-period_s = 8.0
-
 [[objects]]
 preset = "container_ship"
 range_m = 2000.0
 bearing_deg = 8.0
-# Crossing the bow to port, inside both frames throughout.
+# Crossing the bow to port.
 heading_deg = 270.0
 speed_mps = 6.0
 

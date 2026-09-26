@@ -104,7 +104,6 @@ class TestThermalPng:
         assert not exr.exists()
 
     def test_a_sequence_shares_one_span(self, tmp_path: Path) -> None:
-        """A span per frame flickers as the hottest pixel comes and goes."""
         from seascape import lwir
 
         cold, warm = (
@@ -292,8 +291,7 @@ def test_each_box_holds_its_hull_centre_through_the_calibration(
 
 @pytest.mark.render
 def test_a_sequence_writes_each_camera_a_folder_of_frames(tmp_path: Path) -> None:
-    """Tiny frames a second apart, the ship fast enough to cross pixels between
-    them."""
+    """Fast enough that the ship crosses pixels between frames."""
     scenario = load(
         UNDERWAY,
         [

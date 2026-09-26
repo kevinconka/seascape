@@ -79,8 +79,8 @@ class Labels(Model):
         targets: Sequence[Target],
         radius_m: float,
     ) -> None:
-        """One frame, `time_s` into the scenario: `index` is its object-index pass,
-        (height, width), top row first."""
+        """One frame: `index` is its object-index pass, (height, width), top row
+        first."""
         image = Image(
             id=len(self.images) + 1,
             file_name=camera.image,

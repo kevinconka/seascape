@@ -105,6 +105,13 @@
           "title": "Heading Deg",
           "type": "number"
         },
+        "speed_mps": {
+          "default": 0.0,
+          "description": "Along its heading.",
+          "minimum": 0.0,
+          "title": "Speed Mps",
+          "type": "number"
+        },
         "t_k": {
           "default": 293.0,
           "description": "Shaded hull temperature. IR only.",
@@ -458,6 +465,13 @@
           ],
           "title": "Heading Deg",
           "type": "array"
+        },
+        "speed_mps": {
+          "default": 0.0,
+          "description": "Along its heading.",
+          "minimum": 0.0,
+          "title": "Speed Mps",
+          "type": "number"
         },
         "t_k": {
           "default": 293.0,

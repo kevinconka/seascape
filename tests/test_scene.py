@@ -625,8 +625,6 @@ class TestAnimate:
 
 
 def test_a_target_underway_runs_along_its_heading_on_the_curved_sea() -> None:
-    """At t = 0 it sits where a still would; the run from there is speed times time,
-    along the heading."""
     scenario = load(UNDERWAY, ["outputs.duration_s = 0.3"])
     (spec,) = scenario.objects
     radius = scene.earth_radius_m(scenario.sea.refraction_k)
