@@ -14,7 +14,12 @@ select = [
     "SIM", # flake8-simplify
     "PTH", # flake8-use-pathlib
     "RUF", # ruff-specific rules
+    "C90", # mccabe
+    "PLR09", # pylint: too many returns, branches, arguments, statements
 ]
+
+[lint.pylint]
+max-args = 8
 
 [format]
 docstring-code-format = true
